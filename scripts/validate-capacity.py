@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Real disposable HTTP capacity exercise using decodable PCM WAV files.
 
-This validates a local image; it does not establish public Worker acceptance.
+Use an image for local checks or --public with a private operation directory.
+Public checks require a ready, fresh fictional environment. Explicit activity
+controls, if used during filling, must be recorded separately from idle tests.
 """
 from concurrent.futures import ThreadPoolExecutor
 import io

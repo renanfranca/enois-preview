@@ -34,7 +34,7 @@ def validate(config):
         raise PreviewError('Configure the launcher publication branch.')
     if not isinstance(config.get('origin'),str): raise PreviewError('Configure the public HTTPS Worker origin.')
     origin = urlsplit(config['origin'])
-    if origin.scheme != 'https' or not origin.hostname or origin.path not in ('', '/') or origin.query or origin.fragment or origin.username or not re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?', origin.hostname):
+    if origin.scheme != 'https' or not origin.hostname or origin.path not in ('', '/') or origin.query or origin.fragment or origin.username is not None or origin.password is not None or not re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?', origin.hostname):
         raise PreviewError('Configure the public HTTPS Worker origin without a path.')
     if origin.port is not None and not 1 <= origin.port <= 65535:
         raise PreviewError('Invalid public Worker port.')

@@ -29,6 +29,15 @@ class InstallationTests(unittest.TestCase):
     def test_initial_noninteractive_setup_cannot_assume_confirmation(self):
         self.assertEqual(self.invoke(False),(1,0))
         self.assertFalse((self.home/'config.json').exists())
+
+    def test_an_origin_with_empty_username_and_a_password_is_refused_without_disclosure(self):
+        self.config['origin']='https://:synthetic-private-password@preview.example.invalid'
+        write(self.source,self.config)
+        with patch('preview.cli.prerequisites') as remote,patch('sys.stdout',new_callable=io.StringIO),patch('sys.stderr',new_callable=io.StringIO) as output:
+            self.assertEqual(main(['--home',str(self.home),'setup','--config',str(self.source)]),1)
+        self.assertNotIn('synthetic-private-password',output.getvalue())
+        remote.assert_not_called()
+        self.assertFalse((self.home/'config.json').exists())
     def test_declining_initial_setup_preserves_existing_inputs(self):
         before=self.source.read_bytes()
         self.assertEqual(self.invoke(True,'no'),(1,1))

@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import { validateScenario } from '../src/catalog.mjs';
+const [slug, launcherCommit] = process.argv.slice(2);
+if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug ?? '') || !/^[a-f0-9]{40}$/.test(launcherCommit ?? '')) throw new Error('Usage: node scripts/pin-scenario.mjs SLUG LAUNCHER_COMMIT_SHA');
+const item = { ...JSON.parse(fs.readFileSync(`.devcontainer/${slug}/scenario.json`)), launcherCommit };
+validateScenario(slug, item, item.repository);
+const file = 'catalog/scenarios.json';
+const catalog = JSON.parse(fs.readFileSync(file));
+if (Object.hasOwn(catalog, slug)) throw new Error('Never replace a published scenario; choose a new slug');
+catalog[slug] = item;
+fs.writeFileSync(file, JSON.stringify(catalog, null, 2) + '\n');
+console.log('Immutable scenario pinned. Commit the catalog before deployment.');

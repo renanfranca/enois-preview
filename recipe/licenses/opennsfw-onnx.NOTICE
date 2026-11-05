@@ -1,0 +1,15 @@
+opennsfw-onnx
+Copyright 2026 Gustavo Gawryszewski
+
+This product includes and builds upon the following third-party work:
+
+- Yahoo "open_nsfw" model (https://github.com/yahoo/open_nsfw), licensed under
+  the BSD 2-Clause License, Copyright (c) 2016 Yahoo Inc. The bundled ONNX weight
+  file (open-nsfw.onnx) is derived from this model. See
+  THIRD_PARTY_LICENSES/open_nsfw-BSD-2-Clause.txt.
+
+- "opennsfw-standalone" by Sector Labs
+  (https://pypi.org/project/opennsfw-standalone/), licensed under the MIT License,
+  Copyright (c) 2017 Sector Labs. This project's image-preprocessing pipeline and
+  its backwards-compatible API (opennsfw_onnx.compat) are derived from that work.
+  See THIRD_PARTY_LICENSES/opennsfw-standalone-MIT.txt.

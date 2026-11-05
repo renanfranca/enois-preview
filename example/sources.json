@@ -1,0 +1,5 @@
+{
+  "enois-backend": {"url":"https://github.com/Rede-ENois/enois-backend.git","commit":"c6a6d3bef437a3b9d1f4fff3aecb2d504ce0306c"},
+  "enois-frontend": {"url":"https://github.com/Rede-ENois/enois-frontend.git","commit":"c21edb9d3e27dfee83bde0ece4c9d57b4b91fa51"},
+  "enois-design-system": {"url":"https://github.com/Rede-ENois/enois-design-system.git","commit":"e18fa879ae560e5bb279e1a13ace18e7fd5c971b"}
+}

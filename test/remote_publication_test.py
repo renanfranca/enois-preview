@@ -201,3 +201,33 @@ class RemotePublicationTests(unittest.TestCase):
         with patch.object(publisher,'registry_digest',return_value=None),patch('preview.remote.run') as commands:
             with self.assertRaisesRegex(PreviewError,'unresolved'):publisher.registry()
             commands.assert_not_called()
+
+    def test_a_catalog_advance_before_deployment_remains_resumable_and_preserves_both_revisions(self):
+        publisher=self.publisher('a');publisher.configuration();publisher.catalog()
+        other=self.publisher('b');state={'advanced':False,'deploys':0}
+        original=self.command
+        def commands(args,**options):
+            values=[str(x) for x in args]
+            if values==['npm','run','check'] and not state['advanced']:
+                state['advanced']=True;other.configuration();other.catalog()
+                return b''
+            if values[:4]==['npx','--no-install','wrangler','deploy']:
+                catalog=read(publisher.checkout/'catalog/scenarios.json')
+                self.assertEqual(set(catalog),{publisher.journal['slug'],other.journal['slug']})
+                state['deploys']+=1;return b'{}'
+            if values[:5]==['npx','--no-install','wrangler','deployments','list']:
+                return json.dumps([{'id':'current-catalog-deployment','versions':[],'created_on':'2000-01-01T00:00:00Z'}]).encode()
+            return original(args,**options)
+        class PreviousWorker:
+            def __init__(self,*args):pass
+            def json(self,path):raise PreviewError('Previous catalog remains deployed')
+        with patch('preview.remote.run',side_effect=commands),patch('preview.validation.Session',PreviousWorker):
+            with self.assertRaisesRegex(PreviewError,'advanced'):publisher.deploy()
+            self.assertFalse(publisher.journal['intents']['deployment'].get('attempted',False))
+            self.assertEqual(state['deploys'],0)
+            publisher.deploy()
+        self.assertEqual(state['deploys'],1)
+        self.assertEqual(len(self.catalog_for_assertion()),2)
+
+    def catalog_for_assertion(self):
+        return json.loads(run(['git','-C',self.bare,'show','preview:catalog/scenarios.json']))

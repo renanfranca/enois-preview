@@ -219,9 +219,9 @@ class Publisher:
             intent = self.journal['intents']['deployment']
             if intent.get('attempted'):
                 raise PreviewError('Deployment outcome unresolved; inspect Cloudflare deployments and resume after reconciliation.')
-            intent['attempted'] = True; self.save()
             if self.github.call('git/ref/heads/' + self.config['branch'])['object']['sha'] != current:
                 raise PreviewError('Remote catalog advanced during validation; resume to preserve its additions before deploying.')
+            intent['attempted'] = True; self.save()
             output = run(['npx','--no-install','wrangler','deploy','--tag',self.journal['operation'],'--message',f'enois-preview {self.journal["revision"]} catalog {current}','--strict'],cwd=self.checkout,env=env)
         deployments = json.loads(run(['npx','--no-install','wrangler','deployments','list','--json'],cwd=self.checkout,env=env))
         if not deployments: raise PreviewError('Cloudflare did not confirm a deployment identity.')

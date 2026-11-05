@@ -37,7 +37,7 @@ class CliPublicationTests(unittest.TestCase):
         write(seed/'catalog/scenarios.json',{})
         write(seed/'wrangler.jsonc',{'main':'launcher.mjs','vars':{'GITHUB_REPOSITORY':'fixture/launcher','GITHUB_OWNER':'fixture'}})
         write(seed/'tool.lock.json',{'repository':'renanfranca/enois-preview','commit':'1'*40})
-        write(seed/'package.json',{'devDependencies':{'enois-preview':'git+https://github.com/renanfranca/enois-preview.git#'+'1'*40}})
+        write(seed/'package.json',{'devDependencies':{'enois-preview':'https://codeload.github.com/renanfranca/enois-preview/tar.gz/'+'1'*40}})
         run(['git','-C',seed,'add','.']);run(['git','-C',seed,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture'])
         run(['git','-C',seed,'remote','add','origin',bare]);run(['git','-C',seed,'push','-q','origin','preview'])
         write(self.root/'platform.json',{'builds':{},'images':{},'deployments':{},'validations':{}})

@@ -21,7 +21,7 @@ class PrivateConsumerTests(unittest.TestCase):
             self.assertFalse(result['remoteWrites'])
             package = read(destination / 'package.json')
             self.assertTrue(package['private'])
-            self.assertEqual(package['devDependencies']['enois-preview'], 'git+https://github.com/renanfranca/enois-preview.git#' + commit)
+            self.assertEqual(package['devDependencies']['enois-preview'], 'https://codeload.github.com/renanfranca/enois-preview/tar.gz/' + commit)
             self.assertEqual(read(destination / 'tool.lock.json')['commit'], commit)
             self.assertEqual(read(destination / 'catalog/scenarios.json'), {})
             self.assertEqual(read(destination / 'wrangler.jsonc')['vars']['LAUNCH_ENABLED'], 'false')

@@ -23,7 +23,7 @@ def prepare(destination, repository, tool_commit, worker_name):
         'scripts':{'test':'npm --prefix node_modules/enois-preview test',
                    'check':'wrangler deploy --dry-run',
                    'deploy':'node node_modules/enois-preview/scripts/check-release.mjs && wrangler deploy'},
-        'devDependencies':{**dependencies, 'enois-preview':'git+https://github.com/renanfranca/enois-preview.git#' + tool_commit}}
+        'devDependencies':{**dependencies, 'enois-preview':'https://codeload.github.com/renanfranca/enois-preview/tar.gz/' + tool_commit}}
     write(destination / 'package.json', package)
     write(destination / 'tool.lock.json', {'repository':'renanfranca/enois-preview', 'commit':tool_commit})
     write(destination / 'catalog/scenarios.json', {})

@@ -126,7 +126,7 @@ class Publisher:
         if public_tool:
             lock = read(self.checkout / 'tool.lock.json')
             package = read(self.checkout / 'package.json')
-            expected = 'git+https://github.com/renanfranca/enois-preview.git#' + public_tool
+            expected = 'https://codeload.github.com/renanfranca/enois-preview/tar.gz/' + public_tool
             if (lock != {'repository':'renanfranca/enois-preview', 'commit':public_tool}
                 or package.get('devDependencies',{}).get('enois-preview') != expected
                 or worker['main'] != 'launcher.mjs'):

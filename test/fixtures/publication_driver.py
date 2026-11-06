@@ -69,7 +69,7 @@ def validate(self):
     self.complete('publicValidation',result)
     return result
 
-with patch('preview.publication.tool_commit',return_value='1'*40), \
+with patch('preview.publication.tool_commit',side_effect=lambda config:config.get('toolCommit')), \
      patch('preview.remote.run',side_effect=command), \
      patch('preview.remote.GitHub',side_effect=lambda repo:GitHubFixture(fixture/'remote.git')), \
      patch.object(Publisher,'build_and_validate',build), \

@@ -63,6 +63,29 @@ class CliPublicationTests(unittest.TestCase):
         self.assertEqual(len(self.catalog()),2)
         self.assertEqual(len(read(self.root/'platform.json')['images']),2)
 
+    def test_corrective_executor_resumes_the_original_cli_revision_after_upgrading_the_private_consumer(self):
+        old='e958990b0240546b8f03d4d39246cd9959576d0e';new='2'*40
+        def consumer_pin(commit,label):
+            checkout=self.root/label
+            run(['git','clone','-q','--branch','preview',self.root/'remote.git',checkout])
+            write(checkout/'tool.lock.json',{'repository':'renanfranca/enois-preview','commit':commit})
+            write(checkout/'package.json',{'devDependencies':{'enois-preview':'https://codeload.github.com/renanfranca/enois-preview/tar.gz/'+commit}})
+            run(['git','-C',checkout,'add','.']);run(['git','-C',checkout,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Pin reviewed executor'])
+            run(['git','-C',checkout,'push','-q','origin','preview'])
+        self.config['toolCommit']=old;write(self.home/'config.json',self.config);consumer_pin(old,'old-consumer')
+        (self.root/'fail-once').write_text('configuration')
+        first=self.cli('publish','one');self.assertEqual(first.returncode,1)
+        file=next((self.state/'operations').glob('*/journal.json'));original=read(file)
+        self.config['toolCommit']=new;write(self.home/'config.json',self.config);consumer_pin(new,'corrected-consumer')
+        for repo in self.config['repositories'].values():shutil.rmtree(repo)
+        shutil.rmtree(self.state/'data')
+        resumed=self.cli('resume',original['revision']);self.assertEqual(resumed.returncode,0,resumed.stderr)
+        report=json.loads(resumed.stdout);final=read(file)
+        self.assertEqual(final['inputs'],original['inputs'])
+        self.assertEqual(report['revision'],original['revision']);self.assertEqual(report['toolCommit'],old);self.assertEqual(report['executorToolCommit'],new)
+        self.assertEqual(len(self.catalog()),1);state=read(self.root/'platform.json')
+        self.assertEqual(state['builds'],{original['revision']:1});self.assertEqual(len(state['images']),1)
+
     def test_cli_resume_reconciles_each_lost_ack_after_live_sources_are_removed(self):
         # Each subcase owns separate fixtures so an earlier recovery cannot mask
         # a later stage. These are platform simulations, not live provider proof.

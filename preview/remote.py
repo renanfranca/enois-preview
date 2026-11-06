@@ -132,7 +132,7 @@ class Publisher:
         worker = read(self.checkout / 'wrangler.jsonc')
         if worker['vars']['GITHUB_REPOSITORY'] != self.config['repository'] or worker['vars']['GITHUB_OWNER'] != self.config['repository'].split('/')[0]:
             raise PreviewError('Private launcher configuration does not match the installation.')
-        public_tool = self.journal['inputs'].get('toolCommit')
+        public_tool = self.config.get('toolCommit')
         if public_tool:
             lock = read(self.checkout / 'tool.lock.json')
             package = read(self.checkout / 'package.json')
@@ -140,7 +140,7 @@ class Publisher:
             if (lock != {'repository':'renanfranca/enois-preview', 'commit':public_tool}
                 or package.get('devDependencies',{}).get('enois-preview') != expected
                 or worker['main'] != 'launcher.mjs'):
-                raise PreviewError('Private launcher tool pin differs from the revision. Complete its reviewed tool upgrade before publication.')
+                raise PreviewError('Private launcher tool pin differs from the current executor. Complete its reviewed tool upgrade before publication or recovery.')
         return run(['git','-C',self.checkout,'rev-parse','HEAD']).decode().strip()
     def commit_push(self, paths, message, stage):
         run(['git','-C',self.checkout,'add','--',*paths])

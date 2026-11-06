@@ -71,6 +71,11 @@ login = text[start:end]
 login = login.replace('<form method="post" onSubmit={submit}', '<form method="post" data-demo-ready={demoReady} aria-busy={!demoReady} onSubmit={submit}')
 login = login.replace('disabled={loading}', 'disabled={loading || !demoReady}')
 auth.write_text(text[:start] + login + text[end:])
+# The legacy fixture models a browser without Web Locks. Node also exposes a
+# process-wide navigator.locks; do not let it coordinate unrelated test workers.
+replace(frontend / 'src/lib/api-client.legacy.test.ts',
+    '    vi.stubGlobal("document", { addEventListener: vi.fn() });',
+    '    vi.stubGlobal("document", { addEventListener: vi.fn() });\n    vi.stubGlobal("navigator", {});')
 # Human interaction is recorded in the demo gateway HTML injection, with no source UI changes.
 accounts = json.loads((root / 'data/seed/accounts.json').read_text())
 (root / 'data/seed/accounts.tsv').write_text(''.join(f'{a["id"]}\t{a["email"]}\t{base64.b64encode(a["label"].encode()).decode()}\n' for a in accounts))

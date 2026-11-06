@@ -3,6 +3,7 @@ import json
 import re
 import struct
 import time
+import uuid
 import zlib
 from .validation import Session
 from .state import PreviewError, write
@@ -31,6 +32,7 @@ def png(size=None):
     return result
 
 def exercise(settings):
+    fixture=uuid.uuid4().hex
     origin=settings['origin'];slug=settings.get('slug');local=settings.get('local',False)
     accounts=settings['credentials']['accounts']
     require(all(account['id'].startswith('example_') for account in accounts),'This exercise requires the fictional example identities')
@@ -40,7 +42,7 @@ def exercise(settings):
     saved=author.json('/api/blogs/me',{'title':'Oficina de ideias','description':'Blog fictício de teste','themeHtml':''},method='PUT')
     blog=saved['slug']
     reader.json('/api/blogs/'+blog+'/subscription',{},method='POST')
-    article=author.json('/api/blogs/me/posts',{'title':'Uma ideia compartilhada','body':'Aprender e criar em comunidade.','format':'MARKDOWN'})['id']
+    article=author.json('/api/blogs/me/posts',{'title':'Uma ideia compartilhada '+fixture[:8],'body':'Aprender e criar em comunidade. Ensaio fictício '+fixture+'.','format':'MARKDOWN'})['id']
     ids=lambda tab:[item['id'] for item in reader.json('/api/feed?tab='+tab+'&limit=20')['items']]
     require(article in ids('FOR_YOU'),'Subscriber did not receive the published article')
     require(article not in ids('ALL'),'Blog article appeared in the ALL tab')
@@ -68,7 +70,7 @@ def exercise(settings):
     author.request(upload['uploadUrl'],method='PUT',raw=raw,content_type='image/png')
     status,mime,stored=author.request(upload['cdnUrl'])
     require(status==200 and mime.startswith('image/png') and stored.startswith(b'\x89PNG'),'Public disposable media read failed')
-    post=author.json('/api/feed/posts',{'type':'INSIGHT','content':'Uma imagem para compartilhar.','topic':'TECNOLOGIA','mediaIds':[upload['id']]})['id']
+    post=author.json('/api/feed/posts',{'type':'INSIGHT','content':'Uma imagem para compartilhar. Ensaio fictício '+fixture+'.','topic':'TECNOLOGIA','mediaIds':[upload['id']]})['id']
     published=author.json('/api/feed/posts/'+post)
     require(published.get('id')==post and upload['id'] in json.dumps(published),'Uploaded media was not attached to a persisted post')
     author.json('/api/media/'+upload['id'],method='DELETE')

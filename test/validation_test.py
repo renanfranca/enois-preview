@@ -10,6 +10,22 @@ from preview.state import PreviewError
 from preview.validation import validate, external_read, Session
 
 class CapacityTransportTests(unittest.TestCase):
+    def test_http_failure_reports_safe_status_and_kind_without_response_secrets(self):
+        import io
+        from email.message import Message
+        from urllib.error import HTTPError
+        headers=Message()
+        headers['Content-Type']='text/html; private=private-header-marker'
+        headers['WWW-Authenticate']='Tunnel realm="private-realm-marker"'
+        failure=HTTPError('http://localhost/private',401,'private-reason-marker',headers,io.BytesIO(b'private-body-marker'))
+        session=Session('http://localhost',local=True)
+        with patch.object(session.opener,'open',side_effect=failure):
+            with self.assertRaises(PreviewError) as observed:
+                session.request('/private?token=private-query-marker')
+        message=str(observed.exception)
+        self.assertIn('HTTP 401 [html; tunnel challenge]',message)
+        self.assertNotIn('private-',message)
+
     def test_range_evidence_exposes_physical_extent_without_cookies(self):
         import http.server
         import threading

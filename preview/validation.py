@@ -36,11 +36,14 @@ class Session:
                 return response.status, response.headers.get('Content-Type', ''), response.read()
         except urllib.error.HTTPError as error:
             code = ''
+            raw_mime=error.headers.get('Content-Type','').split(';',1)[0].strip().lower()
+            response_kind='json' if re.fullmatch(r'application/(?:json|[\w.+-]+\+json)',raw_mime) else 'html' if raw_mime=='text/html' else 'other' if raw_mime else 'unspecified'
+            challenge='; tunnel challenge' if 'tunnel' in error.headers.get('WWW-Authenticate','').lower() else ''
             try:
                 candidate = json.loads(error.read()).get('code', '')
                 if isinstance(candidate,str) and re.fullmatch(r'[A-Z0-9_]{1,80}',candidate): code = ' (' + candidate + ')'
             except (ValueError,UnicodeError,AttributeError): pass
-            raise PreviewError(f'Validation {method} {path.split("?",1)[0]} failed for HTTP {error.code}{code}; credentials and response were omitted.') from None
+            raise PreviewError(f'Validation {method} {path.split("?",1)[0]} failed for HTTP {error.code}{code} [{response_kind}{challenge}]; credentials and response were omitted.') from None
         except (OSError, urllib.error.URLError) as error:
             raise PreviewError(f'Validation {method} {path.split("?",1)[0]} did not respond through its origin ({type(error).__name__}).') from error
     def json(self, path, body=None, method=None):

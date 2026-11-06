@@ -12,6 +12,15 @@ import urllib.parse
 from .remote_http import GitHub, RemoteFailure, request
 from .state import PreviewError, canonical, inventory, read, run, sha, verify, write
 
+def deployment_time(value):
+    # Python 3.10 accepts only 3 or 6 fractional digits, while RFC 3339 and
+    # Cloudflare permit variable precision. Normalize without changing order
+    # at the microsecond precision used by Python's datetime.
+    match=re.fullmatch(r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})',value)
+    if not match:raise PreviewError('Cloudflare returned an unsupported deployment timestamp; inspect private metadata and resume.')
+    fraction=(match[2] or '').ljust(6,'0')[:6]
+    return datetime.fromisoformat(match[1]+'.'+fraction+('+00:00' if match[3]=='Z' else match[3]))
+
 class Publisher:
     def __init__(self, config, journal, directory):
         self.config, self.journal, self.directory = config, journal, directory
@@ -228,7 +237,7 @@ class Publisher:
         if not deployments: raise PreviewError('Cloudflare did not confirm a deployment identity.')
         # Wrangler's JSON list is oldest first. Select by provider timestamp,
         # independent of ordering, and retain only shareable identity fields.
-        latest=max(deployments,key=lambda item:datetime.fromisoformat(item['created_on'].replace('Z','+00:00')))
+        latest=max(deployments,key=lambda item:deployment_time(item['created_on']))
         self.complete('deployment', {'catalogCommit':current, 'identity':{key:latest[key] for key in ('id','versions','created_on')}})
     def validate_public(self):
         from .validation import validate

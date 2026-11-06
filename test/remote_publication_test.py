@@ -183,7 +183,7 @@ class RemotePublicationTests(unittest.TestCase):
                 # the active deployment, not merely the first historic record.
                 return json.dumps([
                     {'id':'old-deployment','versions':[{'version_id':'old-version','percentage':100}],'created_on':'1999-01-01T00:00:00Z'},
-                    {'id':'fixture-deployment','versions':[{'version_id':'fixture-version','percentage':100}],'created_on':'2000-01-01T00:00:00Z','author_email':'private@example.invalid'}]).encode()
+                    {'id':'fixture-deployment','versions':[{'version_id':'fixture-version','percentage':100}],'created_on':'2000-01-01T00:00:00.1234Z','author_email':'private@example.invalid'}]).encode()
             return original(args,**options)
         owner=self
         class SimulatedPublicWorker:

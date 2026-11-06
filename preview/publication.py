@@ -35,8 +35,12 @@ def verify_data_manifest(data, expected_id):
 
 
 def verify_journal(config, journal):
-    if journal['inputs'].get('toolCommit') != tool_commit(config):
-        raise PreviewError('Resume requires the public tool commit recorded in this revision; restore its tool checkout and installation pin.')
+    previous=journal['inputs'].get('toolCommit');executor=tool_commit(config)
+    if previous != executor:
+        file=ROOT/'release/resume-compatible-tools.json'
+        compatibility=read(file) if file.exists() else {}
+        if not executor or not previous or compatibility.get('schema')!=1 or previous not in compatibility.get('toolCommits',[]):
+            raise PreviewError('Resume requires the recorded public tool commit or an explicitly reviewed compatible release; restore its tool checkout and installation pin.')
     if identity(journal['inputs']) != journal['revision']:
         raise PreviewError('Journal revision identity mismatch; restore the original record.')
     if journal['target'] != {key: config[key] for key in ('repository', 'registry', 'branch', 'origin', 'cloudflareAccountId')}:
@@ -117,6 +121,8 @@ def continue_revision(config, journal, data_reused):
     publisher = None
     try:
         verify_journal(config, journal)
+        journal['executorToolCommit']=tool_commit(config)
+        write(directory/'journal.json',journal)
         publisher = Publisher(config, journal, directory)
         already = journal['checkpoints'].get('publicValidation') is not None
         publisher.build_and_validate()
@@ -145,6 +151,7 @@ def continue_revision(config, journal, data_reused):
     return {'status': 'validated', 'url': config['origin'].rstrip('/') + '/preview/' + journal['slug'],
             'scenario': journal['inputs']['scenario'], 'revision': journal['revision'], 'reused': already,
             'commits': journal['inputs']['commits'], 'dataVersion': journal['inputs']['data'], 'dataReused': data_reused,
+            'toolCommit':journal['inputs'].get('toolCommit'),'executorToolCommit':journal.get('executorToolCommit'),
             'image': journal['checkpoints']['registry']['image'], 'provenanceSha256': journal['checkpoints']['configuration']['provenanceSha256'],
             'configurationCommit': journal['checkpoints']['configuration']['commit'], 'catalogCommit': journal['checkpoints']['catalog']['commit'],
             'deployment': journal['checkpoints']['deployment'], 'validation': result, 'evidence': str(directory),

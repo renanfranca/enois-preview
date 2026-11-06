@@ -142,6 +142,25 @@ class FrozenInputsTests(unittest.TestCase):
         file.write_bytes(b'AAAA'); (root / 'unexpected').write_bytes(b'')
         with self.assertRaises(PreviewError): verify(root, expected)
 
+    def test_reviewed_tool_recovery_preserves_the_original_frozen_identity_and_rejects_unknown_versions(self):
+        from preview.publication import verify_journal
+        previous='e958990b0240546b8f03d4d39246cd9959576d0e'
+        current='2'*40
+        config={**self.config,'toolCommit':current,'repository':'fixture/launcher','registry':'ghcr.io/fixture/image','branch':'preview','origin':'https://preview.example.invalid','cloudflareAccountId':'a'*32}
+        frozen=self.root/'prepared'
+        for name in ('data','sources','runtime'):(frozen/name).mkdir(parents=True)
+        (frozen/'sources/file').write_text('frozen source');(frozen/'runtime/start').write_text('frozen runtime')
+        data={'schema':3,'files':{},'accounts':[],'media':[],'recipe':2};data['id']=identity(data)
+        inputs={'data':data['id'],'dataManifest':data,'sourceFiles':inventory(frozen/'sources'),'recipe':{'runtime':inventory(frozen/'runtime')},'toolCommit':previous}
+        revision=identity(inputs);directory=self.state/'operations'/revision;shutil.copytree(frozen,directory/'frozen')
+        journal={'revision':revision,'inputs':inputs,'target':{k:config[k] for k in ('repository','registry','branch','origin','cloudflareAccountId')},'frozenFiles':inventory(directory/'frozen')}
+        before=json.dumps(journal,sort_keys=True)
+        with patch('preview.publication.tool_commit',return_value=current):
+            self.assertEqual(verify_journal(config,journal),directory)
+            self.assertEqual(json.dumps(journal,sort_keys=True),before)
+            unknown={**journal,'inputs':{**inputs,'toolCommit':'3'*40}}
+            with self.assertRaisesRegex(PreviewError,'tool commit'):verify_journal(config,unknown)
+
     def test_symlinks_even_inside_inventory_are_rejected(self):
         root = self.root / 'data'; root.mkdir()
         (root / 'file').write_text('data'); (root / 'alias').symlink_to('file')

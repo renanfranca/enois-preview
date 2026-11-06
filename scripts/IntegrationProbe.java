@@ -60,6 +60,12 @@ public final class IntegrationProbe {
             var linkedin = app.getBean(com.socialcoisa.rede.linkedin.application.LinkedInIntegrationService.class);
             require(!linkedin.status("example_lia").connected(),"Original LinkedIn connection remains usable");
             linkedin.sharePublishedPost("example_lia","fictional-isolation-post","Fictional content","Fictional title");
+            var push = app.getBean(com.socialcoisa.rede.push.application.port.out.PushSender.class);
+            require(!push.isEnabled() && push.publicKey() == null,"External push remains enabled");
+            var pushHttp=org.springframework.aop.support.AopUtils.getTargetClass(push).getDeclaredField("httpClient");
+            pushHttp.setAccessible(true);
+            require(pushHttp.get(push)==null,"External Apache push transport was instantiated");
+            push.sendToUser("example_lia",new com.socialcoisa.rede.push.application.port.out.PushSender.PushMessage("Fictional notification","Local effects only","/feed"));
             var store = app.getBean(MediaObjectStore.class);
             var gateway = app.getBean(MediaStorageGateway.class);
             require(store == gateway && store.getClass().getSimpleName().equals("DemoLocalStore"),"Media gateway is not disposable disk");
@@ -76,7 +82,7 @@ public final class IntegrationProbe {
             require(assets.findById(asset.id()).orElseThrow().deleteStatus() == MediaDeleteStatus.OBJECT_DELETED,"Eligible deletion did not complete");
             require(jobs.findPending(Instant.now(),100).stream().noneMatch(j -> j.mediaId().equals(asset.id())),"Deletion job remains pending");
             require(attempts.get() == 0,"Application attempted blocked outbound HTTP");
-            System.out.println("INTEGRATION_PROOF={\"httpPositiveControlAttempts\":"+positive+",\"demoHttpAttempts\":0,\"scheduledEntryPointsExercised\":6,\"eligibleExternalAssetDeletionCompleted\":true,\"externalStorageAndLazyMigrationAbsent\":true,\"originalLinkedInUnavailable\":true,\"supportUnconfigured\":true}");
+            System.out.println("INTEGRATION_PROOF={\"httpPositiveControlAttempts\":"+positive+",\"demoHttpAttempts\":0,\"scheduledEntryPointsExercised\":6,\"eligibleExternalAssetDeletionCompleted\":true,\"externalStorageAndLazyMigrationAbsent\":true,\"originalLinkedInUnavailable\":true,\"supportUnconfigured\":true,\"pushDisabledAndApacheTransportAbsent\":true}");
         }
     }
 }

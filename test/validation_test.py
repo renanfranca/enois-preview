@@ -7,7 +7,32 @@ import unittest
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from preview.state import PreviewError
-from preview.validation import validate, external_read
+from preview.validation import validate, external_read, Session
+
+class CapacityTransportTests(unittest.TestCase):
+    def test_range_evidence_exposes_physical_extent_without_cookies(self):
+        import http.server
+        import threading
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.server.observed_range=self.headers.get('Range')
+                self.send_response(206)
+                self.send_header('Content-Type','audio/wav')
+                self.send_header('Content-Range','bytes 0-3/20971520')
+                self.send_header('Content-Length','4')
+                self.send_header('Set-Cookie','fixture=private; HttpOnly')
+                self.end_headers(); self.wfile.write(b'RIFF')
+            def log_message(self,*args): pass
+        server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        thread=threading.Thread(target=server.serve_forever);thread.start()
+        try:
+            headers={}
+            status,mime,body=Session('http://127.0.0.1:'+str(server.server_port),local=True).request(
+                '/fixture.wav',byte_range='bytes=0-3',response_headers=headers)
+            self.assertEqual((status,mime,body),(206,'audio/wav',b'RIFF'))
+            self.assertEqual(server.observed_range,'bytes=0-3')
+            self.assertEqual(headers,{'content-range':'bytes 0-3/20971520','content-length':'4'})
+        finally: server.shutdown();server.server_close();thread.join()
 
 class Cookie:
     def __init__(self,name):self.name=name;self.secure=True

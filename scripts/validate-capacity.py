@@ -39,21 +39,32 @@ def exercise(origin, credentials, evidence, container, local=True, slug=None):
         session.json('/api/auth/login', {'email':account['email'], 'password':account['password']})
         return session
     author, reader = [login(account) for account in credentials['accounts'][:2]]
+    requests = {}
+    request_lock = threading.Lock()
+    def phase(asset, value, **details):
+        with request_lock:
+            requests.setdefault(asset['id'], {'id':asset['id'],'url':asset['cdnUrl']}).update(phase=value,**details)
+            write(evidence/'capacity-uploads.json',{'localOnly':local,'uploads':list(requests.values())})
     def allocate(session, count):
         raw = wav(count)
         asset = session.json('/api/media/uploads', {'fileName':'capacity.wav', 'mimeType':'audio/wav', 'size':len(raw), 'purpose':'POST_AUDIO'})
+        phase(asset,'allocated',inputBytes=len(raw))
         return asset, raw
     def upload(session, asset, raw, expected):
+        phase(asset,'sending')
         session.request(asset['uploadUrl'], method='PUT', raw=raw, content_type='audio/wav')
-        status, mime, stored = session.request(asset['cdnUrl'], byte_range='bytes=0-77')
-        require(status == 206 and mime.startswith('audio/wav') and len(stored) == 78 and struct.unpack('<I',stored[4:8])[0]+8==expected, 'WAV stored byte count differs from the independent capacity fixture')
+        phase(asset,'reading-container')
+        headers={}
+        status, mime, stored = session.request(asset['cdnUrl'], byte_range='bytes=0-77',response_headers=headers)
+        require(status == 206 and mime.startswith('audio/wav') and len(stored) == 78 and struct.unpack('<I',stored[4:8])[0]+8==expected and headers.get('content-range')==f'bytes 0-77/{expected}', 'WAV stored byte count differs from the physical Content-Range and RIFF fixture')
+        phase(asset,'reading-last-byte')
         end_status,_,last=session.request(asset['cdnUrl'],byte_range=f'bytes={expected-1}-{expected-1}')
         require(end_status==206 and len(last)==1,'WAV physical last byte does not match the expected size')
-        # The application currently maps invalid ranges to its MEDIA_NOT_FOUND
-        # response. Prove exact physical extent without reading private counters.
-        denied(lambda:session.request(asset['cdnUrl'],byte_range=f'bytes={expected}-{expected}'),404)
+        # Content-Range comes from Files.size, independently of quota accounting;
+        # reading the last byte also verifies that the declared extent exists.
         with wave.open(io.BytesIO(stored), 'rb') as decoded:
             require(decoded.getnchannels() == 1 and decoded.getsampwidth() == 2 and decoded.getnframes() * 2 == expected - 78, 'Stored WAV is not the expected decodable PCM')
+        phase(asset,'verified',physicalContentRange=headers['content-range'])
         return {'id':asset['id'], 'url':asset['cdnUrl'], 'inputBytes':len(raw), 'storedBytes':expected, 'physicalByteRangeBoundaryVerified':True}
     occupied = []
     for count in [20 * 1024 * 1024] * 12 + [14 * 1024 * 1024]:
@@ -61,6 +72,58 @@ def exercise(origin, credentials, evidence, container, local=True, slug=None):
         occupied.append(upload(author, asset, raw, count))
         write(evidence / 'capacity-progress.json', {'verifiedStoredBytes':sum(item['storedBytes'] for item in occupied), 'verifiedFiles':len(occupied), 'localOnly':local})
     require(sum(item['storedBytes'] for item in occupied) == 254 * 1024 * 1024, 'Fixture did not leave exactly 2 MiB free')
+    failure_recovery = {}
+    if local:
+        # Exercise the real streaming HTTP boundary while exactly 2 MiB remain.
+        # Public transport cancellation is covered independently by the Worker
+        # integration checks; this socket targets the isolated local image only.
+        import http.client
+        import socket
+        from urllib.parse import urlsplit
+        from uuid import uuid4
+        def remove(asset):
+            author.json('/api/media/'+asset['id'],method='DELETE')
+            deadline=time.monotonic()+30
+            while True:
+                try:author.request(asset['cdnUrl'],byte_range='bytes=0-0')
+                except PreviewError as error:
+                    require('HTTP 404' in str(error),'Unexpected local deletion response');return
+                require(time.monotonic()<deadline,'Local exercise media deletion did not finish');time.sleep(.1)
+        pending,raw=allocate(author,2*1024*1024)
+        parsed=urlsplit(origin);connection=http.client.HTTPConnection(parsed.hostname,parsed.port,timeout=10)
+        headers={'Content-Length':str(len(raw)),'Content-Type':'audio/wav','Origin':origin,
+            'X-Client-Origin':origin,'X-CSRF-Protection':'1','Idempotency-Key':uuid4().hex,
+            'Cookie':'; '.join(f'{c.name}={c.value}' for c in author.cookies)}
+        try:
+            connection.putrequest('PUT',pending['uploadUrl'])
+            for key,value in headers.items():connection.putheader(key,value)
+            connection.endheaders();connection.send(raw[:-1]);phase(pending,'partial-body-held-open')
+            time.sleep(1)
+            competitor,body=allocate(reader,2*1024*1024)
+            denied(lambda:reader.request(competitor['uploadUrl'],method='PUT',raw=body,content_type='audio/wav'),507)
+        finally:
+            if connection.sock is not None:connection.sock.shutdown(socket.SHUT_RDWR)
+            connection.close()
+        cancelled_replacement,body=allocate(author,2*1024*1024)
+        deadline=time.monotonic()+10
+        while True:
+            try:
+                restored_cancel=upload(author,cancelled_replacement,body,2*1024*1024);break
+            except PreviewError as error:
+                require('HTTP 507' in str(error) and time.monotonic()<deadline,'Interrupted HTTP upload did not release capacity')
+                time.sleep(.1)
+        denied(lambda:author.request(pending['cdnUrl']),404)
+        remove(cancelled_replacement)
+        malformed,body=allocate(author,2*1024*1024)
+        denied(lambda:author.request(malformed['uploadUrl'],method='PUT',raw=bytes(len(body)),content_type='audio/wav'),422)
+        denied(lambda:author.request(malformed['cdnUrl']),404)
+        processed_replacement,body=allocate(author,2*1024*1024)
+        restored_processing=upload(author,processed_replacement,body,2*1024*1024)
+        remove(processed_replacement)
+        failure_recovery={'localActualHttp':True,'partialBodyHeldReservationWithCompeting507':True,
+            'cancelledUploadUnreadable404':True,'afterCancellationSuccessfulUpload':restored_cancel,
+            'sanitizationFailed422AndUnreadable404':True,'afterProcessingFailureSuccessfulUpload':restored_processing}
+        write(evidence/'capacity-failure-recovery.json',failure_recovery)
     attempts = [(session, *allocate(session, 2 * 1024 * 1024)) for session in (author, reader)]
     barrier = threading.Barrier(2)
     def compete(attempt):
@@ -92,6 +155,7 @@ def exercise(origin, credentials, evidence, container, local=True, slug=None):
     proof = {'localOnly':local, 'publicWorker':not local, 'validWavFiles':True, 'beforeRaceBytes':254 * 1024 * 1024,
              'freeBeforeRaceBytes':2 * 1024 * 1024, 'race':results,
              'physicalDeletionRestoredCapacityBySuccessfulUpload':restored}
+    if failure_recovery:proof['failureRecovery']=failure_recovery
     write(evidence / 'capacity-validation.json', proof)
     # Remove only this exercise's assets so later acceptance flows have capacity.
     for item in occupied[1:]:author.json('/api/media/'+item['id'],method='DELETE')

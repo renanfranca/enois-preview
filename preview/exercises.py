@@ -1,5 +1,6 @@
 """Functional checks limited to the disposable fictional example."""
 import json
+import re
 import struct
 import time
 import zlib
@@ -13,7 +14,8 @@ def require(condition,message):
 def denied(action,status):
     try:action()
     except PreviewError as error:
-        require(f'HTTP {status}' in str(error),f'Expected HTTP {status} was not observed')
+        observed=re.search(r'HTTP \d{3}(?: \([A-Z0-9_]+\))?',str(error))
+        require(f'HTTP {status}' in str(error),f'Expected HTTP {status}; observed {observed[0] if observed else "a transport failure without HTTP status"}')
     else:raise PreviewError(f'Expected HTTP {status}, but operation succeeded')
 
 def png(size=None):
@@ -48,6 +50,13 @@ def exercise(settings):
     reader.json('/api/blogs/'+blog+'/subscription',method='DELETE')
     require(article not in ids('FOR_YOU'),'Unsubscribe did not remove the article from the personalized feed')
     denied(lambda:author.json('/api/auth/signup',{}),403)
+    blocked_integrations = ['/api/admin/support/github', '/api/admin/support/fictional/reply',
+        '/api/identity/verification', '/api/me/github/sync', '/api/admin/github/pulls/review',
+        '/api/admin/contributors/sync', '/api/admin/contributors/repositories',
+        '/api/me/integrations/linkedin', '/api/webhooks/fictional']
+    for path in blocked_integrations:
+        denied(lambda path=path:author.json(path,{}),403)
+    permissions=author.json('/api/moderation/me')
     blog_proof={'id':article,'positivePersonalizedFeed':True,'absentFromAll':True,'notification':True,'ownership':True,'unsubscribe':True}
     if settings.get('evidence'):write(Path(settings['evidence'])/'blog-validation.json',{'origin':origin,'publicWorker':not local,**blog_proof})
 
@@ -89,4 +98,5 @@ def exercise(settings):
         time.sleep(.25)
     return {'origin':origin,'localOnly':local,'blog':blog_proof,
             'media':{'newUploadUrl':upload['cdnUrl'],'post':post,'ownerUploadReadAttachDelete':True,'foreignWriteDeleteRejected':True,'malformedRejected':True,
-                     'boundaryUploadUrl':boundary['cdnUrl'],'boundaryInputBytes':len(big),'boundaryStoredBytes':len(boundary_bytes),'exact20MiBAccepted':True,'oneByteLargerRejected':True,'seedDeletionObserved':True},'signupBlocked':True}
+                     'boundaryUploadUrl':boundary['cdnUrl'],'boundaryInputBytes':len(big),'boundaryStoredBytes':len(boundary_bytes),'exact20MiBAccepted':True,'oneByteLargerRejected':True,'seedDeletionObserved':True},'signupBlocked':True,
+            'externalIntegrationEndpoints':{'actorAdmin':permissions.get('admin') is True,'refused403':blocked_integrations}}

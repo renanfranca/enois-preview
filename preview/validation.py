@@ -20,7 +20,7 @@ class Session:
         self.opener = urllib.request.build_opener(NoRedirect, urllib.request.HTTPCookieProcessor(self.cookies))
         self.slug = slug
         self.timeout = timeout
-    def request(self, path, body=None, method=None, raw=None, content_type=None, byte_range=None):
+    def request(self, path, body=None, method=None, raw=None, content_type=None, byte_range=None, response_headers=None):
         headers = {'User-Agent':'enois-preview/0.1.0', 'Origin':self.origin, 'X-Client-Origin':self.origin, 'X-CSRF-Protection':'1', 'Sec-Fetch-Site':'same-origin'}
         if self.slug: headers['Cookie'] = '__Host-demo-scenario=' + self.slug + ('; ' + '; '.join(f'{c.name}={c.value}' for c in self.cookies) if self.cookies else '')
         method = method or ('POST' if body is not None or raw is not None else 'GET')
@@ -31,6 +31,8 @@ class Session:
         request = urllib.request.Request(self.origin + path, data=raw if raw is not None else json.dumps(body).encode() if body is not None else None, headers=headers, method=method)
         try:
             with self.opener.open(request, timeout=self.timeout) as response:
+                if response_headers is not None:
+                    response_headers.update({key:response.headers[key] for key in ('content-range','content-length') if key in response.headers})
                 return response.status, response.headers.get('Content-Type', ''), response.read()
         except urllib.error.HTTPError as error:
             code = ''

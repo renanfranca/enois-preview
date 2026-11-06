@@ -1,6 +1,6 @@
 # enois-preview
 
-An Énóis specific tool for immutable development and testing previews behind an HTTPS Worker and private Codespaces. The implementation is undergoing validation. Read the individual acceptance results in [VALIDATION.md](../../VALIDATION.md) before treating a revision as ready to share.
+An Énóis specific tool for immutable development and testing previews behind an HTTPS Worker and private Codespaces. Publication reports success only after the public checks pass. Read the individual acceptance results in [VALIDATION.md](../../VALIDATION.md) before treating a revision as ready to share.
 
 [Português do Brasil](../../README.md) · [Tutorial](TUTORIAL.md) · [LLM guide](LLM.md) · [Diagnostics](../diagnostics/README.md)
 

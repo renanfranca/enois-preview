@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from preview.state import PreviewError, identity, inventory, read, write
 
 ROOT = Path(__file__).resolve().parents[1]
-MARKER = '## Automation implementation, 5 November 2026 (acceptance remains incomplete)'
+MARKER = '## Automation implementation and delivery, 5–6 November 2026'
 
 
 def export(destination, source=ROOT):

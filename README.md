@@ -1,6 +1,6 @@
 # enois-preview
 
-Ferramenta específica ao Énóis para publicar revisões imutáveis de desenvolvimento e teste por um Worker HTTPS e Codespaces privados. A implementação está em validação. Consulte o resultado individual dos critérios em [VALIDATION.md](VALIDATION.md) antes de considerar uma revisão pronta para compartilhar.
+Ferramenta específica ao Énóis para publicar revisões imutáveis de desenvolvimento e teste por um Worker HTTPS e Codespaces privados. A publicação só informa sucesso após as verificações públicas. Consulte o resultado individual dos critérios em [VALIDATION.md](VALIDATION.md) antes de considerar uma revisão pronta para compartilhar.
 
 [English](docs/en/README.md) · [Tutorial](docs/pt-BR/TUTORIAL.md) · [Guia para LLM](docs/pt-BR/LLM.md) · [Diagnóstico](docs/diagnostics/README.md)
 

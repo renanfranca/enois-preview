@@ -1,6 +1,6 @@
 # Publicar uma revisão de teste
 
-Este roteiro usa o terminal local do operador. Não execute comandos em um Codespace para completar o boot de uma revisão. O estado de verificação de cada etapa está em [VALIDATION.md](../../VALIDATION.md); os roteiros completos ainda precisam passar pelo aceite público.
+Este roteiro usa o terminal local do operador. Não execute comandos em um Codespace para completar o boot de uma revisão. O estado de verificação de cada etapa está em [VALIDATION.md](../../VALIDATION.md); os resultados observados e os limites dos roteiros estão registrados ali.
 
 1. Instale os requisitos do [README](../../README.md). Autentique no GitHub com `gh auth login` e no Docker com seu mecanismo de credenciais para GHCR. Não coloque tokens em argumentos, no chat ou em arquivos versionados. Não altere o plano de cobrança.
 2. Execute `npm ci`, `npx playwright install chromium` e `npm link` na ferramenta. Depois autentique no Cloudflare com `npx --no-install wrangler login`. Para dados fictícios, execute `npm run example:prepare -- /caminho/absoluto/novo-workspace`. O destino não deve existir. A preparação busca fontes públicas fixadas, compila o backend e aplica suas migrações a um H2 novo antes de inserir somente dados fictícios.

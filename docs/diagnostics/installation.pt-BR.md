@@ -1,6 +1,6 @@
 # Preparar a infraestrutura privada do operador
 
-Este procedimento único de infraestrutura complementa o [tutorial canônico](../pt-BR/TUTORIAL.md). O roteiro ainda precisa de execução completa por um operador independente. Use o terminal local e suas próprias contas. Preserve a conferência inicial dos planos gratuitos e do bloqueio de gastos; o setup registra essa confirmação sem renovação. Não adicione forma de pagamento nem ative serviços pagos.
+Este procedimento único de infraestrutura complementa o [tutorial canônico](../pt-BR/TUTORIAL.md). Os dois roteiros canônicos foram concluídos com infraestrutura existente e conferida. A criação de outra conta nas plataformas não foi exercitada; consulte [o escopo da validação](../../VALIDATION.md). Use o terminal local e suas próprias contas. Preserve a conferência inicial dos planos gratuitos e do bloqueio de gastos; o setup registra essa confirmação sem renovação. Não adicione forma de pagamento nem ative serviços pagos.
 
 Comece por um commit público publicado da ferramenta. Substitua os nomes e o SHA completo antes de executar:
 

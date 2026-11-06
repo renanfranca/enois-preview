@@ -1,6 +1,6 @@
 # Prepare an operator's private infrastructure
 
-This one time infrastructure procedure complements the [canonical tutorial](../en/TUTORIAL.md). It has not yet completed an independent operator walkthrough. Use a local terminal and your own accounts. Keep the initial Free plan and spending block confirmation; setup records it without renewal. Do not add a payment method or enable paid services.
+This one time infrastructure procedure complements the [canonical tutorial](../en/TUTORIAL.md). Both canonical language walkthroughs completed using existing verified infrastructure. Creating a separate platform account was not exercised; see [the validation scope](../../VALIDATION.md). Use a local terminal and your own accounts. Keep the initial Free plan and spending block confirmation; setup records it without renewal. Do not add a payment method or enable paid services.
 
 Start from a published public tool commit. Substitute your actual full SHA and names before running commands:
 

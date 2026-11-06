@@ -1,6 +1,6 @@
 # Publish a testing revision
 
-Use the operator's local terminal throughout this walkthrough. Do not run commands in a Codespace to complete a revision's boot. [VALIDATION.md](../../VALIDATION.md) records the actual status; complete public walkthrough acceptance is still required.
+Use the operator's local terminal throughout this walkthrough. Do not run commands in a Codespace to complete a revision's boot. [VALIDATION.md](../../VALIDATION.md) records the actual status; the observed walkthrough results and limits are recorded there.
 
 1. Install the [README prerequisites](README.md). Authenticate in your local terminal with `gh auth login` and your Docker credential mechanism for GHCR. Never put tokens in arguments, chats or versioned files. Do not change billing plans.
 2. Run `npm ci`, `npx playwright install chromium`, and `npm link` in the tool checkout, then authenticate Cloudflare with `npx --no-install wrangler login`. For fictional data, run `npm run example:prepare -- /absolute/new-workspace`. The destination must not exist. Preparation fetches pinned public sources, builds the backend, applies its migrations to a new H2, then inserts fictional rows only.

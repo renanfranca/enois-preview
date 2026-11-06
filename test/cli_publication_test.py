@@ -64,7 +64,14 @@ class CliPublicationTests(unittest.TestCase):
         self.assertEqual(len(read(self.root/'platform.json')['images']),2)
 
     def test_corrective_executor_resumes_the_original_cli_revision_after_upgrading_the_private_consumer(self):
-        old='e958990b0240546b8f03d4d39246cd9959576d0e';new='2'*40
+        for old in read(ROOT/'release/resume-compatible-tools.json')['toolCommits']:
+            with self.subTest(original_tool=old):
+                other=CliPublicationTests('test_simultaneous_identical_cli_publications_converge_to_one_revision_and_artifact');other.setUp()
+                try:other.assert_corrective_recovery(old)
+                finally:other.doCleanups()
+
+    def assert_corrective_recovery(self,old):
+        new='2'*40
         def consumer_pin(commit,label):
             checkout=self.root/label
             run(['git','clone','-q','--branch','preview',self.root/'remote.git',checkout])

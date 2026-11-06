@@ -1,4 +1,5 @@
 """Validate the application through its public origin without persisting credentials or cookies."""
+import base64
 import hashlib
 import http.cookiejar
 import json
@@ -107,6 +108,7 @@ def validate(origin, journal, credentials=None, local=False, timeout=600, eviden
         if not required.issubset(actual_cookies): raise PreviewError('Secure HttpOnly session cookies missing.')
         account_results.append({'id':expected['id'], 'authenticated':True, 'permissions':expected_permissions})
     checked = []
+    prefixes = []
     for mapping in journal['inputs']['dataManifest']['media']:
         for path, expected in mapping['inventory'].items():
             url = mapping['url'] + urllib.parse.quote(path, safe='/')
@@ -114,10 +116,38 @@ def validate(origin, journal, credentials=None, local=False, timeout=600, eviden
             if len(raw) != expected['bytes'] or hashlib.sha256(raw).hexdigest() != expected['sha256']:
                 raise PreviewError('Public frozen media bytes differ from the recorded inventory.')
             checked.append({'path':url, 'bytes':len(raw), 'contentType':mime, 'sha256':expected['sha256']})
-    decoded = json.loads(run(['node', Path(__file__).resolve().parents[1] / 'scripts/validate-decoding.mjs'], input=json.dumps({'origin':origin,'slug':slug,'paths':[item['path'] for item in checked if item['contentType'].startswith('image/')]}).encode(), log_path=Path(evidence) / 'decoding.log' if evidence else None))
+            prefixes.append(base64.b64encode(raw[:4096]).decode('ascii'))
+    types = json.loads(run(['node', Path(__file__).resolve().parents[1] / 'runtime/image-type.mjs'], input=json.dumps(prefixes).encode()))
+    image_paths = []
+    for item, image_type in zip(checked, types, strict=True):
+        expected_type = image_type or 'application/octet-stream'
+        if item['contentType'].split(';', 1)[0].strip().lower() != expected_type:
+            raise PreviewError(f"Frozen media MIME mismatch for {item['path']}: expected {expected_type}.")
+        item.update(expectedContentType=expected_type, imageClassification='image' if image_type else 'unclassified')
+        if image_type: image_paths.append(item['path'])
+    decoded = decode_images(origin, slug, image_paths, evidence)
+    if (not isinstance(decoded, list) or len(decoded) != 2 or
+            [row.get('width') for row in decoded if isinstance(row, dict)] != [1280, 390]):
+        raise PreviewError('Image decoding evidence must cover widths 1280 and 390 exactly.')
+    for row in decoded:
+        images = row.get('images')
+        if (not isinstance(images, list) or len(images) != len(image_paths) or
+                any(not isinstance(image, dict) for image in images) or
+                sorted(image.get('path', '') for image in images) != sorted(image_paths) or
+                any(type(image.get(axis)) is not int or image[axis] <= 0 for image in images for axis in ('width','height'))):
+            raise PreviewError('Image decoding evidence does not cover exactly the recognized frozen images.')
     external = [external_read(url) for url in journal['inputs']['dataManifest'].get('externalReads', [])]
     return {'origin':origin, 'localOnly':local, 'elapsedSeconds':round(time.monotonic()-started,3), 'readiness':'UP', 'identityVerified':True, 'accounts':account_results, 'media':checked,
             'imageDecoding':decoded, 'externalReads':{'scope':'captured renderable URL references; excluded from the frozen local media guarantee', 'results':external}}
+
+
+def decode_images(origin, slug, paths, evidence):
+    try:
+        return json.loads(run(['node', Path(__file__).resolve().parents[1] / 'scripts/validate-decoding.mjs'],
+            input=json.dumps({'origin':origin, 'slug':slug, 'paths':paths}).encode(),
+            log_path=Path(evidence) / 'decoding.log' if evidence else None))
+    except (PreviewError, ValueError):
+        raise PreviewError('Recognized frozen image decoding failed; inspect private decoding evidence.') from None
 
 
 def external_read(url):

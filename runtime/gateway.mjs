@@ -1,6 +1,8 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pipeline } from 'node:stream';
+import { IMAGE_PREFIX_BYTES, imageType } from './image-type.mjs';
 import { createUploadTransport } from './upload-transport.mjs';
 
 // Defense in depth: all public traffic enters this gateway, including direct forwarded ports.
@@ -40,17 +42,32 @@ export function createGateway({ writable = process.env.DEMO_MEDIA_WRITABLE === '
       const file = path.resolve(mediaRoot, mapping.directory, relative);
       const base = path.resolve(mediaRoot, mapping.directory) + path.sep;
       if (!file.startsWith(base) || !Object.hasOwn(mapping.inventory, relative)) { response.writeHead(404).end(); return; }
+      let fd;
       try {
-        const info = fs.lstatSync(file);
-        if (!info.isFile() || info.isSymbolicLink()) { response.writeHead(404).end(); return; }
-        const magic = fs.readFileSync(file).subarray(0, 512);
-        const type = magic[0] === 137 && magic.subarray(1,4).toString() === 'PNG' ? 'image/png' :
-          magic[0] === 255 && magic[1] === 216 ? 'image/jpeg' : magic.subarray(0,3).toString() === 'GIF' ? 'image/gif' :
-          magic.subarray(8,12).toString() === 'WEBP' ? 'image/webp' : /<svg[\s>]/i.test(magic.toString()) ? 'image/svg+xml' : 'application/octet-stream';
+        let parent = path.dirname(file);
+        while (parent.startsWith(base) || parent === base.slice(0, -1)) {
+          if (fs.lstatSync(parent).isSymbolicLink()) { response.writeHead(404).end(); return; }
+          parent = path.dirname(parent);
+        }
+        fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+        const info = fs.fstatSync(fd);
+        if (!info.isFile()) { response.writeHead(404).end(); return; }
+        const prefix = Buffer.alloc(IMAGE_PREFIX_BYTES);
+        const count = fs.readSync(fd, prefix, 0, prefix.length, 0);
+        const type = imageType(prefix.subarray(0, count)) ?? 'application/octet-stream';
         response.writeHead(200, { 'Content-Type': type, 'Content-Length': info.size, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
           'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" });
-        if (request.method === 'HEAD') response.end(); else fs.createReadStream(file).pipe(response);
-      } catch { response.writeHead(404).end(); }
+        if (request.method === 'HEAD') response.end();
+        else {
+          const stream = fs.createReadStream(file, { fd, autoClose: true, start: 0 });
+          fd = undefined;
+          pipeline(stream, response, () => {});
+        }
+      } catch {
+        if (response.headersSent) response.destroy(); else response.writeHead(404).end();
+      } finally {
+        if (fd !== undefined) fs.closeSync(fd);
+      }
       return;
     }
     if (demoBlocked(request.method, pathname, writable) || pathname.startsWith('/__demo/')) {

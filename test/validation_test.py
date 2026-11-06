@@ -1,4 +1,5 @@
 """Independent negative checks for the public validation gate, using explicitly simulated transport."""
+from contextlib import contextmanager
 import hashlib
 import json
 from pathlib import Path
@@ -57,6 +58,8 @@ class Cookie:
 class ValidationGateTests(unittest.TestCase):
     def setUp(self):
         self.failure=None
+        self.raw=b'DATA'
+        self.mime='application/octet-stream'
         self.journal={'slug':'fixture-abc','revision':'a'*64,'inputs':{'data':'b'*64,'commits':{'enois-backend':'c'*40},'dataManifest':{
             'accounts':[{'id':'author','email':'author@enois.invalid','label':'Author'},{'id':'reader','email':'reader@enois.invalid','label':'Reader'}],
             'permissions':{'author':{'admin':True,'moderator':False},'reader':{'admin':False,'moderator':False}}, 'externalReads':[],
@@ -69,7 +72,7 @@ class ValidationGateTests(unittest.TestCase):
                 if path.startswith('/preview/'):
                     if owner.failure=='boot':raise PreviewError('Simulated boot refusal')
                     return 200,'text/html',b'Entry'
-                return 200,'application/octet-stream',b'FAIL' if owner.failure=='media' else b'DATA'
+                return 200,owner.mime,b'FAIL' if owner.failure=='media' else owner.raw
             def json(self,path,body=None):
                 j=owner.journal
                 if path=='/__demo/revision':return {'revision':j['revision'],'image':j['checkpoints']['registry']['image'],'launcherCommit':j['checkpoints']['configuration']['commit'],'provenanceSha256':'0'*64 if owner.failure=='configuration' else j['checkpoints']['configuration']['provenanceSha256']}
@@ -89,11 +92,11 @@ class ValidationGateTests(unittest.TestCase):
     def test_every_required_check_can_independently_prevent_success(self):
         for failure in ('boot','configuration','runtime','html','health','reader','identity','permissions','media'):
             self.failure=failure
-            with self.subTest(failure=failure),patch('preview.validation.run') as browser:
+            with self.subTest(failure=failure),patch('preview.validation.decode_images') as browser:
                 with self.assertRaises(PreviewError):validate('https://preview.example.invalid',self.journal)
                 browser.assert_not_called()
     def test_positive_simulation_requires_all_accounts_and_records_only_safe_metadata(self):
-        with patch('preview.validation.run',return_value=b'[]'):
+        with patch('preview.validation.decode_images',return_value=[{'width':1280,'images':[]},{'width':390,'images':[]}]):
             result=validate('https://preview.example.invalid',self.journal)
         self.assertEqual([x['id'] for x in result['accounts']],['author','reader'])
         serialized=json.dumps(result)
@@ -101,7 +104,7 @@ class ValidationGateTests(unittest.TestCase):
         self.assertNotIn('password',serialized)
         self.assertTrue(result['identityVerified'])
     def test_image_decoding_failure_prevents_success_after_http_and_hash_checks(self):
-        with patch('preview.validation.run',side_effect=PreviewError('Simulated image decoding failure')):
+        with patch('preview.validation.decode_images',side_effect=PreviewError('Simulated image decoding failure')):
             with self.assertRaisesRegex(PreviewError,'decoding'):validate('https://preview.example.invalid',self.journal)
 
     def test_external_references_are_excluded_and_private_addresses_or_credentials_are_not_requested(self):
@@ -113,3 +116,64 @@ class ValidationGateTests(unittest.TestCase):
                 self.assertNotIn('original-secret',json.dumps(result))
                 self.assertNotIn('private-marker',json.dumps(result))
                 network.assert_not_called()
+
+    def test_avif_with_matching_inventory_cannot_bypass_validation_with_incorrect_mime(self):
+        self.raw=(Path(__file__).parent/'fixtures/images/valid.avif').read_bytes()
+        self.journal['inputs']['dataManifest']['media'][0]['inventory']['image.bin']={'bytes':len(self.raw),'sha256':hashlib.sha256(self.raw).hexdigest()}
+        for mime in ('application/octet-stream','image/png'):
+            self.mime=mime
+            with self.subTest(mime=mime),patch('preview.validation.decode_images') as browser:
+                with self.assertRaisesRegex(PreviewError,'MIME.*image/avif'):validate('https://preview.example.invalid',self.journal)
+                browser.assert_not_called()
+
+    def test_valid_avif_is_decoded_in_real_chromium_and_mime_parameters_are_normalized(self):
+        self.raw=(Path(__file__).parent/'fixtures/images/valid.avif').read_bytes()
+        self.mime='IMAGE/AVIF; fixture=1'
+        self.journal['inputs']['dataManifest']['media'][0]['inventory']['image.bin']={'bytes':len(self.raw),'sha256':hashlib.sha256(self.raw).hexdigest()}
+        with self.image_origin(self.raw,'image/avif') as origin:
+            result=validate(origin,self.journal,local=True)
+        self.assertEqual(result['media'][0]['expectedContentType'],'image/avif')
+        self.assertEqual(result['imageDecoding'],[{'width':width,'mobileEmulation':width==390,'images':[{'path':'/fixture/image.bin','width':64,'height':64}]} for width in (1280,390)])
+
+    def test_invalid_recognized_image_with_matching_hash_and_mime_fails_real_chromium(self):
+        self.raw=b'\x89PNG\r\n\x1a\ninvalid image body'
+        self.mime='image/png'
+        self.journal['inputs']['dataManifest']['media'][0]['inventory']['image.bin']={'bytes':len(self.raw),'sha256':hashlib.sha256(self.raw).hexdigest()}
+        with self.image_origin(self.raw,self.mime) as origin:
+            with self.assertRaisesRegex(PreviewError,'image decoding failed'):validate(origin,self.journal,local=True)
+
+    def test_unclassified_short_empty_and_binary_files_are_reported_without_decoded_images(self):
+        for raw in (b'',b'GI',b'BINARY<svg >'):
+            self.raw=raw
+            self.journal['inputs']['dataManifest']['media'][0]['inventory']['image.bin']={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
+            with self.subTest(raw=raw),self.image_origin(raw,self.mime) as origin:
+                result=validate(origin,self.journal,local=True)
+                self.assertEqual(result['media'][0]['imageClassification'],'unclassified')
+                self.assertEqual(result['media'][0]['sha256'],hashlib.sha256(raw).hexdigest())
+                self.assertEqual([row['images'] for row in result['imageDecoding']],[[],[]])
+
+    def test_incomplete_duplicate_or_unrelated_decoding_evidence_is_rejected(self):
+        self.raw=(Path(__file__).parent/'fixtures/images/valid.avif').read_bytes();self.mime='image/avif'
+        self.journal['inputs']['dataManifest']['media'][0]['inventory']['image.bin']={'bytes':len(self.raw),'sha256':hashlib.sha256(self.raw).hexdigest()}
+        image={'path':'/fixture/image.bin','width':64,'height':64}
+        for rows in ([],[{'width':1280,'images':[image]}],
+                     [{'width':width,'images':images} for width,images in ((1280,[image]),(390,[]))],
+                     [{'width':width,'images':[image,image]} for width in (1280,390)],
+                     [{'width':width,'images':[{**image,'path':'/other'}]} for width in (1280,390)]):
+            with self.subTest(rows=rows),patch('preview.validation.decode_images',return_value=rows):
+                with self.assertRaisesRegex(PreviewError,'evidence'):validate('https://preview.example.invalid',self.journal)
+
+    @contextmanager
+    def image_origin(self,raw,mime):
+        import http.server
+        import threading
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                body=raw if self.path=='/fixture/image.bin' else b'{}'
+                self.send_response(200);self.send_header('Content-Type',mime if self.path=='/fixture/image.bin' else 'application/json')
+                self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
+            def log_message(self,*args):pass
+        server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        thread=threading.Thread(target=server.serve_forever);thread.start()
+        try:yield 'http://127.0.0.1:'+str(server.server_port)
+        finally:server.shutdown();server.server_close();thread.join()

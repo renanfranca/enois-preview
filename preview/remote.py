@@ -1,5 +1,6 @@
 """Existing GitHub/GHCR/Cloudflare adapters. Never force push or replace an immutable revision."""
 import base64
+from datetime import datetime
 import hashlib
 import json
 import os
@@ -225,7 +226,10 @@ class Publisher:
             output = run(['npx','--no-install','wrangler','deploy','--tag',self.journal['operation'],'--message',f'enois-preview {self.journal["revision"]} catalog {current}','--strict'],cwd=self.checkout,env=env)
         deployments = json.loads(run(['npx','--no-install','wrangler','deployments','list','--json'],cwd=self.checkout,env=env))
         if not deployments: raise PreviewError('Cloudflare did not confirm a deployment identity.')
-        self.complete('deployment', {'catalogCommit':current, 'identity':{key:deployments[0][key] for key in ('id','versions','created_on')}})
+        # Wrangler's JSON list is oldest first. Select by provider timestamp,
+        # independent of ordering, and retain only shareable identity fields.
+        latest=max(deployments,key=lambda item:datetime.fromisoformat(item['created_on'].replace('Z','+00:00')))
+        self.complete('deployment', {'catalogCommit':current, 'identity':{key:latest[key] for key in ('id','versions','created_on')}})
     def validate_public(self):
         from .validation import validate
         self.intent('publicValidation')

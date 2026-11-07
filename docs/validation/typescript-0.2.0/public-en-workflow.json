@@ -1,0 +1,1057 @@
+{
+  "format": "enois-preview-ts-v1",
+  "publicWorker": true,
+  "guide": "docs/en/TUTORIAL.md",
+  "validatedAt": "2026-11-07",
+  "reports": [
+    {
+      "status": "validated",
+      "url": "https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-en-997ebbd9399555cf",
+      "scenario": "exemplo-typescript-en",
+      "revision": "997ebbd9399555cf81e62e83e26452711fa47cc78fb263022cdbef4194ade6ac",
+      "reused": false,
+      "commits": {
+        "enois-backend": "c6a6d3bef437a3b9d1f4fff3aecb2d504ce0306c",
+        "enois-design-system": "e18fa879ae560e5bb279e1a13ace18e7fd5c971b",
+        "enois-frontend": "c21edb9d3e27dfee83bde0ece4c9d57b4b91fa51"
+      },
+      "dataVersion": "378278aa333d03325aefd56c869372044644bf791f4cb14fd2c72be19aa3d074",
+      "dataReused": true,
+      "toolCommit": "a95d9862bea0b5076b311600d6f0ebec939cfbd5",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:5b75590723b6ebd376d2161fe8610af045a5a932a8ed44eb880146352334f708",
+      "provenanceSha256": "fd2062800597574e03af9e5c54d08b0cc8e5ad717d9b6c8d02479f4328ab663c",
+      "configurationCommit": "1d7d497e169b45094f5d83b0b302076119e9100b",
+      "catalogCommit": "9c892988e3e12f92a3756e360c99148979f0f23e",
+      "deployment": {
+        "catalogCommit": "9c892988e3e12f92a3756e360c99148979f0f23e",
+        "identity": {
+          "id": "31171abf-728a-404b-ba51-dae39bc21ec0",
+          "versions": [
+            {
+              "version_id": "a5cba773-4841-4a1b-a4ad-559909242130",
+              "percentage": 100
+            }
+          ],
+          "created_on": "2026-11-07T11:55:32.763106Z"
+        }
+      },
+      "validation": {
+        "origin": "https://enois-demo-launcher.renan-andradefranca.workers.dev",
+        "localOnly": false,
+        "elapsedSeconds": 137.756,
+        "readiness": "UP",
+        "identityVerified": true,
+        "accounts": [
+          {
+            "id": "example_lia",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          },
+          {
+            "id": "example_rui",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          }
+        ],
+        "media": [
+          {
+            "path": "/example.local/badge.svg",
+            "bytes": 265,
+            "contentType": "image/svg+xml",
+            "sha256": "5dae175165b6cd2716245c022f31385553ef11d385fd30536a47317743a2fda0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/avif.bin",
+            "bytes": 288,
+            "contentType": "image/avif",
+            "sha256": "40c30832e21f021fd82d3833a3a91c6f05611f94f9d720c52c70be837ef32711",
+            "expectedContentType": "image/avif",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/gif.bin",
+            "bytes": 110,
+            "contentType": "image/gif",
+            "sha256": "259144cc135302941047ae565b9817f2bf68ef73b88d4b53da4c6dc3a16a076b",
+            "expectedContentType": "image/gif",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/jpeg.bin",
+            "bytes": 292,
+            "contentType": "image/jpeg",
+            "sha256": "1f933d17a827423ab5a34eff4c6d887267bf5daa6e72dab9248582853f7f74a3",
+            "expectedContentType": "image/jpeg",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/png.bin",
+            "bytes": 237,
+            "contentType": "image/png",
+            "sha256": "c2c6b9d5c087ae4eb68c43b7a68c392107d38ad16560795782e81b0ed23234f2",
+            "expectedContentType": "image/png",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/svg.bin",
+            "bytes": 114,
+            "contentType": "image/svg+xml",
+            "sha256": "4fdce518330378e6cb6d95c475cd357e9633c511e52adafe47f8eed6fcbb37da",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/webp.bin",
+            "bytes": 86,
+            "contentType": "image/webp",
+            "sha256": "31eff93fa51f471480d47809929f9c1ba0073d38a4f112501026ac225aca0a4c",
+            "expectedContentType": "image/webp",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/cover.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/davi.svg",
+            "bytes": 1133,
+            "contentType": "image/svg+xml",
+            "sha256": "eee4b99645322429da590192d2216262962d574d1b12cdb2ece63187bd3f91b0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/lia.svg",
+            "bytes": 1141,
+            "contentType": "image/svg+xml",
+            "sha256": "7c16dd62bd14f7ed9759843578073c29b361d4953d6d796294a0e0dea2f89335",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/maya.svg",
+            "bytes": 1142,
+            "contentType": "image/svg+xml",
+            "sha256": "8ec98e174e51b7ae7eac99fdba900320fffacac02f3ba9773a98fd562914de52",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-1.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-2.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "722f08cf692fecd8a78e05e5545c30195e55143120d8062a6107edf28c171075",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-3.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "6f4e5d5a797a114709248fb7268d4807925b572652fe43240dcbad06e72cbdd6",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/rui.svg",
+            "bytes": 1132,
+            "contentType": "image/svg+xml",
+            "sha256": "e8d50fbdd5822ff7eed4fda201b1566a91288f259cb658fb43b68f87c7b7815b",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          }
+        ],
+        "imageDecoding": [
+          {
+            "width": 1280,
+            "mobileEmulation": false,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/contracts/avif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/gif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/jpeg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/png.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/svg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/webp.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          },
+          {
+            "width": 390,
+            "mobileEmulation": true,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/contracts/avif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/gif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/jpeg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/png.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/svg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/webp.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          }
+        ],
+        "externalReads": {
+          "scope": "captured renderable URL references; excluded from the frozen local media guarantee",
+          "results": []
+        }
+      }
+    },
+    {
+      "status": "validated",
+      "url": "https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-en-c1679b51e8c5b536",
+      "scenario": "exemplo-typescript-en",
+      "revision": "c1679b51e8c5b53605674324138b5b789d9748b2ae4a1e3b3b199483a8b937e2",
+      "reused": false,
+      "commits": {
+        "enois-backend": "c6a6d3bef437a3b9d1f4fff3aecb2d504ce0306c",
+        "enois-design-system": "e18fa879ae560e5bb279e1a13ace18e7fd5c971b",
+        "enois-frontend": "f6fe33ffe5ae3e2b27d98c6a5daec4bb2b72b837"
+      },
+      "dataVersion": "378278aa333d03325aefd56c869372044644bf791f4cb14fd2c72be19aa3d074",
+      "dataReused": true,
+      "toolCommit": "a95d9862bea0b5076b311600d6f0ebec939cfbd5",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:2eadab2f634f1b59da170483606a0a020e32e1e9da48ca05b1f5181fb95497a1",
+      "provenanceSha256": "76cf724be72ed98219ff5b475db71c2920b90f291a3ad063b355ea777504eb94",
+      "configurationCommit": "963c0f38c30448f59b2eb919761d97d9e644ba41",
+      "catalogCommit": "c4ec0b865782d764c51371949546e32782b14d76",
+      "deployment": {
+        "catalogCommit": "c4ec0b865782d764c51371949546e32782b14d76",
+        "identity": {
+          "id": "661852c1-a7cd-41c6-8ac8-a10bb9e50af7",
+          "versions": [
+            {
+              "version_id": "97c7573a-7471-406a-910b-e9005e0b2652",
+              "percentage": 100
+            }
+          ],
+          "created_on": "2026-11-07T12:04:33.384055Z"
+        }
+      },
+      "validation": {
+        "origin": "https://enois-demo-launcher.renan-andradefranca.workers.dev",
+        "localOnly": false,
+        "elapsedSeconds": 137.403,
+        "readiness": "UP",
+        "identityVerified": true,
+        "accounts": [
+          {
+            "id": "example_lia",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          },
+          {
+            "id": "example_rui",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          }
+        ],
+        "media": [
+          {
+            "path": "/example.local/badge.svg",
+            "bytes": 265,
+            "contentType": "image/svg+xml",
+            "sha256": "5dae175165b6cd2716245c022f31385553ef11d385fd30536a47317743a2fda0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/avif.bin",
+            "bytes": 288,
+            "contentType": "image/avif",
+            "sha256": "40c30832e21f021fd82d3833a3a91c6f05611f94f9d720c52c70be837ef32711",
+            "expectedContentType": "image/avif",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/gif.bin",
+            "bytes": 110,
+            "contentType": "image/gif",
+            "sha256": "259144cc135302941047ae565b9817f2bf68ef73b88d4b53da4c6dc3a16a076b",
+            "expectedContentType": "image/gif",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/jpeg.bin",
+            "bytes": 292,
+            "contentType": "image/jpeg",
+            "sha256": "1f933d17a827423ab5a34eff4c6d887267bf5daa6e72dab9248582853f7f74a3",
+            "expectedContentType": "image/jpeg",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/png.bin",
+            "bytes": 237,
+            "contentType": "image/png",
+            "sha256": "c2c6b9d5c087ae4eb68c43b7a68c392107d38ad16560795782e81b0ed23234f2",
+            "expectedContentType": "image/png",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/svg.bin",
+            "bytes": 114,
+            "contentType": "image/svg+xml",
+            "sha256": "4fdce518330378e6cb6d95c475cd357e9633c511e52adafe47f8eed6fcbb37da",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/webp.bin",
+            "bytes": 86,
+            "contentType": "image/webp",
+            "sha256": "31eff93fa51f471480d47809929f9c1ba0073d38a4f112501026ac225aca0a4c",
+            "expectedContentType": "image/webp",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/cover.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/davi.svg",
+            "bytes": 1133,
+            "contentType": "image/svg+xml",
+            "sha256": "eee4b99645322429da590192d2216262962d574d1b12cdb2ece63187bd3f91b0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/lia.svg",
+            "bytes": 1141,
+            "contentType": "image/svg+xml",
+            "sha256": "7c16dd62bd14f7ed9759843578073c29b361d4953d6d796294a0e0dea2f89335",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/maya.svg",
+            "bytes": 1142,
+            "contentType": "image/svg+xml",
+            "sha256": "8ec98e174e51b7ae7eac99fdba900320fffacac02f3ba9773a98fd562914de52",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-1.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-2.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "722f08cf692fecd8a78e05e5545c30195e55143120d8062a6107edf28c171075",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-3.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "6f4e5d5a797a114709248fb7268d4807925b572652fe43240dcbad06e72cbdd6",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/rui.svg",
+            "bytes": 1132,
+            "contentType": "image/svg+xml",
+            "sha256": "e8d50fbdd5822ff7eed4fda201b1566a91288f259cb658fb43b68f87c7b7815b",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          }
+        ],
+        "imageDecoding": [
+          {
+            "width": 1280,
+            "mobileEmulation": false,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/contracts/avif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/gif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/jpeg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/png.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/svg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/webp.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          },
+          {
+            "width": 390,
+            "mobileEmulation": true,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/contracts/avif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/gif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/jpeg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/png.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/svg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/webp.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          }
+        ],
+        "externalReads": {
+          "scope": "captured renderable URL references; excluded from the frozen local media guarantee",
+          "results": []
+        }
+      }
+    },
+    {
+      "status": "validated",
+      "url": "https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-en-a6ed69fba999af5c",
+      "scenario": "exemplo-typescript-en",
+      "revision": "a6ed69fba999af5c39e42101a72e6edc41217743038808110b74e4721f074146",
+      "reused": false,
+      "commits": {
+        "enois-backend": "c6a6d3bef437a3b9d1f4fff3aecb2d504ce0306c",
+        "enois-design-system": "e18fa879ae560e5bb279e1a13ace18e7fd5c971b",
+        "enois-frontend": "f6fe33ffe5ae3e2b27d98c6a5daec4bb2b72b837"
+      },
+      "dataVersion": "2473cb205f35eb16374261618024dd668c6700a02b989bee5420659b419eddd9",
+      "dataReused": false,
+      "toolCommit": "a95d9862bea0b5076b311600d6f0ebec939cfbd5",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:577804b5f95087bceecb8c3fd126d8640e585d5af135d2148aa92bfaffdc44ea",
+      "provenanceSha256": "71f01acc9696340078973f50a9a68296c2753695e6c75391aadd18b35817ec96",
+      "configurationCommit": "25adf97625a3be37e0524cf3ef57741240fb8aa8",
+      "catalogCommit": "eab2a4942100079c5212addb6084e28abd57e927",
+      "deployment": {
+        "catalogCommit": "eab2a4942100079c5212addb6084e28abd57e927",
+        "identity": {
+          "id": "08d9d2fc-a23d-43b7-82d0-f24f30e87bb3",
+          "versions": [
+            {
+              "version_id": "6419316b-a53a-4901-9def-f7310201ef6a",
+              "percentage": 100
+            }
+          ],
+          "created_on": "2026-11-07T12:10:56.400542Z"
+        }
+      },
+      "validation": {
+        "origin": "https://enois-demo-launcher.renan-andradefranca.workers.dev",
+        "localOnly": false,
+        "elapsedSeconds": 146.353,
+        "readiness": "UP",
+        "identityVerified": true,
+        "accounts": [
+          {
+            "id": "example_lia",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          },
+          {
+            "id": "example_rui",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          }
+        ],
+        "media": [
+          {
+            "path": "/example.local/badge.svg",
+            "bytes": 265,
+            "contentType": "image/svg+xml",
+            "sha256": "5dae175165b6cd2716245c022f31385553ef11d385fd30536a47317743a2fda0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/avif.bin",
+            "bytes": 288,
+            "contentType": "image/avif",
+            "sha256": "40c30832e21f021fd82d3833a3a91c6f05611f94f9d720c52c70be837ef32711",
+            "expectedContentType": "image/avif",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/gif.bin",
+            "bytes": 110,
+            "contentType": "image/gif",
+            "sha256": "259144cc135302941047ae565b9817f2bf68ef73b88d4b53da4c6dc3a16a076b",
+            "expectedContentType": "image/gif",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/jpeg.bin",
+            "bytes": 292,
+            "contentType": "image/jpeg",
+            "sha256": "1f933d17a827423ab5a34eff4c6d887267bf5daa6e72dab9248582853f7f74a3",
+            "expectedContentType": "image/jpeg",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/png.bin",
+            "bytes": 237,
+            "contentType": "image/png",
+            "sha256": "c2c6b9d5c087ae4eb68c43b7a68c392107d38ad16560795782e81b0ed23234f2",
+            "expectedContentType": "image/png",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/svg.bin",
+            "bytes": 114,
+            "contentType": "image/svg+xml",
+            "sha256": "4fdce518330378e6cb6d95c475cd357e9633c511e52adafe47f8eed6fcbb37da",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/contracts/webp.bin",
+            "bytes": 86,
+            "contentType": "image/webp",
+            "sha256": "31eff93fa51f471480d47809929f9c1ba0073d38a4f112501026ac225aca0a4c",
+            "expectedContentType": "image/webp",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/cover.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/davi.svg",
+            "bytes": 1133,
+            "contentType": "image/svg+xml",
+            "sha256": "eee4b99645322429da590192d2216262962d574d1b12cdb2ece63187bd3f91b0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/lia.svg",
+            "bytes": 1141,
+            "contentType": "image/svg+xml",
+            "sha256": "7c16dd62bd14f7ed9759843578073c29b361d4953d6d796294a0e0dea2f89335",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/maya.svg",
+            "bytes": 1142,
+            "contentType": "image/svg+xml",
+            "sha256": "8ec98e174e51b7ae7eac99fdba900320fffacac02f3ba9773a98fd562914de52",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-1.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-2.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "722f08cf692fecd8a78e05e5545c30195e55143120d8062a6107edf28c171075",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-3.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "6f4e5d5a797a114709248fb7268d4807925b572652fe43240dcbad06e72cbdd6",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/rui.svg",
+            "bytes": 1132,
+            "contentType": "image/svg+xml",
+            "sha256": "e8d50fbdd5822ff7eed4fda201b1566a91288f259cb658fb43b68f87c7b7815b",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/ts-data-marker.txt",
+            "bytes": 19,
+            "contentType": "application/octet-stream",
+            "sha256": "9a8d67d2ed1b116fa54b0830f96102bf57f2a29d4d503303128b5314cea47c2d",
+            "expectedContentType": "application/octet-stream",
+            "imageClassification": "unclassified"
+          }
+        ],
+        "imageDecoding": [
+          {
+            "width": 1280,
+            "mobileEmulation": false,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/contracts/avif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/gif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/jpeg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/png.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/svg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/webp.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          },
+          {
+            "width": 390,
+            "mobileEmulation": true,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/contracts/avif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/gif.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/jpeg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/png.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/svg.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/contracts/webp.bin",
+                "width": 64,
+                "height": 64
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          }
+        ],
+        "externalReads": {
+          "scope": "captured renderable URL references; excluded from the frozen local media guarantee",
+          "results": []
+        }
+      }
+    }
+  ]
+}

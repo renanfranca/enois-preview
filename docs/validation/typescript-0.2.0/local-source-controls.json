@@ -1,0 +1,10 @@
+{
+  "allDistributedLayersScanned": true,
+  "distributedImage": "sha256:ed3c06aabbfb231c19cb9b37266237c6fb8a228ec65560fd2671108df416e8ac",
+  "format": "enois-preview-ts-v1",
+  "matchedCategories": [],
+  "privateSourceOnly": true,
+  "scope": "four synthetic original PBKDF2 hashes in the actual source; not a universal secret scan",
+  "sourceHashesPhysicallyPresent": 4,
+  "sourceOriginalLoginsValidated": 4
+}

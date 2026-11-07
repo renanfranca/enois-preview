@@ -1,0 +1,30 @@
+{
+  "beforeRaceBytes": 266338304,
+  "exerciseAssetDeletionRequestsCompleted": true,
+  "format": "enois-preview-ts-v1",
+  "freeBeforeRaceBytes": 2097152,
+  "localOnly": false,
+  "physicalDeletionRestoredCapacityBySuccessfulUpload": {
+    "id": "media_387452f1ff7f4bf4b04ff7c3318032a5",
+    "inputBytes": 20971520,
+    "physicalByteRangeBoundaryVerified": true,
+    "storedBytes": 20971520,
+    "url": "/api/storage/uploads/d33da3c3-83c0-445e-b6b2-69418ab266a3/media_387452f1ff7f4bf4b04ff7c3318032a5/file.wav"
+  },
+  "publicWorker": true,
+  "race": [
+    {
+      "id": "media_149b0b74e47b4a5185935298280a753b",
+      "inputBytes": 2097152,
+      "physicalByteRangeBoundaryVerified": true,
+      "status": 200,
+      "storedBytes": 2097152,
+      "url": "/api/storage/uploads/d33da3c3-83c0-445e-b6b2-69418ab266a3/media_149b0b74e47b4a5185935298280a753b/file.wav"
+    },
+    {
+      "id": "media_fe070cfa0f7c4839ba0d2e72bce2f06d",
+      "status": 507
+    }
+  ],
+  "validWavFiles": true
+}

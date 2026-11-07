@@ -1,0 +1,177 @@
+{
+  "format": "enois-preview-ts-v1",
+  "publicWorker": true,
+  "revision": "997ebbd9399555cf81e62e83e26452711fa47cc78fb263022cdbef4194ade6ac",
+  "url": "https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-en-997ebbd9399555cf",
+  "fixtureExpectationsLiteral": true,
+  "http": [
+    {
+      "path": "/example.local/contracts/png.bin",
+      "mime": "image/png",
+      "bytes": 237,
+      "sha256": "c2c6b9d5c087ae4eb68c43b7a68c392107d38ad16560795782e81b0ed23234f2",
+      "headStatus": 200,
+      "headBodyBytes": 0,
+      "defaultHeadContentLength": "237",
+      "defaultHeadContentEncoding": null,
+      "identityHeadContentLength": 237,
+      "identityHeadBodyBytes": 0,
+      "getStatus": 200,
+      "getContentEncoding": null,
+      "decodedGetBytes": 237
+    },
+    {
+      "path": "/example.local/contracts/jpeg.bin",
+      "mime": "image/jpeg",
+      "bytes": 292,
+      "sha256": "1f933d17a827423ab5a34eff4c6d887267bf5daa6e72dab9248582853f7f74a3",
+      "headStatus": 200,
+      "headBodyBytes": 0,
+      "defaultHeadContentLength": "292",
+      "defaultHeadContentEncoding": null,
+      "identityHeadContentLength": 292,
+      "identityHeadBodyBytes": 0,
+      "getStatus": 200,
+      "getContentEncoding": null,
+      "decodedGetBytes": 292
+    },
+    {
+      "path": "/example.local/contracts/gif.bin",
+      "mime": "image/gif",
+      "bytes": 110,
+      "sha256": "259144cc135302941047ae565b9817f2bf68ef73b88d4b53da4c6dc3a16a076b",
+      "headStatus": 200,
+      "headBodyBytes": 0,
+      "defaultHeadContentLength": "110",
+      "defaultHeadContentEncoding": null,
+      "identityHeadContentLength": 110,
+      "identityHeadBodyBytes": 0,
+      "getStatus": 200,
+      "getContentEncoding": null,
+      "decodedGetBytes": 110
+    },
+    {
+      "path": "/example.local/contracts/webp.bin",
+      "mime": "image/webp",
+      "bytes": 86,
+      "sha256": "31eff93fa51f471480d47809929f9c1ba0073d38a4f112501026ac225aca0a4c",
+      "headStatus": 200,
+      "headBodyBytes": 0,
+      "defaultHeadContentLength": "86",
+      "defaultHeadContentEncoding": null,
+      "identityHeadContentLength": 86,
+      "identityHeadBodyBytes": 0,
+      "getStatus": 200,
+      "getContentEncoding": null,
+      "decodedGetBytes": 86
+    },
+    {
+      "path": "/example.local/contracts/svg.bin",
+      "mime": "image/svg+xml",
+      "bytes": 114,
+      "sha256": "4fdce518330378e6cb6d95c475cd357e9633c511e52adafe47f8eed6fcbb37da",
+      "headStatus": 200,
+      "headBodyBytes": 0,
+      "defaultHeadContentLength": null,
+      "defaultHeadContentEncoding": "br",
+      "identityHeadContentLength": 114,
+      "identityHeadBodyBytes": 0,
+      "getStatus": 200,
+      "getContentEncoding": "br",
+      "decodedGetBytes": 114
+    },
+    {
+      "path": "/example.local/contracts/avif.bin",
+      "mime": "image/avif",
+      "bytes": 288,
+      "sha256": "40c30832e21f021fd82d3833a3a91c6f05611f94f9d720c52c70be837ef32711",
+      "headStatus": 200,
+      "headBodyBytes": 0,
+      "defaultHeadContentLength": "288",
+      "defaultHeadContentEncoding": null,
+      "identityHeadContentLength": 288,
+      "identityHeadBodyBytes": 0,
+      "getStatus": 200,
+      "getContentEncoding": null,
+      "decodedGetBytes": 288
+    }
+  ],
+  "viewports": [
+    {
+      "width": 1280,
+      "mobileEmulation": false,
+      "images": [
+        {
+          "path": "/example.local/contracts/png.bin",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "path": "/example.local/contracts/jpeg.bin",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "path": "/example.local/contracts/gif.bin",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "path": "/example.local/contracts/webp.bin",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "path": "/example.local/contracts/svg.bin",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "path": "/example.local/contracts/avif.bin",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "mobileEmulation": true,
+      "images": [
+        {
+          "path": "/example.local/contracts/png.bin",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "path": "/example.local/contracts/jpeg.bin",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "path": "/example.local/contracts/gif.bin",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "path": "/example.local/contracts/webp.bin",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "path": "/example.local/contracts/svg.bin",
+          "width": 64,
+          "height": 64
+        },
+        {
+          "path": "/example.local/contracts/avif.bin",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    }
+  ],
+  "publicHeadDiskReadCountMeasured": false,
+  "prefixReadLimitProvedSeparatelyByLocalInstrumentation": true,
+  "earlierObserverIncorrectlyRequiredDecodedLengthOnCompressedHead": true,
+  "compressionReference": "https://developers.cloudflare.com/speed/optimization/content/compression/"
+}

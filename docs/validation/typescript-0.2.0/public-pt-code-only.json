@@ -1,0 +1,18 @@
+{
+  "format": "enois-preview-ts-v1",
+  "publicWorker": true,
+  "stage": "code-only",
+  "revision": "a787a8b14663c30754ec6079aeb3a450ff5cd04c47109eb34e0a559c6d603ba5",
+  "url": "https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-a787a8b14663c307",
+  "previousRevision": "34fab059377435732b81022ac528f0fd798cba876fde20ee45b87ef8cc6528c9",
+  "dataVersion": "e5d59725a7818d7baa90f174dff5c47a620bbac292e70555c368b2f0d4f3ee5c",
+  "dataVersionUnchanged": true,
+  "frontendCommit": "4ba077941056b941041b84e7397f5dafa6d76bcf",
+  "newCodeMarkerInPublicHtml": true,
+  "liveD2ChangedBeforePublish": true,
+  "liveH2AndMediaUnavailableForEntirePublish": true,
+  "publicPostD2MarkerAbsent": true,
+  "newLiveMediaAbsent404": true,
+  "sourceBackendRemainedStopped": true,
+  "liveInputsRestored": true
+}

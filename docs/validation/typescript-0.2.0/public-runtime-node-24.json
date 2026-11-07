@@ -1,0 +1,14 @@
+{
+  "format": "enois-preview-ts-v1",
+  "node": "v24.22.2",
+  "pythonExecutables": [],
+  "executableChecks": {
+    "python": "ENOENT",
+    "python2": "ENOENT",
+    "python3": "ENOENT"
+  },
+  "image": "ghcr.io/renanfranca/enois-demo@sha256:70ef99959652535de9b6b178fc6235dde168b60ea777d4886a105ddfa1d2061d",
+  "revision": "34fab059377435732b81022ac528f0fd798cba876fde20ee45b87ef8cc6528c9",
+  "publishedDigest": true,
+  "actualApplicationImage": true
+}

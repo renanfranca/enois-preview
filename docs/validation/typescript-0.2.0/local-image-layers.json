@@ -1,0 +1,14 @@
+{
+  "allDistributedLayersScanned": true,
+  "controlCategories": [
+    "originalPasswordHashes"
+  ],
+  "deletedFilesIncluded": true,
+  "files": 11025,
+  "format": "enois-preview-ts-v1",
+  "image": "sha256:ed3c06aabbfb231c19cb9b37266237c6fb8a228ec65560fd2671108df416e8ac",
+  "layers": 27,
+  "matchedCategories": [],
+  "scannedBytes": 1339459428,
+  "scope": "literal synthetic control values plus separately verified sanitized database; not a universal secret scan"
+}

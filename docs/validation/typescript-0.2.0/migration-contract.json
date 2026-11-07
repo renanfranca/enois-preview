@@ -1,0 +1,42 @@
+{
+  "format": "enois-preview-ts-v1",
+  "checkedAt": "2026-11-07T11:41:12.298Z",
+  "functionalBaseline": "e2d162f956e8d5cd49651443f119c4f2426dd79d",
+  "executableToolCommit": "a95d9862bea0b5076b311600d6f0ebec939cfbd5",
+  "executableCheckoutClean": true,
+  "ownedPythonAuthoredJavaScriptOrBashFiles": [],
+  "javaSourcesRetained": 11,
+  "applicationPinsUnchanged": true,
+  "dependencyPins": {
+    "wrangler": "4.156.0",
+    "playwright": "1.64.1"
+  },
+  "minimumNode": ">=22.12.0",
+  "originalApplicationWorktrees": {
+    "enois-backend": {
+      "commit": "c6a6d3bef437a3b9d1f4fff3aecb2d504ce0306c",
+      "clean": true
+    },
+    "enois-frontend": {
+      "commit": "c21edb9d3e27dfee83bde0ece4c9d57b4b91fa51",
+      "clean": true
+    },
+    "enois-design-system": {
+      "commit": "e18fa879ae560e5bb279e1a13ace18e7fd5c971b",
+      "clean": true
+    }
+  },
+  "legacyCatalog": {
+    "commit": "1643469e0babebd9f8f48d73226d1861649e4d4e",
+    "entries": 19,
+    "sha256": "11c13fd60089bc77b74b66da81beaf2937c85162ed0d26946589efcd36b2aa45",
+    "preservedInGit": true
+  },
+  "newCatalogAtBootstrap": {
+    "format": "enois-preview-ts-v1",
+    "scenarios": {}
+  },
+  "consumerToolCommit": "a95d9862bea0b5076b311600d6f0ebec939cfbd5",
+  "paidPlanChanges": false,
+  "secretWrites": false
+}

@@ -1,0 +1,30 @@
+{
+  "format": "enois-preview-ts-v1",
+  "node": "v22.12.0",
+  "separateEmptyDestinations": true,
+  "canonicalDataSha256": "0fd5764b41b67082f18ce42059bded059afc49a91917223f2e0680c5816f5d56",
+  "mediaInventoriesEqual": true,
+  "mediaFiles": 9,
+  "publicSourceCommitsEqual": true,
+  "observed": {
+    "comments": 6,
+    "posts": 8,
+    "postsWithImages": 3,
+    "reactions": 8,
+    "replies": 2,
+    "users": 4
+  },
+  "manifests": [
+    {
+      "file": "repro-a/example-01/example-manifest.json",
+      "sha256": "79bbd64404f323abed74301a9a325a9b38d8776b9c89de30dc70e15568dcd81e"
+    },
+    {
+      "file": "repro-b/example-01/example-manifest.json",
+      "sha256": "79bbd64404f323abed74301a9a325a9b38d8776b9c89de30dc70e15568dcd81e"
+    }
+  ],
+  "originalApplicationWorkspacesMounted": false,
+  "pythonExecutables": [],
+  "publicPublication": false
+}

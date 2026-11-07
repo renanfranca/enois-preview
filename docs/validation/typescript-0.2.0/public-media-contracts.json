@@ -1,0 +1,117 @@
+{
+  "activeSvgUploadRejected400": true,
+  "declaredAndActualSizeMismatchRejected400": true,
+  "failedUploadsUnreadable404": true,
+  "format": "enois-preview-ts-v1",
+  "formats": [
+    {
+      "decoded": true,
+      "inputBytes": 247,
+      "metadataMarkerRemoved": true,
+      "mime": "image/jpeg",
+      "readable": true,
+      "storedBytes": 229
+    },
+    {
+      "decoded": true,
+      "inputBytes": 79,
+      "metadataMarkerRemoved": true,
+      "mime": "image/png",
+      "readable": true,
+      "storedBytes": 79
+    },
+    {
+      "decoded": true,
+      "inputBytes": 1105,
+      "metadataMarkerRemoved": true,
+      "mime": "image/gif",
+      "readable": true,
+      "storedBytes": 1105
+    },
+    {
+      "decoded": true,
+      "inputBytes": 88,
+      "metadataMarkerRemoved": true,
+      "mime": "image/webp",
+      "readable": true,
+      "storedBytes": 88
+    },
+    {
+      "decoded": true,
+      "inputBytes": 323,
+      "metadataMarkerRemoved": true,
+      "mime": "image/avif",
+      "readable": true,
+      "storedBytes": 323
+    },
+    {
+      "decoded": true,
+      "inputBytes": 1659,
+      "metadataMarkerRemoved": true,
+      "mime": "video/mp4",
+      "readable": true,
+      "storedBytes": 1612
+    },
+    {
+      "decoded": true,
+      "inputBytes": 1629,
+      "metadataMarkerRemoved": true,
+      "mime": "video/quicktime",
+      "readable": true,
+      "storedBytes": 1559
+    },
+    {
+      "decoded": true,
+      "inputBytes": 606,
+      "metadataMarkerRemoved": true,
+      "mime": "video/webm",
+      "readable": true,
+      "storedBytes": 533
+    },
+    {
+      "decoded": true,
+      "inputBytes": 2150,
+      "metadataMarkerRemoved": true,
+      "mime": "audio/mpeg",
+      "readable": true,
+      "storedBytes": 2133
+    },
+    {
+      "decoded": true,
+      "inputBytes": 3956,
+      "metadataMarkerRemoved": true,
+      "mime": "audio/ogg",
+      "readable": true,
+      "storedBytes": 3907
+    },
+    {
+      "decoded": true,
+      "inputBytes": 17750,
+      "metadataMarkerRemoved": true,
+      "mime": "audio/wav",
+      "readable": true,
+      "storedBytes": 17718
+    },
+    {
+      "decoded": true,
+      "inputBytes": 2819,
+      "metadataMarkerRemoved": true,
+      "mime": "audio/webm",
+      "readable": true,
+      "storedBytes": 2742
+    },
+    {
+      "decoded": false,
+      "inputBytes": 406,
+      "metadataMarkerRemoved": true,
+      "mime": "application/pdf",
+      "readable": true,
+      "storedBytes": 611
+    }
+  ],
+  "localOnly": false,
+  "publicWorker": true,
+  "revision": "34fab059377435732b81022ac528f0fd798cba876fde20ee45b87ef8cc6528c9",
+  "traversalRefused": true,
+  "typeMismatchRejected400": true
+}

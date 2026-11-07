@@ -1,0 +1,733 @@
+{
+  "format": "enois-preview-ts-v1",
+  "publicWorker": true,
+  "guide": "docs/pt-BR/TUTORIAL.md",
+  "validatedAt": "2026-11-07",
+  "reports": [
+    {
+      "status": "validated",
+      "url": "https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-34fab05937743573",
+      "scenario": "exemplo-typescript-pt",
+      "revision": "34fab059377435732b81022ac528f0fd798cba876fde20ee45b87ef8cc6528c9",
+      "reused": false,
+      "commits": {
+        "enois-backend": "c6a6d3bef437a3b9d1f4fff3aecb2d504ce0306c",
+        "enois-design-system": "e18fa879ae560e5bb279e1a13ace18e7fd5c971b",
+        "enois-frontend": "c21edb9d3e27dfee83bde0ece4c9d57b4b91fa51"
+      },
+      "dataVersion": "e5d59725a7818d7baa90f174dff5c47a620bbac292e70555c368b2f0d4f3ee5c",
+      "dataReused": true,
+      "toolCommit": "a95d9862bea0b5076b311600d6f0ebec939cfbd5",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:70ef99959652535de9b6b178fc6235dde168b60ea777d4886a105ddfa1d2061d",
+      "provenanceSha256": "6ce919395692d0e21774f2cbdff601a9540b3af4b79a1228696b911958f3834b",
+      "configurationCommit": "2e9f27af065c92a11de7be23f573e97901deaaa6",
+      "catalogCommit": "054bae8d71b357a8e6e4a88bb804cd95e4ae9170",
+      "deployment": {
+        "catalogCommit": "054bae8d71b357a8e6e4a88bb804cd95e4ae9170",
+        "identity": {
+          "id": "fc6c88d3-561b-4d92-a59b-390a9cbf4070",
+          "versions": [
+            {
+              "version_id": "0ed62925-0580-4884-a13d-f8b95d501482",
+              "percentage": 100
+            }
+          ],
+          "created_on": "2026-11-07T10:59:34.050031Z"
+        }
+      },
+      "validation": {
+        "origin": "https://enois-demo-launcher.renan-andradefranca.workers.dev",
+        "localOnly": false,
+        "elapsedSeconds": 136.341,
+        "readiness": "UP",
+        "identityVerified": true,
+        "accounts": [
+          {
+            "id": "example_lia",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          },
+          {
+            "id": "example_rui",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          }
+        ],
+        "media": [
+          {
+            "path": "/example.local/badge.svg",
+            "bytes": 265,
+            "contentType": "image/svg+xml",
+            "sha256": "5dae175165b6cd2716245c022f31385553ef11d385fd30536a47317743a2fda0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/cover.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/davi.svg",
+            "bytes": 1133,
+            "contentType": "image/svg+xml",
+            "sha256": "eee4b99645322429da590192d2216262962d574d1b12cdb2ece63187bd3f91b0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/lia.svg",
+            "bytes": 1141,
+            "contentType": "image/svg+xml",
+            "sha256": "7c16dd62bd14f7ed9759843578073c29b361d4953d6d796294a0e0dea2f89335",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/maya.svg",
+            "bytes": 1142,
+            "contentType": "image/svg+xml",
+            "sha256": "8ec98e174e51b7ae7eac99fdba900320fffacac02f3ba9773a98fd562914de52",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-1.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-2.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "722f08cf692fecd8a78e05e5545c30195e55143120d8062a6107edf28c171075",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-3.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "6f4e5d5a797a114709248fb7268d4807925b572652fe43240dcbad06e72cbdd6",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/rui.svg",
+            "bytes": 1132,
+            "contentType": "image/svg+xml",
+            "sha256": "e8d50fbdd5822ff7eed4fda201b1566a91288f259cb658fb43b68f87c7b7815b",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          }
+        ],
+        "imageDecoding": [
+          {
+            "width": 1280,
+            "mobileEmulation": false,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          },
+          {
+            "width": 390,
+            "mobileEmulation": true,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          }
+        ],
+        "externalReads": {
+          "scope": "captured renderable URL references; excluded from the frozen local media guarantee",
+          "results": []
+        }
+      }
+    },
+    {
+      "status": "validated",
+      "url": "https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-a787a8b14663c307",
+      "scenario": "exemplo-typescript-pt",
+      "revision": "a787a8b14663c30754ec6079aeb3a450ff5cd04c47109eb34e0a559c6d603ba5",
+      "reused": false,
+      "commits": {
+        "enois-backend": "c6a6d3bef437a3b9d1f4fff3aecb2d504ce0306c",
+        "enois-design-system": "e18fa879ae560e5bb279e1a13ace18e7fd5c971b",
+        "enois-frontend": "4ba077941056b941041b84e7397f5dafa6d76bcf"
+      },
+      "dataVersion": "e5d59725a7818d7baa90f174dff5c47a620bbac292e70555c368b2f0d4f3ee5c",
+      "dataReused": true,
+      "toolCommit": "a95d9862bea0b5076b311600d6f0ebec939cfbd5",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:d773d0831784874b668648e2d0e3a3e44b1bd92d7266298a83fc3da63b4d0700",
+      "provenanceSha256": "4a5e01b209744860688db9d91e041fb82d23982203d788123c9ee473561640e8",
+      "configurationCommit": "2debe3a2261af6c703f54441942f93b910fd2739",
+      "catalogCommit": "9349350dc8d3a3b3f24c49e596e36df4bc8829fa",
+      "deployment": {
+        "catalogCommit": "9349350dc8d3a3b3f24c49e596e36df4bc8829fa",
+        "identity": {
+          "id": "009df53d-c506-4be7-8c5c-4762e572f9ff",
+          "versions": [
+            {
+              "version_id": "409c128a-2821-4c88-87c3-bb8404d705f3",
+              "percentage": 100
+            }
+          ],
+          "created_on": "2026-11-07T11:33:21.854189Z"
+        }
+      },
+      "validation": {
+        "origin": "https://enois-demo-launcher.renan-andradefranca.workers.dev",
+        "localOnly": false,
+        "elapsedSeconds": 124.884,
+        "readiness": "UP",
+        "identityVerified": true,
+        "accounts": [
+          {
+            "id": "example_lia",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          },
+          {
+            "id": "example_rui",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          }
+        ],
+        "media": [
+          {
+            "path": "/example.local/badge.svg",
+            "bytes": 265,
+            "contentType": "image/svg+xml",
+            "sha256": "5dae175165b6cd2716245c022f31385553ef11d385fd30536a47317743a2fda0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/cover.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/davi.svg",
+            "bytes": 1133,
+            "contentType": "image/svg+xml",
+            "sha256": "eee4b99645322429da590192d2216262962d574d1b12cdb2ece63187bd3f91b0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/lia.svg",
+            "bytes": 1141,
+            "contentType": "image/svg+xml",
+            "sha256": "7c16dd62bd14f7ed9759843578073c29b361d4953d6d796294a0e0dea2f89335",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/maya.svg",
+            "bytes": 1142,
+            "contentType": "image/svg+xml",
+            "sha256": "8ec98e174e51b7ae7eac99fdba900320fffacac02f3ba9773a98fd562914de52",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-1.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-2.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "722f08cf692fecd8a78e05e5545c30195e55143120d8062a6107edf28c171075",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-3.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "6f4e5d5a797a114709248fb7268d4807925b572652fe43240dcbad06e72cbdd6",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/rui.svg",
+            "bytes": 1132,
+            "contentType": "image/svg+xml",
+            "sha256": "e8d50fbdd5822ff7eed4fda201b1566a91288f259cb658fb43b68f87c7b7815b",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          }
+        ],
+        "imageDecoding": [
+          {
+            "width": 1280,
+            "mobileEmulation": false,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          },
+          {
+            "width": 390,
+            "mobileEmulation": true,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          }
+        ],
+        "externalReads": {
+          "scope": "captured renderable URL references; excluded from the frozen local media guarantee",
+          "results": []
+        }
+      }
+    },
+    {
+      "status": "validated",
+      "url": "https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-6c1183df4fe6acca",
+      "scenario": "exemplo-typescript-pt",
+      "revision": "6c1183df4fe6acca98f8ccc4b8fa2a9c3a3f5a1e811f615fd36289b04abfab60",
+      "reused": false,
+      "commits": {
+        "enois-backend": "c6a6d3bef437a3b9d1f4fff3aecb2d504ce0306c",
+        "enois-design-system": "e18fa879ae560e5bb279e1a13ace18e7fd5c971b",
+        "enois-frontend": "4ba077941056b941041b84e7397f5dafa6d76bcf"
+      },
+      "dataVersion": "13fc66c7cbf6977f33379b67560fb9b37e723c26248e2db37e860e8a3be517a6",
+      "dataReused": false,
+      "toolCommit": "a95d9862bea0b5076b311600d6f0ebec939cfbd5",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:e774845e2004a2bc9a00d892c844b1ec2d0124320366b9ed041a0942fe160a97",
+      "provenanceSha256": "5634df677a992bde96e7ead1dd9b9af899ca70f8bd32b0e35621efb2cc9cbf50",
+      "configurationCommit": "a4d6fadcf9238b86b4dca421e735230c611214ba",
+      "catalogCommit": "dc3b253fb557c7eb976aea5dffb6375da3b3358f",
+      "deployment": {
+        "catalogCommit": "dc3b253fb557c7eb976aea5dffb6375da3b3358f",
+        "identity": {
+          "id": "a6bd9362-715c-4d1e-8346-a099e4f78557",
+          "versions": [
+            {
+              "version_id": "aa3e5f51-08fd-4bc5-a385-a0a0a710b347",
+              "percentage": 100
+            }
+          ],
+          "created_on": "2026-11-07T11:46:01.014795Z"
+        }
+      },
+      "validation": {
+        "origin": "https://enois-demo-launcher.renan-andradefranca.workers.dev",
+        "localOnly": false,
+        "elapsedSeconds": 159.675,
+        "readiness": "UP",
+        "identityVerified": true,
+        "accounts": [
+          {
+            "id": "example_lia",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          },
+          {
+            "id": "example_rui",
+            "authenticated": true,
+            "permissions": {
+              "admin": false,
+              "moderator": false
+            }
+          }
+        ],
+        "media": [
+          {
+            "path": "/example.local/badge.svg",
+            "bytes": 265,
+            "contentType": "image/svg+xml",
+            "sha256": "5dae175165b6cd2716245c022f31385553ef11d385fd30536a47317743a2fda0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/cover.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/davi.svg",
+            "bytes": 1133,
+            "contentType": "image/svg+xml",
+            "sha256": "eee4b99645322429da590192d2216262962d574d1b12cdb2ece63187bd3f91b0",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/lia.svg",
+            "bytes": 1141,
+            "contentType": "image/svg+xml",
+            "sha256": "7c16dd62bd14f7ed9759843578073c29b361d4953d6d796294a0e0dea2f89335",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/maya.svg",
+            "bytes": 1142,
+            "contentType": "image/svg+xml",
+            "sha256": "8ec98e174e51b7ae7eac99fdba900320fffacac02f3ba9773a98fd562914de52",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-1.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "158daa45d88af09e75734cefbb01bca9148bac2723df26086b5011d9dc1321ec",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-2.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "722f08cf692fecd8a78e05e5545c30195e55143120d8062a6107edf28c171075",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/post-3.svg",
+            "bytes": 396,
+            "contentType": "image/svg+xml",
+            "sha256": "6f4e5d5a797a114709248fb7268d4807925b572652fe43240dcbad06e72cbdd6",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/rui.svg",
+            "bytes": 1132,
+            "contentType": "image/svg+xml",
+            "sha256": "e8d50fbdd5822ff7eed4fda201b1566a91288f259cb658fb43b68f87c7b7815b",
+            "expectedContentType": "image/svg+xml",
+            "imageClassification": "image"
+          },
+          {
+            "path": "/example.local/ts-data-marker.txt",
+            "bytes": 19,
+            "contentType": "application/octet-stream",
+            "sha256": "04117f96e9050413de2e23699a7af7690e3a199612578a195ecf9a33964e393b",
+            "expectedContentType": "application/octet-stream",
+            "imageClassification": "unclassified"
+          }
+        ],
+        "imageDecoding": [
+          {
+            "width": 1280,
+            "mobileEmulation": false,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          },
+          {
+            "width": 390,
+            "mobileEmulation": true,
+            "images": [
+              {
+                "path": "/example.local/badge.svg",
+                "width": 128,
+                "height": 128
+              },
+              {
+                "path": "/example.local/cover.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/davi.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/lia.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/maya.svg",
+                "width": 240,
+                "height": 240
+              },
+              {
+                "path": "/example.local/post-1.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-2.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/post-3.svg",
+                "width": 960,
+                "height": 540
+              },
+              {
+                "path": "/example.local/rui.svg",
+                "width": 240,
+                "height": 240
+              }
+            ]
+          }
+        ],
+        "externalReads": {
+          "scope": "captured renderable URL references; excluded from the frozen local media guarantee",
+          "results": []
+        }
+      }
+    }
+  ]
+}

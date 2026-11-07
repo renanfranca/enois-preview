@@ -1,0 +1,59 @@
+{
+  "format": "enois-preview-ts-v1",
+  "observedAt": "2026-11-07T12:15:08.471Z",
+  "privateHead": "eab2a4942100079c5212addb6084e28abd57e927",
+  "historicalCatalogCommit": "1643469e0babebd9f8f48d73226d1861649e4d4e",
+  "historicalCatalogEntries": 19,
+  "historicalCatalogSha256": "11c13fd60089bc77b74b66da81beaf2937c85162ed0d26946589efcd36b2aa45",
+  "historicalImmutableFilesUnchanged": 58,
+  "previousTypeScriptCatalogCommit": "c4ec0b865782d764c51371949546e32782b14d76",
+  "previousTypeScriptCatalogEntriesUnchanged": 5,
+  "currentTypeScriptCatalogEntries": 6,
+  "publicToolCommit": "a95d9862bea0b5076b311600d6f0ebec939cfbd5",
+  "allSixConfigurationAndProvenanceBlobsUnchanged": true,
+  "readOnlyMetadataDidNotLaunchEnvironments": true,
+  "verified": [
+    {
+      "slug": "exemplo-typescript-pt-34fab05937743573",
+      "revision": "34fab059377435732b81022ac528f0fd798cba876fde20ee45b87ef8cc6528c9",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:70ef99959652535de9b6b178fc6235dde168b60ea777d4886a105ddfa1d2061d",
+      "configurationCommit": "2e9f27af065c92a11de7be23f573e97901deaaa6",
+      "publicMetadataMatches": true
+    },
+    {
+      "slug": "exemplo-typescript-pt-a787a8b14663c307",
+      "revision": "a787a8b14663c30754ec6079aeb3a450ff5cd04c47109eb34e0a559c6d603ba5",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:d773d0831784874b668648e2d0e3a3e44b1bd92d7266298a83fc3da63b4d0700",
+      "configurationCommit": "2debe3a2261af6c703f54441942f93b910fd2739",
+      "publicMetadataMatches": true
+    },
+    {
+      "slug": "exemplo-typescript-pt-6c1183df4fe6acca",
+      "revision": "6c1183df4fe6acca98f8ccc4b8fa2a9c3a3f5a1e811f615fd36289b04abfab60",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:e774845e2004a2bc9a00d892c844b1ec2d0124320366b9ed041a0942fe160a97",
+      "configurationCommit": "a4d6fadcf9238b86b4dca421e735230c611214ba",
+      "publicMetadataMatches": true
+    },
+    {
+      "slug": "exemplo-typescript-en-997ebbd9399555cf",
+      "revision": "997ebbd9399555cf81e62e83e26452711fa47cc78fb263022cdbef4194ade6ac",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:5b75590723b6ebd376d2161fe8610af045a5a932a8ed44eb880146352334f708",
+      "configurationCommit": "1d7d497e169b45094f5d83b0b302076119e9100b",
+      "publicMetadataMatches": true
+    },
+    {
+      "slug": "exemplo-typescript-en-c1679b51e8c5b536",
+      "revision": "c1679b51e8c5b53605674324138b5b789d9748b2ae4a1e3b3b199483a8b937e2",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:2eadab2f634f1b59da170483606a0a020e32e1e9da48ca05b1f5181fb95497a1",
+      "configurationCommit": "963c0f38c30448f59b2eb919761d97d9e644ba41",
+      "publicMetadataMatches": true
+    },
+    {
+      "slug": "exemplo-typescript-en-a6ed69fba999af5c",
+      "revision": "a6ed69fba999af5c39e42101a72e6edc41217743038808110b74e4721f074146",
+      "image": "ghcr.io/renanfranca/enois-demo@sha256:577804b5f95087bceecb8c3fd126d8640e585d5af135d2148aa92bfaffdc44ea",
+      "configurationCommit": "25adf97625a3be37e0524cf3ef57741240fb8aa8",
+      "publicMetadataMatches": true
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "format": "enois-preview-ts-v1",
+  "scope": "documentation delivery checkout; executable source unchanged from a95d986",
+  "commands": {
+    "install": 0,
+    "build": 0,
+    "typecheck": 0,
+    "test": 0,
+    "check": 0
+  },
+  "tests": 87,
+  "failures": 0,
+  "skips": 0,
+  "installsIgnoredLifecycleScripts": true,
+  "testsRecompiledSources": true
+}

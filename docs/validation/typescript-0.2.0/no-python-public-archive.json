@@ -1,0 +1,17 @@
+{
+  "format": "enois-preview-ts-v1",
+  "publicToolCommit": "a95d9862bea0b5076b311600d6f0ebec939cfbd5",
+  "resolved": "https://codeload.github.com/renanfranca/enois-preview/tar.gz/a95d9862bea0b5076b311600d6f0ebec939cfbd5",
+  "integrity": "sha512-jrTwL7mg+JL5YsiPSm1wUuuLQR9i5z61JcRNvDiLUH3XfN8I0d5sE9cnGlduy9fsF2NL0lf5ezs0VtCfXOUa5w==",
+  "installationScriptsIgnored": true,
+  "privateSecretsCopied": false,
+  "node": "v22.12.0",
+  "publicArchiveDownloaded": true,
+  "explicitDependencyBuild": true,
+  "defaultTests": 87,
+  "failures": 0,
+  "skips": 0,
+  "workerDryRunPassed": true,
+  "pythonPresent": false,
+  "privateSecretsMounted": false
+}

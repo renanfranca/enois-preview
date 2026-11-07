@@ -1,0 +1,35 @@
+{
+  "format": "enois-preview-ts-v1",
+  "localOnly": true,
+  "fileBytes": 268435456,
+  "memoryLimit": 134217728,
+  "memorySwapLimit": 134217728,
+  "containerLimits": {
+    "Memory": 134217728,
+    "MemorySwap": 134217728
+  },
+  "head": {
+    "bodyBytes": 0,
+    "contentLength": 268435456,
+    "status": 200
+  },
+  "headReadBytes": 4096,
+  "get": {
+    "bytes": 268435456,
+    "sha256": "a6d72ac7690f53be6ae46ba88506bd97302a093f7108472bd9efc3cefda06484"
+  },
+  "expectedSha256": "a6d72ac7690f53be6ae46ba88506bd97302a093f7108472bd9efc3cefda06484",
+  "concurrentHeadCount": 64,
+  "concurrentHeadReadBytes": 262144,
+  "slowClientAdditionalBytes": 0,
+  "descriptorsBefore": 21,
+  "descriptorsAfterAborts": 21,
+  "descriptorsAfter": 21,
+  "oomKilled": false,
+  "finalHead": {
+    "bodyBytes": 0,
+    "contentLength": 268435456,
+    "status": 200
+  },
+  "passed": true
+}

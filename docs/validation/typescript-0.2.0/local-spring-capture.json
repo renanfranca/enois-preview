@@ -1,0 +1,12 @@
+{
+  "backendRestoredHealthyBeforeCaptureReturned": true,
+  "capturedAdminPermissionPreserved": true,
+  "dataVersion": "a72c64372c7426ddcab587b334d30c17ce637e109176285540561b6627b37513",
+  "format": "enois-preview-ts-v1",
+  "localOnly": true,
+  "originalLoginsRejectedInSanitizedCopy401": 4,
+  "originalLoginsStillValidAfterCapture": 4,
+  "realSpringAndH2": true,
+  "sanitizerSha256": "2f07d4f9ff5778c22b246c90884bd9692482b77d6a2123b0540ac850fe3373a1",
+  "validOriginalLoginsBeforeCapture": 4
+}

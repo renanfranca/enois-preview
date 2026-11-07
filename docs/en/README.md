@@ -4,6 +4,8 @@ An Énóis specific tool for immutable development and testing previews behind a
 
 [Português do Brasil](../../README.md) · [Tutorial](TUTORIAL.md) · [LLM guide](LLM.md) · [Diagnostics](../diagnostics/README.md)
 
+Use a clean tool checkout at the full public commit pinned by the private launcher’s `tool.lock.json`. Before installation, select it with `git checkout --detach <PINNED_PUBLIC_COMMIT>`. Publication and resume verify that identity.
+
 ```sh
 npm ci --ignore-scripts
 npm run build

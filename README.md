@@ -4,6 +4,8 @@ Ferramenta específica ao Énóis para publicar revisões imutáveis de desenvol
 
 [English](docs/en/README.md) · [Tutorial](docs/pt-BR/TUTORIAL.md) · [Guia para LLM](docs/pt-BR/LLM.md) · [Diagnóstico](docs/diagnostics/README.md)
 
+Use um checkout limpo do commit público completo fixado em `tool.lock.json` no lançador privado. Antes de instalar, selecione esse commit com `git checkout --detach <COMMIT_PUBLICO_FIXADO>`. O CLI verifica essa identidade durante publicação e retomada.
+
 ```sh
 npm ci --ignore-scripts
 npm run build

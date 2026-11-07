@@ -33,7 +33,7 @@ test('installed CLI explains setup, frozen publication and resume through Node w
     mkdirSync(join(directory, 'bin'));
     symlinkSync(process.execPath, join(directory, 'bin/node'));
 
-    const result = spawnSync(process.execPath, [join(directory, 'node_modules/enois-preview/dist/preview/cli.js'), '--help'], { encoding: 'utf8', env: { ...process.env, PATH: join(directory, 'bin') } });
+    const result = spawnSync(join(directory,'node_modules/.bin/enois-preview'), ['--help'], { encoding: 'utf8', env: { ...process.env, PATH: join(directory, 'bin') } });
 
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /enois-preview/);
@@ -42,6 +42,18 @@ test('installed CLI explains setup, frozen publication and resume through Node w
     assert.match(result.stdout, /--refresh-data/);
     assert.match(result.stdout, /resume/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('the declared CLI executable remains usable through a launcher symlink after an explicit build',()=>{
+  const directory=mkdtempSync(join(tmpdir(),'enois-rebuilt-bin-'));
+  try{
+    const pkg=JSON.parse(readFileSync('package.json','utf8')),binary=resolve(pkg.bin['enois-preview']);
+    const link=join(directory,'enois-preview');symlinkSync(binary,link);mkdirSync(join(directory,'bin'));symlinkSync(process.execPath,join(directory,'bin/node'));
+
+    const result=spawnSync(link,['--help'],{encoding:'utf8',env:{...process.env,PATH:join(directory,'bin')}});
+
+    assert.equal(result.status,0,result.error?.message??result.stderr);assert.match(result.stdout,/enois-preview/);assert.match(result.stdout,/setup/);assert.match(result.stdout,/resume/);
+  }finally{rmSync(directory,{recursive:true,force:true});}
 });
 
 test('legacy installation is refused before any mutation with fresh installation guidance', () => {

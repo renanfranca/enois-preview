@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { installed, captureConfig, validateConfig, prerequisites } from './config.js';
 import type { Account } from './config.js';
 import { commits, recover, sourceLease } from './capture.js';
-import { access } from 'node:fs/promises';
+import { access, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { PreviewError, readRecord, exists, string, privateDir, lease, writeRecord } from './state.js';
@@ -91,4 +91,5 @@ Commands:
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main();
+const invoked=process.argv[1];
+if (invoked && await realpath(invoked).then(file=>import.meta.url===pathToFileURL(file).href,()=>false)) process.exitCode = await main();

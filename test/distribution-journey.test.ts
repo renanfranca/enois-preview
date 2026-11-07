@@ -19,6 +19,9 @@ test('the local consumer generator pins an immutable public archive and produces
     assert.equal(result.status,0,result.stderr);const report=JSON.parse(result.stdout);assert.equal(report.remoteWrites,false);assert.equal(report.launchEnabled,false);
     const config=JSON.parse(await readFile(join(destination,'wrangler.jsonc'),'utf8'));assert.equal(config.main,'launcher.ts');assert.equal(config.vars.LAUNCH_ENABLED,'false');
     const pkg=JSON.parse(await readFile(join(destination,'package.json'),'utf8'));assert.equal(pkg.private,true);assert.equal(pkg.devDependencies['enois-preview'],`https://codeload.github.com/renanfranca/enois-preview/tar.gz/${commit}`);
+    assert.deepEqual(pkg.engines,{node:'>=24 <25'});
+    assert.match(pkg.devDependencies['@types/node'],/^24\./);
+    assert.equal(await readFile(join(destination,'.nvmrc'),'utf8'),'24\n');
     assert.deepEqual(JSON.parse(await readFile(join(destination,'tool.lock.json'),'utf8')),{format:'enois-preview-ts-v1',repository:'renanfranca/enois-preview',commit});
     assert.deepEqual(JSON.parse(await readFile(join(destination,'catalog/scenarios.json'),'utf8')),{format:'enois-preview-ts-v1',scenarios:{}});
     await mkdir(join(destination,'node_modules'));await symlink(resolve('.'),join(destination,'node_modules/enois-preview'),'dir');
@@ -71,7 +74,7 @@ test('public export includes only reviewed sources and current migration evidenc
   const directory=await mkdtemp(join(tmpdir(),'enois-public-export-'));
   try{
     const source=join(directory,'private'),destination=join(directory,'public');await mkdir(join(source,'release'),{recursive:true});
-    await writeFile(join(source,'release/public-files.json'),JSON.stringify({format:'enois-preview-ts-v1',files:['tool.ts']}));const code='export const publicValue = 1;\n';await writeFile(join(source,'tool.ts'),code);
+    await writeFile(join(source,'release/public-files.json'),JSON.stringify({format:'enois-preview-ts-v1',files:['.nvmrc','tool.ts']}));const code='export const publicValue = 1;\n';await writeFile(join(source,'tool.ts'),code);await writeFile(join(source,'.nvmrc'),'24\n');
     await writeFile(join(source,'VALIDATION.md'),'Private previous evidence marker\n## TypeScript migration evidence (6 November 2026)\nCurrent incomplete acceptance.\n');
     for(const path of ['.git/config','.env','catalog/scenarios.json','work/credentials.json','seed/rede.mv.db','unreviewed.ts']){await mkdir(join(source,path,'..'),{recursive:true});await writeFile(join(source,path),'private-sentinel-never-public');}
 
@@ -79,6 +82,7 @@ test('public export includes only reviewed sources and current migration evidenc
 
     assert.equal(report.published,false);assert.equal(report.historyCopied,false);assert.equal(report.operationalCatalogEntries,0);
     assert.equal(await readFile(join(destination,'tool.ts'),'utf8'),code);assert.equal(existsSync(join(destination,'.git')),false);assert.equal(existsSync(join(destination,'unreviewed.ts')),false);assert.equal(existsSync(join(destination,'work')),false);
+    assert.equal(await readFile(join(destination,'.nvmrc'),'utf8'),'24\n');
     assert.deepEqual(JSON.parse(await readFile(join(destination,'catalog/scenarios.json'),'utf8')),{format:'enois-preview-ts-v1',scenarios:{}});
     const validation=await readFile(join(destination,'VALIDATION.md'),'utf8');assert.match(validation,/Current incomplete acceptance/);assert.doesNotMatch(validation,/Private previous evidence marker|private-sentinel/);
     assert.equal(JSON.parse(await readFile(join(destination,'wrangler.jsonc'),'utf8')).vars.LAUNCH_ENABLED,'false');
@@ -89,12 +93,14 @@ test('public export refuses existing destinations, traversal, symlinks and histo
   const directory=await mkdtemp(join(tmpdir(),'enois-refused-export-'));
   try{
     const source=join(directory,'source'),destination=join(directory,'public');await mkdir(join(source,'release'),{recursive:true});await writeFile(join(source,'tool.ts'),'export {};');
+    await writeFile(join(source,'.env'),'private-sentinel');await mkdir(join(source,'private'));await writeFile(join(source,'private/.nvmrc'),'private-sentinel');
+    await mkdir(join(source,'.nvmrc'));await writeFile(join(source,'.nvmrc/nested'),'private-sentinel');
     await writeFile(join(source,'VALIDATION.md'),'## TypeScript migration evidence\nIncomplete.\n');const file=join(source,'release/public-files.json');
     await writeFile(file,JSON.stringify({format:'enois-preview-ts-v1',files:['tool.ts']}));await mkdir(destination);await writeFile(join(destination,'keep'),'operator data');
 
     await assert.rejects(exportPublic(destination,source),/new destination/);assert.equal(await readFile(join(destination,'keep'),'utf8'),'operator data');
     const fresh=join(directory,'fresh');await symlink(join(source,'tool.ts'),join(source,'public-link.ts'));
-    for(const entry of ['../source/tool.ts','/absolute/path','.git/config','public-link.ts','catalog/scenarios.json','EXECPLAN.md']){
+    for(const entry of ['../source/tool.ts','/absolute/path','.git/config','.env','private/.nvmrc','.nvmrc/nested','public-link.ts','catalog/scenarios.json','EXECPLAN.md']){
       await writeFile(file,JSON.stringify({format:'enois-preview-ts-v1',files:[entry]}));
       await assert.rejects(exportPublic(fresh,source));assert.equal(existsSync(fresh),false,entry);
     }

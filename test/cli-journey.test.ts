@@ -27,9 +27,13 @@ test('installed CLI explains setup, frozen publication and resume through Node w
     const files=archive[0].files as {path:string}[];
     assert.ok(files.some(file=>file.path==='dist/preview/cli.js'));
     assert.ok(files.some(file=>file.path==='preview/cli.ts'));
+    assert.ok(files.some(file=>file.path==='.nvmrc'));
     assert.deepEqual(files.filter(file=>file.path==='EXECPLAN.md'||file.path.startsWith('.agent/')||/\.(?:py|mjs|sh)$/.test(file.path)),[],'Distribute TypeScript and generated JavaScript without historical automation or private execution documents');
     const install = spawnSync('npm', ['install', '--ignore-scripts', '--omit=dev', '--no-audit', '--no-fund', '--prefix', directory, join(directory, archive[0].filename)], { encoding: 'utf8' });
     assert.equal(install.status, 0, install.stderr);
+    const installed=join(directory,'node_modules/enois-preview');
+    assert.deepEqual(JSON.parse(readFileSync(join(installed,'package.json'),'utf8')).engines,{node:'>=24 <25'});
+    assert.equal(readFileSync(join(installed,'.nvmrc'),'utf8'),'24\n');
     mkdirSync(join(directory, 'bin'));
     symlinkSync(process.execPath, join(directory, 'bin/node'));
 

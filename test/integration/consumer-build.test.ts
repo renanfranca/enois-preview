@@ -23,6 +23,11 @@ test('the private consumer installs with ignored lifecycle scripts and explicitl
   await run(['npm','run','build'],{cwd:destination,timeout:600,logPath:join(evidence,'build.log')});
 
   assert.equal(await exists(join(tool,'dist/src/worker.js')),true);assert.equal(await exists(join(tool,'dist/preview/cli.js')),true);assert.equal(await exists(join(destination,'launcher.js')),false);
+  assert.equal(await readFile(join(tool,'.nvmrc'),'utf8'),'24\n');
+  assert.equal(await readFile(join(destination,'.nvmrc'),'utf8'),'24\n');
+  assert.deepEqual(JSON.parse(await readFile(join(tool,'package.json'),'utf8')).engines,{node:'>=24 <25'});
+  assert.deepEqual(pkg.engines,{node:'>=24 <25'});
+  const help=await run([join(destination,'node_modules/.bin/enois-preview'),'--help']);assert.match(help.toString(),/enois-preview/);
   const env={...process.env};delete env.NODE_TEST_CONTEXT;
   await run(['npm','test'],{cwd:destination,env,timeout:600,logPath:join(evidence,'test.log')});
   const tests=await readFile(join(evidence,'test.log'),'utf8');assert.match(tests,/tests [1-9][0-9]+/);assert.match(tests,/fail 0/);assert.match(tests,/skipped 0/);
@@ -38,7 +43,7 @@ test('the actual reviewed distribution exports the complete TypeScript source tr
     const report=await exportPublic(destination);
 
     assert.equal(report.published,false);assert.equal(existsSync(join(destination,'.git')),false);
-    for(const file of ['preview/cli.ts','src/entry.ts','shared/accounts.ts','runtime/start.ts','runtime/gateway.ts','recipe/prepare.ts','example/prepare.ts','scripts/add-scenario.ts','scripts/pin-scenario.ts','test/capture-journey.test.ts','test/integration/worker-upload.test.ts','tsconfig.json','tsconfig.cloudflare.json','runtime/DemoCredentials.java','recipe/Dockerfile'])assert.equal(existsSync(join(destination,file)),true,file);
+    for(const file of ['.nvmrc','preview/cli.ts','src/entry.ts','shared/accounts.ts','runtime/start.ts','runtime/gateway.ts','recipe/prepare.ts','example/prepare.ts','scripts/add-scenario.ts','scripts/pin-scenario.ts','test/capture-journey.test.ts','test/fixtures/timeout-tree.ts','test/integration/worker-upload.test.ts','tsconfig.json','tsconfig.cloudflare.json','runtime/DemoCredentials.java','recipe/Dockerfile'])assert.equal(existsSync(join(destination,file)),true,file);
     for(const file of ['EXECPLAN.md','.agent','runtime/start.sh','scripts/snapshot.py','preview/cli.py','src/worker.mjs','release/resume-compatible-tools.json'])assert.equal(existsSync(join(destination,file)),false,file);
     assert.deepEqual(JSON.parse(await readFile(join(destination,'catalog/scenarios.json'),'utf8')),{format:'enois-preview-ts-v1',scenarios:{}});
   }finally{await rm(directory,{recursive:true,force:true});}

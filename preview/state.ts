@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { kill, platform } from 'node:process';
 
 import { canonical, FORMAT, object, PreviewError, requireFormat } from '../shared/records.js';
 export { canonical, FORMAT, object, PreviewError, requireFormat, string } from '../shared/records.js';
@@ -24,10 +25,18 @@ export async function run(args: readonly string[], options: { cwd?: string; time
   const log = options.logPath ? await open(options.logPath, constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW, 0o600) : undefined;
   if (log) await log.chmod(0o600);
   try { return await new Promise<Buffer>((resolve, reject) => {
-    const process = spawn(executable, args.slice(1), { cwd: options.cwd, env: options.env, stdio: ['pipe',log?.fd ?? 'pipe',log?.fd ?? 'pipe'] });
+    const process = spawn(executable, args.slice(1), { cwd: options.cwd, env: options.env, detached: platform === 'linux', stdio: ['pipe',log?.fd ?? 'pipe',log?.fd ?? 'pipe'] });
     const output: Buffer[] = [];
     let timedOut=false;
-    const timer = setTimeout(() => { timedOut=true;process.kill('SIGKILL'); }, (options.timeout ?? 600) * 1000);
+    const timer = setTimeout(() => {
+      timedOut=true;
+      try {
+        if (platform === 'linux' && process.pid) kill(-process.pid, 'SIGKILL');
+        else process.kill('SIGKILL');
+      } catch (error: unknown) {
+        if (object(error).code !== 'ESRCH') reject(new PreviewError(`${basename(executable)} timed out; command group termination failed; inspect private diagnostics and durable recovery state.`));
+      }
+    }, (options.timeout ?? 600) * 1000);
     process.stdout?.on('data', (chunk: Buffer) => output.push(chunk));
     process.stderr?.resume();
     process.on('error', () => { clearTimeout(timer); reject(new PreviewError(`${basename(executable)} unavailable; inspect private diagnostics.`)); });

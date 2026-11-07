@@ -33,7 +33,7 @@ test('a native Cloudflare Worker sends one authenticated 20 MiB upload through t
         if(url.pathname==='/user/codespaces/controlled-space')return Response.json({name:'controlled-space',owner:{login:'fixture'},repository:{full_name:config.repository},machine:{cpus:2},git_status:{ref:config.launcherCommit}});
       }
       assert.equal(url.hostname,'controlled-space-3000.app.github.dev');assert.equal(request.headers.get('X-Github-Token'),token);
-      const headers=new Headers(request.headers);for(const header of ['Host','Connection','Keep-Alive','Transfer-Encoding','Upgrade','TE','Trailer','Proxy-Connection'])headers.delete(header);const body=['GET','HEAD'].includes(request.method)?undefined:Buffer.from(await request.arrayBuffer());
+      const headers=new Headers([...request.headers]);for(const header of ['Host','Connection','Keep-Alive','Transfer-Encoding','Upgrade','TE','Trailer','Proxy-Connection'])headers.delete(header);const body=['GET','HEAD'].includes(request.method)?undefined:Buffer.from(await request.arrayBuffer());
       if(url.pathname.startsWith('/__demo/upload-transport/')&&request.method==='POST')partLengths.push(Number(headers.get('Content-Length')));
       headers.delete('Content-Length');
       try{return await fetch(gateway+url.pathname+url.search,{method:request.method,headers,redirect:'manual',...(body===undefined?{}:{body})});}

@@ -12,6 +12,55 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as captures from '../preview/capture.js';
 import { captureConfig } from '../preview/config.js';
+import { run, inventory, identity } from '../preview/state.js';
+
+test('capture timeout prevents late child and grandchild effects while restoring prior state and preserving an independent service',async()=>{
+  const f=fixture();
+  const tree=resolve('dist/test/fixtures/timeout-tree.js');
+  const roots:string[]=[];
+  try{
+    const previous=await captures.capture(f.config);
+    const preserved=await inventory(join(f.config.state,'data'));
+    const database=createHash('sha256').update(readFileSync(f.config.database)).digest('hex');
+    const control=join(f.root,'control');mkdirSync(control);roots.push(control);
+
+    const output=await run([process.execPath,tree,control,'control'],{timeout:10});
+
+    assert.match(output.toString(),/descendants confirmed active/);
+    assert.equal(existsSync(join(control,'child.effect')),true);
+    assert.equal(existsSync(join(control,'grandchild.effect')),true);
+    for(const initial of ['running','stopped']){
+      const root=join(f.root,initial);mkdirSync(root);roots.push(root);
+      writeFileSync(join(f.root,'status'),initial);
+      const config={...f.config,service:{...f.config.service,timeout:1,
+        [initial==='running'?'stop':'released']:[process.execPath,tree,root,initial==='running'?'stop':'released']}};
+      // The stop command writes its own fixture status; the service adapter reads the shared state.
+      if(initial==='running')symlinkSync(join(f.root,'status'),join(root,'status'));
+
+      await assert.rejects(captures.capture(config,previous),initial==='running'?/node timed out/:/Backend released did not confirm released/);
+
+      const observed=JSON.parse(readFileSync(join(root,'observed.json'),'utf8'));
+      assert.equal(observed.bothAlive,true);
+      assert.ok(observed.child>0&&observed.grandchild>0);
+      await delay(2800);
+      assert.equal(existsSync(join(root,'child.effect')),false,'timed out child must not perform its delayed effect');
+      assert.equal(existsSync(join(root,'grandchild.effect')),false,'timed out grandchild must not perform its delayed effect');
+      const independent=JSON.parse(readFileSync(join(root,'independent.json'),'utf8'));
+      assert.equal(await (await fetch(`http://127.0.0.1:${independent.port}`,{signal:AbortSignal.timeout(2000)})).text(),'independent ready');
+      assert.equal(readFileSync(join(f.root,'status'),'utf8'),initial);
+      assert.equal(createHash('sha256').update(readFileSync(f.config.database)).digest('hex'),database);
+      assert.deepEqual(await inventory(join(f.config.state,'data')),preserved);
+      assert.equal(existsSync(join(f.config.state,'restoration.json')),false);
+      if(process.env.ENOIS_PREVIEW_EVIDENCE)writeFileSync(join(process.env.ENOIS_PREVIEW_EVIDENCE,`timeout-${initial}.json`),JSON.stringify({initial,restored:readFileSync(join(f.root,'status'),'utf8'),observed,independentResponded:true,controlEffects:true,lateEffects:false,databaseBeforeSha256:database,databaseAfterSha256:createHash('sha256').update(readFileSync(f.config.database)).digest('hex'),completeDataBeforeSha256:identity(preserved),completeDataAfterSha256:identity(await inventory(join(f.config.state,'data'))),completeDataPreserved:true,restorationPending:false})+'\n',{mode:0o600});
+    }
+  }finally{
+    for(const root of roots){
+      for(const role of ['child','grandchild'])if(existsSync(join(root,role+'.pid'))){try{process.kill(Number(readFileSync(join(root,role+'.pid'),'utf8')),'SIGKILL');}catch{}}
+      if(existsSync(join(root,'independent.json'))){try{process.kill(JSON.parse(readFileSync(join(root,'independent.json'),'utf8')).pid,'SIGKILL');}catch{}}
+    }
+    f.cleanup();
+  }
+});
 
 test('capture restores running backend and sanitizes a real H2 copy while preserving content and relationships', async () => {
   const f = fixture();

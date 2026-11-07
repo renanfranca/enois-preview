@@ -1,6 +1,8 @@
 # Preparar a infraestrutura privada do operador
 
-Este procedimento único de infraestrutura complementa o [tutorial canônico](../pt-BR/TUTORIAL.md). undefined A criação de outra conta nas plataformas não foi exercitada; consulte [o escopo da validação](../../VALIDATION.md). Use o terminal local e suas próprias contas. Preserve a conferência inicial dos planos gratuitos e do bloqueio de gastos; o setup registra essa confirmação sem renovação. Não adicione forma de pagamento nem ative serviços pagos.
+Use Node 24.x (`>=24 <25`); o arquivo `.nvmrc` seleciona a família 24 com `nvm install` e `nvm use`. Node 22 não é mais uma versão qualificada. A atualização para 0.3.0 preserva catálogos, links e registros históricos; a retomada de operações anteriores exige seu executor original e não é validada por esta atualização. Novas publicações e retomadas devem usar o mesmo SHA fixado em um checkout limpo.
+
+Este procedimento único de infraestrutura complementa o [tutorial canônico](../pt-BR/TUTORIAL.md). A validação pública desta versão TypeScript está registrada em VALIDATION.md. A criação de outra conta nas plataformas não foi exercitada; consulte [o escopo da validação](../../VALIDATION.md). Use o terminal local e suas próprias contas. Preserve a conferência inicial dos planos gratuitos e do bloqueio de gastos; o setup registra essa confirmação sem renovação. Não adicione forma de pagamento nem ative serviços pagos.
 
 Comece por um commit público publicado da ferramenta. Substitua os nomes e o SHA completo antes de executar:
 
@@ -33,3 +35,5 @@ Gere um segredo exclusivo de callback e guarde no gerenciador de senhas. Cadastr
 Altere somente `LAUNCH_ENABLED` para true na configuração do lançador privado, revise e envie esse ajuste inicial. Preencha a configuração privada do cenário com repositório, branch, registro, origem, Account ID e commit da ferramenta. Execute `enois-preview setup --config JSON_PRIVADO` localmente e siga o tutorial. O setup valida a infraestrutura existente; a publicação controla imagem, configuração, catálogo e deploy. Após uma falha de publicação, use `resume` para concluir esses estágios.
 
 Esta versão recusa registros Python e removeu `--legacy-verification`. Preserve arquivos e commits anteriores, comece com configuração e catálogo novos no formato `enois-preview-ts-v1` e faça a confirmação inicial desta instalação. Não sobrescreva segredos existentes.
+
+O build do lançador compila a dependência e executa `npm rebuild --ignore-scripts enois-preview` para criar o atalho npm do CLI após a compilação. Os scripts de instalação permanecem desativados.

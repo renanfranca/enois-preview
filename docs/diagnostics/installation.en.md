@@ -1,5 +1,7 @@
 # Prepare an operator's private infrastructure
 
+Use Node 24.x (`>=24 <25`); `.nvmrc` selects the 24 family with `nvm install` and `nvm use`. Node 22 is no longer qualified. The 0.3.0 update preserves catalogs, links and historical records; resuming earlier operations requires their original executor and is not validated by this update. New publications and resumes must use the same pinned SHA in a clean checkout.
+
 This one time infrastructure procedure complements the [canonical tutorial](../en/TUTORIAL.md). Public validation of this TypeScript version is recorded separately in VALIDATION.md. Creating a separate platform account was not exercised; see [the validation scope](../../VALIDATION.md). Use a local terminal and your own accounts. Keep the initial Free plan and spending block confirmation; setup records it without renewal. Do not add a payment method or enable paid services.
 
 Start from a published public tool commit. Substitute your actual full SHA and names before running commands:
@@ -33,3 +35,5 @@ Generate and store a unique callback secret in your password manager. Set Worker
 Change only `LAUNCH_ENABLED` to true in the private launcher configuration, review and push that bootstrap change. Fill your private scenario configuration with this repository, branch, registry, origin, account ID and tool commit. Run `enois-preview setup --config PRIVATE_JSON` locally, then follow the tutorial. Setup validates existing infrastructure; subsequent publication owns the image/config/catalog/deploy sequence. Do not manually complete those stages after a publication failure: use `resume`.
 
 This version refuses Python records and removes `--legacy-verification`. Preserve previous files and commits, begin with new configuration and catalog in `enois-preview-ts-v1`, and complete initial confirmation for this installation. Preserve existing secrets.
+
+The launcher build compiles its dependency and runs `npm rebuild --ignore-scripts enois-preview` to create the npm CLI link after compilation. Installation scripts remain disabled.

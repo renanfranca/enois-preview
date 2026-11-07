@@ -11,7 +11,7 @@ export async function exportPublic(destinationInput:string,sourceInput:string=RO
   const record=await readRecord(join(source,'release/public-files.json'));const files=record.files;
   if(!Array.isArray(files)||!files.length||files.some((path:unknown)=>typeof path!=='string')||new Set(files).size!==files.length)throw new PreviewError('Review the public source allowlist.');
   for(const item of files as string[]){
-    if(!item||isAbsolute(item)||normalize(item)!==item||item.includes('\\')||item.split('/').some(part=>part==='..'||part.startsWith('.')&&part!=='.gitignore')||['EXECPLAN.md','catalog/scenarios.json','wrangler.jsonc','VALIDATION.md'].includes(item))throw new PreviewError('Unsafe or reserved public source allowlist entry.');
+    if(!item||isAbsolute(item)||normalize(item)!==item||item.includes('\\')||item.split('/').some(part=>part==='..'||part.startsWith('.')&&part!=='.gitignore'&&item!=='.nvmrc')||['EXECPLAN.md','catalog/scenarios.json','wrangler.jsonc','VALIDATION.md'].includes(item))throw new PreviewError('Unsafe or reserved public source allowlist entry.');
     const file=join(source,item);if(!(await lstat(file)).isFile()||await realpath(file)!==file)throw new PreviewError('Missing or symlinked public source; review the allowlist before export.');
   }
   const validation=await readFile(join(source,'VALIDATION.md'),'utf8');const marker='## TypeScript migration evidence';const at=validation.indexOf(marker);

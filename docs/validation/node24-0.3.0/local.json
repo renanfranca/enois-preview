@@ -1,0 +1,132 @@
+{
+  "version": "0.3.0",
+  "node": "v24.16.0",
+  "npm": "11.13.0",
+  "platform": "linux",
+  "commands": [
+    {
+      "command": "npm ci --ignore-scripts",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run test",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run check",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run test:capture",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    },
+    {
+      "command": "node --test dist/test/distribution-journey.test.js",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run test:consumer",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run test:worker-upload",
+      "exitCode": 0
+    }
+  ],
+  "defaultSuite": {
+    "tests": 88,
+    "fail": 0,
+    "skipped": 0
+  },
+  "sourceConsumerSuite": {
+    "tests": 88,
+    "fail": 0,
+    "skipped": 0
+  },
+  "originalExecutorCaptureSuite": {
+    "pass": 10,
+    "fail": 1,
+    "failure": "timed out child must not perform its delayed effect: true !== false"
+  },
+  "correctedCaptureSuite": {
+    "pass": 11,
+    "fail": 0
+  },
+  "timeoutProofs": [
+    {
+      "initial": "running",
+      "restored": "running",
+      "observed": {
+        "parent": 1306591,
+        "child": 1306604,
+        "grandchild": 1306619,
+        "bothAlive": true
+      },
+      "independentResponded": true,
+      "controlEffects": true,
+      "lateEffects": false,
+      "databaseBeforeSha256": "d8851ea234adeaa3430b0de90abba097e320e9271fb043aaaa84bd2d49cc06e7",
+      "databaseAfterSha256": "d8851ea234adeaa3430b0de90abba097e320e9271fb043aaaa84bd2d49cc06e7",
+      "completeDataBeforeSha256": "24ea193d743deae42026c1953e2e862972b06bc7c1ad9d58e03292529679947c",
+      "completeDataAfterSha256": "24ea193d743deae42026c1953e2e862972b06bc7c1ad9d58e03292529679947c",
+      "completeDataPreserved": true,
+      "restorationPending": false
+    },
+    {
+      "initial": "stopped",
+      "restored": "stopped",
+      "observed": {
+        "parent": 1307375,
+        "child": 1307399,
+        "grandchild": 1307417,
+        "bothAlive": true
+      },
+      "independentResponded": true,
+      "controlEffects": true,
+      "lateEffects": false,
+      "databaseBeforeSha256": "d8851ea234adeaa3430b0de90abba097e320e9271fb043aaaa84bd2d49cc06e7",
+      "databaseAfterSha256": "d8851ea234adeaa3430b0de90abba097e320e9271fb043aaaa84bd2d49cc06e7",
+      "completeDataBeforeSha256": "24ea193d743deae42026c1953e2e862972b06bc7c1ad9d58e03292529679947c",
+      "completeDataAfterSha256": "24ea193d743deae42026c1953e2e862972b06bc7c1ad9d58e03292529679947c",
+      "completeDataPreserved": true,
+      "restorationPending": false
+    }
+  ],
+  "sourceInstalledNpmCliHelp": true,
+  "sourceConsumerDistRemovedBeforeExplicitBuild": true,
+  "consumerNvmrcAndEnginesVerified": true,
+  "npmPackNvmrcAndRealBinVerified": true,
+  "publicExportNvmrcAndPrivateHiddenFileRefusalVerified": true,
+  "actualSpringCapture": {
+    "backendRestoredHealthyBeforeCaptureReturned": true,
+    "capturedAdminPermissionPreserved": true,
+    "dataVersion": "9a1501537a8e82d15c32a2f6077c9fad5f963b25babe3b3d9d68a3e2c3b680a7",
+    "format": "enois-preview-ts-v1",
+    "localOnly": true,
+    "originalLoginsRejectedInSanitizedCopy401": 4,
+    "originalLoginsStillValidAfterCapture": 4,
+    "realSpringAndH2": true,
+    "sanitizerSha256": "2f07d4f9ff5778c22b246c90884bd9692482b77d6a2123b0540ac850fe3373a1",
+    "validOriginalLoginsBeforeCapture": 4
+  },
+  "workerUploadIntegration": "native local Cloudflare runtime, actual Node gateway/Java storage, controlled GitHub/tunnel transport; not actual cloud evidence",
+  "operationalAcceptance": "A4-A6 are recorded separately in the 0.3.0 release evidence after the executable SHA is fixed; historical public receipts are not proof of this update",
+  "designReview": {
+    "rubricReadCompletely": true,
+    "scope": [
+      "preview/state.ts run lifecycle",
+      "scripts/prepare-launcher.ts explicit compile and npm linkage",
+      "scripts/export-public.ts root .nvmrc boundary"
+    ],
+    "classification": "No further action after behavior corrections",
+    "rationale": "Command state stays invocation-local, owned groups derive from spawn PID, ESRCH is an expected race, independent groups retain their lifecycle, and npm owns executable linking after explicit compilation. No new abstraction or Java refactor is justified."
+  }
+}

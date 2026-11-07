@@ -1,5 +1,7 @@
 # Publicar uma revisão de teste
 
+Use Node 24.x (`>=24 <25`); o arquivo `.nvmrc` seleciona a família 24 com `nvm install` e `nvm use`. Node 22 não é mais uma versão qualificada. A atualização para 0.3.0 preserva catálogos, links e registros históricos; a retomada de operações anteriores exige seu executor original e não é validada por esta atualização. Novas publicações e retomadas devem usar o mesmo SHA fixado em um checkout limpo.
+
 Este roteiro usa o terminal local do operador. Não execute comandos em um Codespace para completar o boot de uma revisão. O estado de verificação de cada etapa está em [VALIDATION.md](../../VALIDATION.md); os resultados observados e os limites dos roteiros estão registrados ali.
 
 1. Instale os requisitos do [README](../../README.md). Autentique no GitHub com `gh auth login` e no Docker com seu mecanismo de credenciais para GHCR. Não coloque tokens em argumentos, no chat ou em arquivos versionados. Não altere o plano de cobrança.
@@ -29,3 +31,5 @@ Em 7 de novembro de 2026, este roteiro foi executado na infraestrutura existente
 | Refresh explícito | [6c1183df4fe6acca](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-6c1183df4fe6acca) | D2, mesmos commits da etapa anterior |
 
 A retomada preservou a revisão enquanto os três repositórios fictícios e os dados locais estavam indisponíveis. O caso começou com uma falha local de JVM registrada no aceite; a causa permanece desconhecida. [Recibos e limites](../../VALIDATION.md) incluem verificações públicas independentes dos marcadores de código e dados, imagens em desktop e emulação móvel e restauração após inatividade.
+
+O build do lançador compila a dependência e executa `npm rebuild --ignore-scripts enois-preview` para criar o atalho npm do CLI após a compilação. Os scripts de instalação permanecem desativados.

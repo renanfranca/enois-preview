@@ -2,6 +2,7 @@
   "format": "enois-preview-ts-v1",
   "files": [
     ".gitignore",
+    ".nvmrc",
     "LICENSE",
     "README.md",
     "TUTORIAL.md",
@@ -13,6 +14,7 @@
     "docs/en/TUTORIAL.md",
     "docs/pt-BR/LLM.md",
     "docs/pt-BR/TUTORIAL.md",
+    "docs/validation/node24-0.3.0/local.json",
     "docs/validation/typescript-0.2.0/acceptance-audit.md",
     "docs/validation/typescript-0.2.0/catalog-history.json",
     "docs/validation/typescript-0.2.0/delivery-checks.json",
@@ -153,6 +155,7 @@
     "test/fixtures/scenario.ts",
     "test/fixtures/service.ts",
     "test/fixtures/supervisor-observer.ts",
+    "test/fixtures/timeout-tree.ts",
     "test/fixtures/workspace.ts",
     "test/frozen-media.test.ts",
     "test/identity-contract.test.ts",

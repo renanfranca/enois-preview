@@ -1,5 +1,7 @@
 # Publish a testing revision
 
+Use Node 24.x (`>=24 <25`); `.nvmrc` selects the 24 family with `nvm install` and `nvm use`. Node 22 is no longer qualified. The 0.3.0 update preserves catalogs, links and historical records; resuming earlier operations requires their original executor and is not validated by this update. New publications and resumes must use the same pinned SHA in a clean checkout.
+
 Use the operator's local terminal throughout this walkthrough. Do not run commands in a Codespace to complete a revision's boot. [VALIDATION.md](../../VALIDATION.md) records the actual status; the observed walkthrough results and limits are recorded there.
 
 1. Install the [README prerequisites](README.md). Authenticate in your local terminal with `gh auth login` and your Docker credential mechanism for GHCR. Never put tokens in arguments, chats or versioned files. Do not change billing plans.
@@ -29,3 +31,5 @@ On 7 November 2026, this guide was exercised on the existing infrastructure with
 | Explicit refresh | [a6ed69fba999af5c](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-en-a6ed69fba999af5c) | D2, same three code commits as the previous step |
 
 The initial configuration push failed when the native Git HTTPS transport received signal11. Its cause is unknown. Canonical resume completed the same revision with all three fictional repositories and live data unavailable, preserving frozen inputs and the confirmed image. Independent public HTML/post/media checks distinguish the new code with D1 from explicit D2; [receipts and limits](../../VALIDATION.md) also include six MIME/byte/hash and Chromium64x64 checks at desktop1280 and390 mobile emulation. The prepared example still has nine SVG assets; six operator supplied frozen fixtures bring this initial published snapshot to15, and the D2 marker brings refresh to16.
+
+The launcher build compiles its dependency and runs `npm rebuild --ignore-scripts enois-preview` to create the npm CLI link after compilation. Installation scripts remain disabled.

@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "declaration": true,
+    "sourceMap": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "types": [
+      "node"
+    ],
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "preview/**/*.ts",
+    "runtime/**/*.ts",
+    "recipe/**/*.ts",
+    "example/**/*.ts",
+    "scripts/**/*.ts",
+    "test/**/*.ts",
+    "shared/**/*.ts",
+    "src/**/*.ts"
+  ]
+}

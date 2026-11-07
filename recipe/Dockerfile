@@ -40,10 +40,13 @@ COPY sources/enois-design-system/LICENSE ./licenses/enois-design-system.LICENSE
 COPY recipe/licenses/ ./licenses/
 COPY data/seed/ ./seed/
 COPY data/media/ ./media/
-COPY runtime/start.sh runtime/gateway.mjs runtime/image-type.mjs runtime/upload-transport.mjs runtime/register-codespace.mjs runtime/demo-activity.mjs ./
+COPY dist/runtime/ ./runtime/
+COPY dist/shared/ ./shared/
+COPY dist/src/contracts.js ./src/contracts.js
+COPY package-runtime.json ./package.json
 COPY runtime-manifest.json media-mappings.tsv ./
-RUN chmod 0555 /app /app/data && chmod -R a+rX /opt/render-demo && chmod 0555 ./start.sh && chown -R root:root /opt/render-demo
+RUN chmod 0555 /app /app/data && chmod -R a+rX /opt/render-demo && chown -R root:root /opt/render-demo
 ENV SPRING_PROFILES_ACTIVE=demo REDE_SECURITY_ENCRYPTION_KEY_REQUIRED=true OAUTH_STATE_COOKIE_SECURE=true
 USER demo
 EXPOSE 3000
-ENTRYPOINT ["/opt/render-demo/start.sh"]
+ENTRYPOINT ["node", "/opt/render-demo/runtime/start.js"]

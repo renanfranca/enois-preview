@@ -1,6 +1,6 @@
 # Prepare an operator's private infrastructure
 
-This one time infrastructure procedure complements the [canonical tutorial](../en/TUTORIAL.md). Both canonical language walkthroughs completed using existing verified infrastructure. Creating a separate platform account was not exercised; see [the validation scope](../../VALIDATION.md). Use a local terminal and your own accounts. Keep the initial Free plan and spending block confirmation; setup records it without renewal. Do not add a payment method or enable paid services.
+This one time infrastructure procedure complements the [canonical tutorial](../en/TUTORIAL.md). Public validation of this TypeScript version is recorded separately in VALIDATION.md. Creating a separate platform account was not exercised; see [the validation scope](../../VALIDATION.md). Use a local terminal and your own accounts. Keep the initial Free plan and spending block confirmation; setup records it without renewal. Do not add a payment method or enable paid services.
 
 Start from a published public tool commit. Substitute your actual full SHA and names before running commands:
 
@@ -8,18 +8,19 @@ Start from a published public tool commit. Substitute your actual full SHA and n
 git clone https://github.com/renanfranca/enois-preview.git
 cd enois-preview
 git checkout PUBLIC_TOOL_COMMIT
-npm ci
+npm ci --ignore-scripts
+npm run build
 npx playwright install chromium
-npm link
+npm link --ignore-scripts
 gh auth login
 gh auth setup-git
 npx wrangler login
-python3 scripts/prepare-launcher.py /absolute/new/private-launcher --repository YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --tool-commit PUBLIC_TOOL_COMMIT --worker-name YOUR_WORKER_NAME
+node dist/scripts/prepare-launcher.js /absolute/new/private-launcher --repository YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --tool-commit PUBLIC_TOOL_COMMIT --worker-name YOUR_WORKER_NAME
 ```
 
 The generator creates an empty private catalog and a Worker importing the pinned public package. It does not create accounts, repositories, secrets, images or Workers. Keep the public checkout clean. Set `toolCommit` in your private example configuration to the same SHA.
 
-In the generated launcher directory, run `npm install --ignore-scripts`, `npm test`, and `npm run check`. Review `package.json`, `package-lock.json`, `tool.lock.json`, `launcher.mjs` and `wrangler.jsonc`. Create your private GitHub repository with `gh repo create YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --private`. Initialize a local Git repository, commit these reviewed files on your chosen publication branch and push that branch. Confirm `gh repo view YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --json isPrivate` reports true. Never add work captures or database files.
+In the generated launcher directory, run `npm install --package-lock-only --ignore-scripts`, `npm ci --ignore-scripts`, `npm run build`, `npm test`, and `npm run check`. Review `package.json`, `package-lock.json`, `tool.lock.json`, `launcher.ts` and `wrangler.jsonc`. Create your private GitHub repository with `gh repo create YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --private`. Initialize a local Git repository, commit these reviewed files on your chosen publication branch and push that branch. Confirm `gh repo view YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --json isPrivate` reports true. Never add work captures or database files.
 
 Run `npx wrangler deploy` from this launcher with `LAUNCH_ENABLED` still false. Record its stable HTTPS origin and the account ID from `npx wrangler whoami`. This reserves the address without launching a Codespace. Public development tool configuration is disabled; do not deploy from the public source checkout.
 
@@ -31,4 +32,4 @@ Generate and store a unique callback secret in your password manager. Set Worker
 
 Change only `LAUNCH_ENABLED` to true in the private launcher configuration, review and push that bootstrap change. Fill your private scenario configuration with this repository, branch, registry, origin, account ID and tool commit. Run `enois-preview setup --config PRIVATE_JSON` locally, then follow the tutorial. Setup validates existing infrastructure; subsequent publication owns the image/config/catalog/deploy sequence. Do not manually complete those stages after a publication failure: use `resume`.
 
-For an existing legacy launcher only, `setup --legacy-verification PRIVATE_OLD_RECORD` migrates a matching prior initial confirmation without advancing its date. Missing or mismatched records require initial interactive confirmation. Old 24 hour expiry instructions do not apply.
+This version refuses Python records and removes `--legacy-verification`. Preserve previous files and commits, begin with new configuration and catalog in `enois-preview-ts-v1`, and complete initial confirmation for this installation. Preserve existing secrets.

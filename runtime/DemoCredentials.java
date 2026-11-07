@@ -8,33 +8,7 @@ import javax.crypto.spec.PBEKeySpec;
 
 /** Rotates only the disposable H2 copy, before Spring opens it. Never prints credentials. */
 public final class DemoCredentials {
-    public static void main(String[] args) throws Exception {
-        if (Files.exists(Path.of("/opt/render-demo/seed/accounts.tsv"))) { rotateSelected(); return; }
-        String originalEmail = Files.readString(Path.of("/opt/render-demo/seed/account.txt")).strip();
-        String login = "demo@enois.invalid";
-        SecureRandom random = new SecureRandom();
-        byte[] secret = new byte[24]; random.nextBytes(secret);
-        byte[] salt = new byte[16]; random.nextBytes(salt);
-        String password = Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
-        byte[] hash = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-            .generateSecret(new PBEKeySpec(password.toCharArray(), salt, 120000, 256)).getEncoded();
-        String encoded = "120000:" + Base64.getEncoder().encodeToString(salt) + ":" + Base64.getEncoder().encodeToString(hash);
-        try (Connection db = DriverManager.getConnection("jdbc:h2:file:/tmp/rede-db/rede;MODE=MySQL", "sa", "")) {
-            db.setAutoCommit(false);
-            try (PreparedStatement credentials = db.prepareStatement("UPDATE USER_CREDENTIALS SET EMAIL=?, PASSWORD_HASH=?, PASSWORD_USABLE=TRUE, RESET_NEEDED=FALSE WHERE EMAIL=?");
-                 PreparedStatement user = db.prepareStatement("UPDATE USERS SET EMAIL=? WHERE EMAIL=?")) {
-                credentials.setString(1, login); credentials.setString(2, encoded); credentials.setString(3, originalEmail);
-                if (credentials.executeUpdate() != 1) throw new IllegalStateException("Shared demo account not found uniquely");
-                user.setString(1, login); user.setString(2, originalEmail);
-                if (user.executeUpdate() != 1) throw new IllegalStateException("Demo user not found uniquely");
-                db.commit();
-            } catch (Exception failure) { db.rollback(); throw failure; }
-        }
-        Path file = Path.of("/tmp/demo-credentials.json");
-        Files.deleteIfExists(file);
-        Files.createFile(file, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
-        Files.writeString(file, "{\"email\":\"" + login + "\",\"password\":\"" + password + "\"}\n");
-    }
+    public static void main(String[] args) throws Exception { rotateSelected(); }
 
     static String escape(String value) {
         StringBuilder out = new StringBuilder();
@@ -73,6 +47,6 @@ public final class DemoCredentials {
         Path file = Path.of("/tmp/demo-credentials.json");
         Files.deleteIfExists(file);
         Files.createFile(file, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
-        Files.writeString(file, "{\"accounts\":[" + String.join(",", accounts) + "]}\n");
+        Files.writeString(file, "{\"format\":\"enois-preview-ts-v1\",\"accounts\":[" + String.join(",", accounts) + "]}\n");
     }
 }

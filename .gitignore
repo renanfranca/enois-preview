@@ -5,3 +5,5 @@ node_modules/
 !*.example
 coverage/
 __pycache__/
+dist/
+*.tsbuildinfo

@@ -11,3 +11,5 @@ Check committed, clean sources in all three applications before publication. Do 
 Distinguish terminals: setup, authentication, preparation, publish and resume run locally. Codespaces must boot automatically. Opening its terminal to copy files or start processes is a boot failure, not a normal step.
 
 Only describe a link as validated after exit zero and a report confirming public readiness, accounts, media and revision identity. Report failures and gaps. Never publish the public project while acceptance prerequisites remain outstanding. Immutable links do not promise permanent availability; visitors share state and accounts. Tell the operator to update the PR link and test its specific functionality; never edit the PR automatically.
+
+The toolchain is TypeScript: use Node 22.12 or later and run `npm run build` after `npm ci --ignore-scripts`. The private consumer explicitly builds its dependency and uses `launcher.ts`. Do not run Python, convert historical formats or resume their journals. New records require `format: "enois-preview-ts-v1"`; preserve earlier records and create a fresh installation.

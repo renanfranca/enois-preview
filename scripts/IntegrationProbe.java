@@ -19,7 +19,9 @@ public final class IntegrationProbe {
         call.setAccessible(true); call.invoke(bean);
     }
     public static void main(String[] args) throws Exception {
-        var accounts = new tools.jackson.databind.ObjectMapper().readTree(Files.readString(Path.of("/opt/render-demo/seed/accounts.json")));
+        var record = new tools.jackson.databind.ObjectMapper().readTree(Files.readString(Path.of("/opt/render-demo/seed/accounts.json")));
+        require(record.path("format").asText().equals("enois-preview-ts-v1"), "Use a new TypeScript seed record");
+        var accounts = record.path("accounts");
         require(accounts.isArray() && accounts.size() == 2, "Use the fictional two account image");
         for (var account : accounts) require(account.path("id").asText().startsWith("example_"), "Only fictional seed copies may be exercised");
         AtomicInteger attempts = new AtomicInteger();

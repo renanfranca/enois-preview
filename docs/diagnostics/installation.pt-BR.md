@@ -1,6 +1,6 @@
 # Preparar a infraestrutura privada do operador
 
-Este procedimento único de infraestrutura complementa o [tutorial canônico](../pt-BR/TUTORIAL.md). Os dois roteiros canônicos foram concluídos com infraestrutura existente e conferida. A criação de outra conta nas plataformas não foi exercitada; consulte [o escopo da validação](../../VALIDATION.md). Use o terminal local e suas próprias contas. Preserve a conferência inicial dos planos gratuitos e do bloqueio de gastos; o setup registra essa confirmação sem renovação. Não adicione forma de pagamento nem ative serviços pagos.
+Este procedimento único de infraestrutura complementa o [tutorial canônico](../pt-BR/TUTORIAL.md). undefined A criação de outra conta nas plataformas não foi exercitada; consulte [o escopo da validação](../../VALIDATION.md). Use o terminal local e suas próprias contas. Preserve a conferência inicial dos planos gratuitos e do bloqueio de gastos; o setup registra essa confirmação sem renovação. Não adicione forma de pagamento nem ative serviços pagos.
 
 Comece por um commit público publicado da ferramenta. Substitua os nomes e o SHA completo antes de executar:
 
@@ -8,18 +8,19 @@ Comece por um commit público publicado da ferramenta. Substitua os nomes e o SH
 git clone https://github.com/renanfranca/enois-preview.git
 cd enois-preview
 git checkout COMMIT_PUBLICO_DA_FERRAMENTA
-npm ci
+npm ci --ignore-scripts
+npm run build
 npx playwright install chromium
-npm link
+npm link --ignore-scripts
 gh auth login
 gh auth setup-git
 npx wrangler login
-python3 scripts/prepare-launcher.py /caminho/novo/lancador-privado --repository SEU_USUARIO/SEU_LANCADOR_PRIVADO --tool-commit COMMIT_PUBLICO_DA_FERRAMENTA --worker-name NOME_DO_SEU_WORKER
+node dist/scripts/prepare-launcher.js /caminho/novo/lancador-privado --repository SEU_USUARIO/SEU_LANCADOR_PRIVADO --tool-commit COMMIT_PUBLICO_DA_FERRAMENTA --worker-name NOME_DO_SEU_WORKER
 ```
 
 O gerador cria um catálogo privado vazio e um Worker que importa o pacote público fixado. Ele não cria contas, repositórios, segredos, imagens ou Workers. Mantenha o checkout público limpo. Preencha `toolCommit` na configuração privada do exemplo com o mesmo SHA.
 
-No diretório do lançador gerado, execute `npm install --ignore-scripts`, `npm test` e `npm run check`. Revise `package.json`, `package-lock.json`, `tool.lock.json`, `launcher.mjs` e `wrangler.jsonc`. Crie seu repositório privado com `gh repo create SEU_USUARIO/SEU_LANCADOR_PRIVADO --private`. Inicialize o Git local, comite os arquivos revisados na branch de publicação escolhida e envie essa branch. Confirme que `gh repo view SEU_USUARIO/SEU_LANCADOR_PRIVADO --json isPrivate` informa true. Não adicione capturas de trabalho nem bancos.
+No diretório do lançador gerado, execute `npm install --package-lock-only --ignore-scripts`, `npm ci --ignore-scripts`, `npm run build`, `npm test` e `npm run check`. Revise `package.json`, `package-lock.json`, `tool.lock.json`, `launcher.ts` e `wrangler.jsonc`. Crie seu repositório privado com `gh repo create SEU_USUARIO/SEU_LANCADOR_PRIVADO --private`. Inicialize o Git local, comite os arquivos revisados na branch de publicação escolhida e envie essa branch. Confirme que `gh repo view SEU_USUARIO/SEU_LANCADOR_PRIVADO --json isPrivate` informa true. Não adicione capturas de trabalho nem bancos.
 
 Execute `npx wrangler deploy` nesse lançador com `LAUNCH_ENABLED` ainda false. Anote a origem HTTPS estável e o Account ID de `npx wrangler whoami`. Isso reserva o endereço sem iniciar Codespaces. A configuração de desenvolvimento da ferramenta pública é desabilitada; não faça deploy pelo checkout público.
 
@@ -31,4 +32,4 @@ Gere um segredo exclusivo de callback e guarde no gerenciador de senhas. Cadastr
 
 Altere somente `LAUNCH_ENABLED` para true na configuração do lançador privado, revise e envie esse ajuste inicial. Preencha a configuração privada do cenário com repositório, branch, registro, origem, Account ID e commit da ferramenta. Execute `enois-preview setup --config JSON_PRIVADO` localmente e siga o tutorial. O setup valida a infraestrutura existente; a publicação controla imagem, configuração, catálogo e deploy. Após uma falha de publicação, use `resume` para concluir esses estágios.
 
-Somente para lançadores antigos, `setup --legacy-verification REGISTRO_PRIVADO_ANTERIOR` migra uma conferência inicial correspondente sem avançar sua data. Registro ausente ou incompatível exige confirmação inicial interativa. As instruções antigas de validade de 24 horas não se aplicam.
+Esta versão recusa registros Python e removeu `--legacy-verification`. Preserve arquivos e commits anteriores, comece com configuração e catálogo novos no formato `enois-preview-ts-v1` e faça a confirmação inicial desta instalação. Não sobrescreva segredos existentes.

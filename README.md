@@ -5,9 +5,10 @@ Ferramenta específica ao Énóis para publicar revisões imutáveis de desenvol
 [English](docs/en/README.md) · [Tutorial](docs/pt-BR/TUTORIAL.md) · [Guia para LLM](docs/pt-BR/LLM.md) · [Diagnóstico](docs/diagnostics/README.md)
 
 ```sh
-npm ci
+npm ci --ignore-scripts
+npm run build
 npx playwright install chromium
-npm link
+npm link --ignore-scripts
 npm run example:prepare -- /caminho/novo/workspace-ficticio
 enois-preview setup --config /caminho/novo/workspace-ficticio/.preview/config.json
 enois-preview publish meu-cenario
@@ -15,9 +16,13 @@ enois-preview publish meu-cenario --refresh-data
 enois-preview resume <revisao-completa>
 ```
 
+Esta versão usa TypeScript estrito e ESM. Depois de instalar, compile explicitamente; não depende de scripts de instalação. Para desenvolvimento, execute `npm ci --ignore-scripts`, `npm run build`, `npm run typecheck`, `npm test` e `npm run check`. O teste recompila a ferramenta antes de executar. Python não é requisito.
+
+Configuração, dados, journals, proveniência e catálogo novos usam `format: "enois-preview-ts-v1"`. A instalação padrão fica em `~/.config/enois-preview-ts`. Registros antigos com `schema` ou sem esse `format` são recusados antes de alterações. Crie uma instalação e catálogo novos: não copie a confirmação nem converta journals Python. Arquivos antigos e histórico são preservados; não há promessa de retomada ou funcionamento dos links anteriores.
+
 A preparação do exemplo cria cópias isoladas dos três projetos públicos nos commits de [example/sources.json](example/sources.json). Ela não usa o catálogo operacional, H2 ou imagens privadas. As quatro personagens são fictícias; os retratos são ilustrações vetoriais originais. A semente contém oito posts, três com imagens, seis comentários, duas respostas e oito reações. Lia e Rui são as contas selecionadas; as senhas são criadas no boot e aparecem somente na entrada do ambiente. Maya e Davi preservam perfil e conteúdo, com login desabilitado.
 
-Configure suas próprias contas e infraestrutura privada antes de executar `setup`. A instalação usa Linux e precisa de Node 22.12 ou posterior, Python 3.10 ou posterior, Git, Java 25/Javac, Docker, `fuser`, GitHub CLI e autenticação Cloudflare. O driver H2 deve corresponder ao banco configurado. A receita fornece `ffmpeg` e o modelo local de classificação de imagens na imagem, sem serviço externo de escrita de mídia.
+Configure suas próprias contas e infraestrutura privada antes de executar `setup`. A instalação usa Linux e precisa de Node 22.12 ou posterior, Git, Java 25/Javac, Docker, `fuser`, `flock`, GitHub CLI e autenticação Cloudflare. O driver H2 deve corresponder ao banco configurado. A receita fornece `ffmpeg` e o modelo local de classificação de imagens na imagem, sem serviço externo de escrita de mídia.
 
 O primeiro `publish` captura dados após fechar somente o backend identificado. Publicações seguintes usam os commits atuais e os dados congelados, sem ler ou parar o banco local. `--refresh-data` solicita outra captura; uma falha preserva a versão completa anterior. As fontes são exportadas por commit e o pacote do design system é construído novamente. A ferramenta não comita nem altera as três aplicações.
 

@@ -8,7 +8,7 @@ import { commits, recover, sourceLease } from './capture.js';
 import { access, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { PreviewError, readRecord, exists, string, privateDir, lease, writeRecord } from './state.js';
+import { PreviewError, readRecord, exists, string, privateDir, lease, writeRecord, listenForInterruption } from './state.js';
 
 async function selectAccounts(listing:string,signal:AbortSignal):Promise<Account[]>{
   if(!process.stdin.isTTY)throw new PreviewError('Select stable account IDs with enois-preview publish SCENARIO in an interactive local terminal, or configure accounts.');
@@ -17,6 +17,7 @@ async function selectAccounts(listing:string,signal:AbortSignal):Promise<Account
   console.error('Existing identities (private terminal only):');
   for(const [id,label]of rows)console.error(`${id}: ${label}`);
   const prompt=createInterface({input:process.stdin,output:process.stderr});
+  prompt.on('SIGINT',()=>process.emit('SIGINT'));
   try{
     const answer=await prompt.question('Stable IDs to make available, separated by commas: ',{signal});
     return answer.split(',').map((value,index)=>{const id=value.trim();const label=rows.get(id);if(label===undefined)throw new PreviewError('Unknown account ID; retry with a listed identity.');return {id,email:`account${index+1}@enois.invalid`,label};});
@@ -24,6 +25,8 @@ async function selectAccounts(listing:string,signal:AbortSignal):Promise<Account
 }
 
 export async function main(args: string[] = process.argv.slice(2)): Promise<number> {
+  const interruption = listenForInterruption();
+  const signal = interruption.signal;
   try {
   const { values, positionals } = parseArgs({ args, allowPositionals: true, options: { help: { type: 'boolean', short: 'h' }, home: { type: 'string' }, config: { type: 'string' }, 'refresh-data': { type: 'boolean' } } });
   if (values.help) {
@@ -53,10 +56,15 @@ Commands:
     if (await exists(restoration)) {
       await readRecord(restoration);
       const parsed = captureConfig(config);
-      await sourceLease(parsed, () => recover(parsed));
+      await sourceLease(parsed, async () => {
+        try { await recover(parsed); } finally { if(signal.aborted)console.error(await exists(restoration)?'Backend restoration pending; preserve its record and retry this command.':'Backend restored to its prior state.'); }
+      }, signal);
+      signal.throwIfAborted();
     }
     const { publishRevision, resumeRevision } = await import('./publication.js');
-    const report = positionals[0] === 'publish' ? await publishRevision(config, positionals[1] ?? '', values['refresh-data'] ?? false,selectAccounts) : await resumeRevision(config, positionals[1] ?? '');
+    signal.throwIfAborted();
+    const report = positionals[0] === 'publish' ? await publishRevision(config, positionals[1] ?? '', values['refresh-data'] ?? false,selectAccounts,signal) : await resumeRevision(config, positionals[1] ?? '', signal);
+    signal.throwIfAborted();
     console.log(JSON.stringify(report,null,2));
     return 0;
   }
@@ -68,18 +76,22 @@ Commands:
       if (!(error instanceof PreviewError)) throw error;
       if (!process.stdin.isTTY) throw error;
       const prompt = createInterface({ input: process.stdin, output: process.stderr });
+      prompt.on('SIGINT',()=>process.emit('SIGINT'));
       try {
         console.error('Verify GitHub Free and Cloudflare Workers Free, with additional spending blocked.');
-        if ((await prompt.question('Confirmed for the configured accounts? Type yes: ')).trim().toLowerCase() !== 'yes') throw new PreviewError('Installation verification declined; existing files preserved.');
+        if ((await prompt.question('Confirmed for the configured accounts? Type yes: ', { signal })).trim().toLowerCase() !== 'yes') throw new PreviewError('Installation verification declined; existing files preserved.');
         candidate.installation = { githubOwner: string(candidate.repository).split('/')[0], cloudflareAccountId: candidate.cloudflareAccountId, freePlansAndSpendingBlocksConfirmed: true, checkedAt: new Date().toISOString() };
       } finally { prompt.close(); }
     }
     const validated = validateConfig(candidate);
-    await prerequisites(validated);
+    await prerequisites(validated, signal);
     await lease(join(home, 'installation.lock'), async () => {
+      signal.throwIfAborted();
       await privateDir(validated.state);
+      signal.throwIfAborted();
       await writeRecord(file, candidate);
-    });
+    }, signal);
+    signal.throwIfAborted();
     console.log('Installation verified. Configuration preserved privately. Publish and resume require no financial renewal.');
     return 0;
   }
@@ -87,8 +99,8 @@ Commands:
   return 1;
   } catch (error: unknown) {
     console.error(`Publication incomplete: ${error instanceof PreviewError ? error.message : 'Invalid or unavailable private input. Run enois-preview --help.'}`);
-    return 1;
-  }
+    return interruption.exitCode ?? 1;
+  } finally { interruption.dispose(); }
 }
 
 const invoked=process.argv[1];

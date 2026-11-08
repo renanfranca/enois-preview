@@ -1,15 +1,18 @@
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Journal } from './publication.js';
-import { inventory, object, PreviewError, privateDir, run, sha, string, verify, writeRecord } from './state.js';
+import { inventory, object, PreviewError, privateDir, run, sha, commandRunner, string, verify, writeRecord } from './state.js';
 
 export interface ImageEvidence { seedMediaVerified: true; licenseNoticesVerified: true; designSystemSha256: string; frontendDependency: string; designSystemVersion: string; frontendResolutionSha256: string }
-export async function verifyImage(image: string, journal: Journal, directory: string): Promise<ImageEvidence> {
-  const container = (await run(['docker','create',image])).toString().trim();
+export async function verifyImage(image: string, journal: Journal, directory: string, signal?: AbortSignal): Promise<ImageEvidence> {
+  signal?.throwIfAborted();
+  const command=commandRunner(signal);
+  const container=`enois-preview-inspect-${randomUUID()}`;
   let temporary:string|undefined;
   try {
+    await command(['docker','create','--name',container,image]);
     temporary = await mkdtemp(join(directory,'.image-')); await privateDir(temporary);
-    for (const name of ['seed','media','provenance','licenses']) await run(['docker','cp',`${container}:/opt/render-demo/${name}`,join(temporary,name)]);
+    for (const name of ['seed','media','provenance','licenses']) await command(['docker','cp',`${container}:/opt/render-demo/${name}`,join(temporary,name)]);
     for (const project of ['enois-backend','enois-frontend','enois-design-system']) {
       if (await sha(join(temporary,'licenses',`${project}.LICENSE`)) !== await sha(join(directory,'frozen/sources',project,'LICENSE'))) throw new PreviewError('Packaged application license differs from its frozen source notice.');
     }
@@ -30,50 +33,57 @@ export async function verifyImage(image: string, journal: Journal, directory: st
     if (dependency.version !== source.version || dependency.resolved !== 'file:../design-system.tgz') throw new PreviewError('Frontend did not consume the freshly built design system package from the captured commit.');
     const result: ImageEvidence = { seedMediaVerified:true,licenseNoticesVerified:true,designSystemSha256:await sha(ds),frontendDependency:string(dependency.resolved),designSystemVersion:string(dependency.version),frontendResolutionSha256:await sha(join(temporary,'provenance/frontend-package-lock.json')) };
     await writeRecord(join(directory,'image-evidence.json'),result); return result;
-  } finally { try { await run(['docker','rm',container]); } finally { if(temporary)await rm(temporary,{recursive:true,force:true}); } }
+  } finally { try { await run(['docker','rm','-f',container]); } finally { if(temporary)await rm(temporary,{recursive:true,force:true}); } }
 }
 
 import { cp, chmod } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { createServer } from 'node:net';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { readRecord } from './state.js';
 import { validate } from './validation.js';
 import type { ValidationResult } from './validation.js';
 
-export async function buildImage(journal:Journal,directory:string):Promise<{id:string;tag:string}&ImageEvidence>{
+export async function buildImage(journal:Journal,directory:string,signal?:AbortSignal):Promise<{id:string;tag:string}&ImageEvidence>{
+  signal?.throwIfAborted();
+  const command=commandRunner(signal);
   const context=join(directory,'build');await rm(context,{recursive:true,force:true});await cp(join(directory,'frozen'),context,{recursive:true});await privateDir(join(context,'data/media'));
   await writeRecord(join(context,'runtime-manifest.json'),{revision:journal.revision,commits:journal.inputs.commits,dataVersion:journal.inputs.data,media:journal.inputs.dataManifest.media});
   await writeFile(join(context,'package-runtime.json'),'{"type":"module"}\n',{mode:0o600});
-  await run([process.execPath,join(context,'dist/recipe/prepare.js'),context],{logPath:join(directory,'recipe-prepare.log')});
+  await command([process.execPath,join(context,'dist/recipe/prepare.js'),context],{logPath:join(directory,'recipe-prepare.log')});
   await writeRecord(join(directory,'adjusted-sources.json'),{files:await inventory(join(context,'sources'))});
   const tag=`enois-preview:${journal.revision}`;
-  await run(['docker','build','--label',`io.enois.preview.revision=${journal.revision}`,'-f',join(context,'recipe/Dockerfile'),'-t',tag,context],{timeout:7200,logPath:join(directory,'build.log')});
-  const metadata:unknown=JSON.parse((await run(['docker','image','inspect',tag])).toString());
+  await command(['docker','build','--label',`io.enois.preview.revision=${journal.revision}`,'-f',join(context,'recipe/Dockerfile'),'-t',tag,context],{timeout:7200,logPath:join(directory,'build.log')});
+  const metadata:unknown=JSON.parse((await command(['docker','image','inspect',tag])).toString());
   if(!Array.isArray(metadata))throw new PreviewError('Docker did not confirm the built image.');
   const id=string(object(metadata[0]).Id);if(!/^sha256:[a-f0-9]{64}$/.test(id))throw new PreviewError('Docker returned an invalid image identity.');
-  return {id,tag,...await verifyImage(id,journal,directory)};
+  return {id,tag,...await verifyImage(id,journal,directory,signal)};
 }
-async function containerState(container:string):Promise<Record<string,unknown>>{
-  const data:unknown=JSON.parse((await run(['docker','inspect',container])).toString());
+async function containerState(container:string,signal?:AbortSignal):Promise<Record<string,unknown>>{
+  const data:unknown=JSON.parse((await run(['docker','inspect',container],{signal})).toString());
   if(!Array.isArray(data))throw new PreviewError('Docker did not confirm runtime state.');return object(object(data[0]).State);
 }
-export async function validateLocal(image:string,journal:Journal,directory:string,exercise?:(origin:string,credentials:unknown,directory:string,container:string)=>Promise<unknown>):Promise<ValidationResult&{functionalEvidence?:unknown}>{
+export async function validateLocal(image:string,journal:Journal,directory:string,exercise?:(origin:string,credentials:unknown,directory:string,container:string)=>Promise<unknown>,signal?:AbortSignal):Promise<ValidationResult&{functionalEvidence?:unknown}>{
+  signal?.throwIfAborted();
+  const command=commandRunner(signal);
   const socket=createServer();await new Promise<void>((resolve,reject)=>{socket.once('error',reject);socket.listen(0,'127.0.0.1',resolve);});
   const address=socket.address();if(!address||typeof address==='string')throw new PreviewError('Unable to reserve local verification port.');
   const port=address.port;await new Promise<void>((resolve,reject)=>socket.close(error=>error?reject(error):resolve()));
   const origin=`http://localhost:${port}`;
-  const container=(await run(['docker','run','-d','--cpus=2','--memory=2g','-p',`127.0.0.1:${port}:3000`,'-e',`DEMO_PUBLIC_ORIGIN=${origin}`,'-e',`REDE_SECURITY_ENCRYPTION_KEY=${randomBytes(32).toString('base64')}`,image])).toString().trim();
+  signal?.throwIfAborted();
+  const container=`enois-preview-local-${randomUUID()}`;
   try{
+    await command(['docker','run','--name',container,'-d','--cpus=2','--memory=2g','-p',`127.0.0.1:${port}:3000`,'-e',`DEMO_PUBLIC_ORIGIN=${origin}`,'-e',`REDE_SECURITY_ENCRYPTION_KEY=${randomBytes(32).toString('base64')}`,image]);
     const file=join(directory,'local-credentials.json');let copied=false;
     for(let attempt=0;attempt<300;attempt++){
-      try{await run(['docker','cp',`${container}:/tmp/demo-credentials.json`,file]);await chmod(file,0o600);copied=true;break;}
-      catch(error:unknown){if(!(error instanceof PreviewError))throw error;if((await containerState(container)).Running!==true)throw new PreviewError('Disposable runtime exited before generating credentials; inspect private runtime.log.');await delay(1000);}
+      try{await command(['docker','cp',`${container}:/tmp/demo-credentials.json`,file]);await chmod(file,0o600);copied=true;break;}
+      catch(error:unknown){signal?.throwIfAborted();if(!(error instanceof PreviewError))throw error;if((await containerState(container,signal)).Running!==true)throw new PreviewError('Disposable runtime exited before generating credentials; inspect private runtime.log.');await delay(1000,undefined,{signal});}
     }
     if(!copied)throw new PreviewError('Disposable runtime did not generate credentials.');
     const credentials=await readRecord(file);
-    const result:ValidationResult&{functionalEvidence?:unknown}=await validate(origin,journal,{credentials,local:true,evidence:directory,alive:async()=>(await containerState(container)).Running===true});
+    const result:ValidationResult&{functionalEvidence?:unknown}=await validate(origin,journal,{credentials,local:true,evidence:directory,signal,alive:async()=>(await containerState(container,signal)).Running===true});
+    signal?.throwIfAborted();
     if(exercise)result.functionalEvidence=await exercise(origin,credentials,directory,container);
     await writeRecord(join(directory,'local-validation.json'),result);return result;
   }finally{

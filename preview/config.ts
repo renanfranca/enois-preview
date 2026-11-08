@@ -52,7 +52,7 @@ export function installed(config: Record<string, unknown>): void {
 import { access, stat, statfs } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { run } from './state.js';
+import { commandRunner } from './state.js';
 import { ROOT, REPOSITORIES } from './project.js';
 
 export interface Config extends CaptureConfig {
@@ -82,7 +82,9 @@ export function validateConfig(value: unknown): Config {
   if (typeof leaseWaitSeconds !== 'number' || !Number.isFinite(leaseWaitSeconds) || leaseWaitSeconds < 0 || leaseWaitSeconds > 3600) throw new PreviewError('leaseWaitSeconds must be between 0 and 3600.');
   return { ...value, ...captureConfig(value), workspace: absolute(value.workspace), repositories, repository, registry, branch, toolCommit, cloudflareAccountId, origin: origin.origin, leaseWaitSeconds };
 }
-export async function prerequisites(config: Config): Promise<void> {
+export async function prerequisites(config: Config, signal?: AbortSignal): Promise<void> {
+  const run = commandRunner(signal);
+  signal?.throwIfAborted();
   for (const name of ['git','node','npm','java','javac','docker','gh','npx','fuser','flock']) {
     const paths = (process.env.PATH ?? '').split(':');
     const found = await Promise.all(paths.map(path => access(join(path, name), constants.X_OK).then(() => true, () => false)));

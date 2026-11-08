@@ -18,6 +18,8 @@ enois-preview publish meu-cenario --refresh-data
 enois-preview resume <revisao-completa>
 ```
 
+Na versão 0.3.1, `Ctrl+C` (`SIGINT`) e `SIGTERM` cancelam comandos ativos e impedem novas etapas. O primeiro sinal determina a saída: `130` ou `143`, respectivamente. Aguarde a restauração do backend; sinais adicionais não a interrompem. Se ela falhar dentro dos prazos existentes, preserve `restoration.json`: a próxima execução de publicação ou retomada tenta a recuperação antes de avaliar fontes. Uma captura incompleta mantém os dados completos anteriores. Após congelar uma revisão, use o identificador informado com `enois-preview resume <revisao-completa>`; um push ou deploy aceito pode precisar de reconciliação, pois cancelar a espera local não desfaz o efeito remoto. Não remova leases de outra operação. `SIGKILL` depende da recuperação durável na próxima execução.
+
 Esta versão usa TypeScript estrito e ESM. Depois de instalar, compile explicitamente; não depende de scripts de instalação. Para desenvolvimento, execute `npm ci --ignore-scripts`, `npm run build`, `npm run typecheck`, `npm test` e `npm run check`. O teste recompila a ferramenta antes de executar. Python não é requisito.
 
 Configuração, dados, journals, proveniência e catálogo novos usam `format: "enois-preview-ts-v1"`. A instalação padrão fica em `~/.config/enois-preview-ts`. Registros antigos com `schema` ou sem esse `format` são recusados antes de alterações. Crie uma instalação e catálogo novos: não copie a confirmação nem converta journals Python. Arquivos antigos e histórico são preservados; não há promessa de retomada ou funcionamento dos links anteriores.

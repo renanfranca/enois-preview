@@ -18,6 +18,8 @@ enois-preview publish my-scenario --refresh-data
 enois-preview resume <full-revision>
 ```
 
+In 0.3.1, `Ctrl+C` (`SIGINT`) and `SIGTERM` cancel active commands and prevent later stages. The first signal determines exit status: `130` or `143`, respectively. Wait for backend restoration; further signals do not interrupt it. If restoration fails within its existing deadlines, preserve `restoration.json`: the next publication or resume attempts recovery before inspecting sources. An incomplete capture preserves previous complete data. Once a revision is frozen, use the reported identity with `enois-preview resume <full-revision>`; an accepted push or deployment may need reconciliation because cancelling the local wait does not undo the remote effect. Never remove another operation’s lease. `SIGKILL` relies on durable recovery during the next invocation.
+
 This version uses strict TypeScript and ESM. Build explicitly after installation; installation lifecycle scripts are unnecessary. Development commands are `npm ci --ignore-scripts`, `npm run build`, `npm run typecheck`, `npm test`, and `npm run check`. Tests rebuild before execution. Python is not required.
 
 New configuration, data, journals, provenance and catalog use `format: "enois-preview-ts-v1"`. The default installation is `~/.config/enois-preview-ts`. Records with historical `schema` fields or without this `format` are refused before mutation. Start a fresh installation and catalog; do not copy the old confirmation or convert Python journals. Previous files and Git history stay preserved, without a promise to resume old operations or retain old links.

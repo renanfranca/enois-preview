@@ -5,6 +5,7 @@ import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync, readFileSyn
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 
 async function initialSetup(home:string,file:string,answer:string,env:NodeJS.ProcessEnv=process.env):Promise<{code:number|null;output:string}>{
   const command=[process.execPath,resolve('dist/preview/cli.js'),'--home',home,'setup','--config',file].map(value=>"'"+value.replaceAll("'","'\\''")+"'").join(' ');
@@ -12,7 +13,7 @@ async function initialSetup(home:string,file:string,answer:string,env:NodeJS.Pro
     const child=spawn('script',['--return','--quiet','--command',command,'/dev/null'],{env,stdio:['pipe','pipe','pipe']});let output='';let answered=false;
     const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Initial setup terminal timed out'));},10_000);
     child.stdin.on('error',()=>{});child.on('error',reject);
-    const receive=(chunk:Buffer)=>{output+=String(chunk);if(!answered&&output.includes('Type yes:')){answered=true;child.stdin.write(`${answer}\n`);}};
+    const receive=(chunk:Buffer)=>{output+=String(chunk);if(!answered&&output.includes('Type yes:')){answered=true;child.stdin.write(answer==='SIGINT'?'\x03':`${answer}\n`);}};
     child.stdout.on('data',receive);child.stderr.on('data',receive);child.on('close',code=>{clearTimeout(timer);done({code,output});});
   });
 }
@@ -226,4 +227,92 @@ test('historical scenario pointers and operation journals are refused by the CLI
       assert.deepEqual(readdirSync(config.state,{recursive:true}).sort(),before);
     }
   }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+
+test('setup interruption terminates active descendants and prevents later installation writes',async()=>{
+  const directory=mkdtempSync(join(tmpdir(),'enois-interrupted-setup-'));
+  const roots:string[]=[];
+  try{
+    const base=workspace(directory);writeFileSync(base.database,'fictional');writeFileSync(base.h2Jar,'fixture');
+    const bin=join(directory,'bin');mkdirSync(bin);
+    for(const name of ['gh','docker','npx'])symlinkSync(resolve('dist/test/fixtures/infrastructure.js'),join(bin,name));
+    chmodSync(resolve('dist/test/fixtures/infrastructure.js'),0o755);
+    for(const signal of [undefined,'SIGINT','SIGTERM'] as const){
+      const root=join(directory,signal??'control');mkdirSync(root);roots.push(root);
+      const home=join(root,'home'),input=join(root,'input.json');
+      const config={...base,service:{...base.service,identity:[process.execPath,resolve('dist/test/fixtures/timeout-tree.js'),root,'identity']}};
+      writeFileSync(input,JSON.stringify(config));
+      const args=[process.execPath,resolve('dist/preview/cli.js'),'--home',home,'setup','--config',input];
+      const command='exec '+args.map(value=>"'"+value.replaceAll("'","'\\''")+"'").join(' ');
+      const child=spawn('script',['--return','--quiet','--command',command,'/dev/null'],{env:{...process.env,PATH:`${bin}:${process.env.PATH??''}`},stdio:['pipe','pipe','pipe']});
+      let output='',answered=false;const receive=(data:Buffer)=>{output+=String(data);if(!answered&&output.includes('Type yes:')){answered=true;child.stdin.write('yes\n');}};child.stdout.on('data',receive);child.stderr.on('data',receive);
+      const completed=new Promise<number|null>((done,reject)=>{child.on('error',reject);child.on('close',done);});
+      const timer=setTimeout(()=>child.kill('SIGKILL'),15000);
+      try{
+        const deadline=Date.now()+10000;
+        while(!existsSync(join(root,'observed.json'))&&Date.now()<deadline)await delay(10);
+        assert.ok(existsSync(join(root,'observed.json')),output);
+        const observed=JSON.parse(readFileSync(join(root,'observed.json'),'utf8'));
+        assert.equal(observed.bothAlive,true);process.kill(observed.child,0);process.kill(observed.grandchild,0);
+        if(signal==='SIGINT')child.stdin.write('\x03');
+        else if(signal)process.kill(observed.cli,signal);
+
+        const code=await completed;
+        await delay(2800);
+
+        assert.equal(code,signal==='SIGINT'?130:signal==='SIGTERM'?143:0,output);
+        if(signal)for(const pid of [observed.parent,observed.child,observed.grandchild]){
+          const stat=`/proc/${pid}/stat`;if(existsSync(stat))assert.match(readFileSync(stat,'utf8'),/^\d+ \(.*\) [ZX] /s,'owned command and descendants must have terminated');
+        }
+        assert.equal(existsSync(join(root,'child.effect')),!signal,'child delayed effect');
+        assert.equal(existsSync(join(root,'grandchild.effect')),!signal,'grandchild delayed effect');
+        assert.equal(existsSync(join(home,'config.json')),!signal,'installation must not be written after interruption');
+        if(signal){assert.match(output,/interrupt/i);assert.doesNotMatch(output,/Installation verified/);}
+        const independent=JSON.parse(readFileSync(join(root,'independent.json'),'utf8'));
+        assert.equal(await(await fetch(`http://127.0.0.1:${independent.port}`)).text(),'independent ready');
+        if(process.env.ENOIS_PREVIEW_EVIDENCE)writeFileSync(join(process.env.ENOIS_PREVIEW_EVIDENCE,`setup-${signal??'control'}.json`),JSON.stringify({signal:signal??null,code,observed,childEffect:existsSync(join(root,'child.effect')),grandchildEffect:existsSync(join(root,'grandchild.effect')),installationWritten:existsSync(join(home,'config.json')),independentReady:true,output})+'\n');
+      }finally{clearTimeout(timer);child.kill('SIGKILL');}
+    }
+  }finally{
+    for(const root of roots){
+      if(existsSync(join(root,'observed.json'))){const observed=JSON.parse(readFileSync(join(root,'observed.json'),'utf8'));try{process.kill(-observed.parent,'SIGKILL');}catch{}}
+      if(existsSync(join(root,'independent.json'))){try{process.kill(JSON.parse(readFileSync(join(root,'independent.json'),'utf8')).pid,'SIGKILL');}catch{}}
+    }
+    rmSync(directory,{recursive:true,force:true});
+  }
+});
+
+
+test('Ctrl+C during initial financial confirmation cancels the prompt without creating installation state',async()=>{
+  const directory=mkdtempSync(join(tmpdir(),'enois-cancelled-prompt-'));
+  try{
+    const {installation:_old,...config}=workspace(directory);const file=join(directory,'input.json');writeFileSync(file,JSON.stringify(config));const home=join(directory,'home');
+
+    const result=await initialSetup(home,file,'SIGINT');
+
+    assert.equal(result.code,130,result.output);assert.match(result.output,/interrupt/i);assert.doesNotMatch(result.output,/Installation verified/);
+    assert.equal(existsSync(home),false);assert.equal(existsSync(config.state),false);
+  }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+
+test('a cancelled main invocation preserves unrelated signal handlers and does not cancel the next setup in the same process',async()=>{
+  const directory=mkdtempSync(join(tmpdir(),'enois-repeated-main-')),oldPath=process.env.PATH;
+  const outsider=()=>{};process.on('SIGTERM',outsider);const handlers=process.listenerCount('SIGTERM');const interrupts=process.listenerCount('SIGINT');
+  try{
+    const base=workspace(directory);writeFileSync(base.database,'fictional');writeFileSync(base.h2Jar,'fixture');
+    const home=join(directory,'home');mkdirSync(home);const file=join(home,'config.json');
+    writeFileSync(file,JSON.stringify({...base,service:{...base.service,identity:[process.execPath,resolve('dist/test/fixtures/timeout-tree.js'),directory,'identity']}}));
+    const bin=join(directory,'bin');mkdirSync(bin);for(const name of ['gh','docker','npx'])symlinkSync(resolve('dist/test/fixtures/infrastructure.js'),join(bin,name));chmodSync(resolve('dist/test/fixtures/infrastructure.js'),0o755);process.env.PATH=`${bin}:${oldPath??''}`;
+    const {main}=await import('../preview/cli.js');const cancelled=main(['--home',home,'setup']);
+    const deadline=Date.now()+5000;while(!existsSync(join(directory,'observed.json'))&&Date.now()<deadline)await delay(10);assert.ok(existsSync(join(directory,'observed.json')));
+    process.emit('SIGTERM');assert.equal(await cancelled,143);
+    assert.equal(process.listenerCount('SIGTERM'),handlers);assert.equal(process.listenerCount('SIGINT'),interrupts);assert.ok(process.listeners('SIGTERM').includes(outsider));
+    writeFileSync(file,JSON.stringify({...base,service:{...base.service,identity:[process.execPath,'-e','console.log("fixture")']}}));
+
+    assert.equal(await main(['--home',home,'setup']),0);
+
+    assert.equal(process.listenerCount('SIGTERM'),handlers);assert.equal(process.listenerCount('SIGINT'),interrupts);assert.ok(process.listeners('SIGTERM').includes(outsider));
+  }finally{process.removeListener('SIGTERM',outsider);if(oldPath===undefined)delete process.env.PATH;else process.env.PATH=oldPath;if(existsSync(join(directory,'independent.json'))){try{process.kill(JSON.parse(readFileSync(join(directory,'independent.json'),'utf8')).pid,'SIGKILL');}catch{}}rmSync(directory,{recursive:true,force:true});}
 });

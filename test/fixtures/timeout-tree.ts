@@ -30,7 +30,8 @@ if(role==='independent'){
   }
   const pids=['child','grandchild'].map(name=>Number(readFileSync(file(name+'.pid'),'utf8')));
   for(const pid of pids)process.kill(pid,0);
-  writeFileSync(file('observed.json'),JSON.stringify({parent:process.pid,child:pids[0],grandchild:pids[1],bothAlive:true}));
-  console.log('descendants confirmed active');
+  writeFileSync(file('observed.json'),JSON.stringify({parent:process.pid,cli:process.ppid,child:pids[0],grandchild:pids[1],bothAlive:true}));
+  if(role!=='identity')console.log('descendants confirmed active');
   while(!['child.effect','grandchild.effect'].every(name=>existsSync(file(name))))await delay(10);
+  if(role==='identity')console.log('fixture');
 }

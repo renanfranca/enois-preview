@@ -8,7 +8,7 @@ import { GitHub, RemoteFailure, request } from './remote_http.js';
 import { buildImage, validateLocal, verifyImage } from './build.js';
 import { Session, validate } from './validation.js';
 import type { ValidationResult } from './validation.js';
-import { canonical, exists, FORMAT, identity, inventory, object, PreviewError, privateDir, readRecord, requireFormat, run, string, writeRecord } from './state.js';
+import { canonical, exists, FORMAT, identity, inventory, object, PreviewError, privateDir, readRecord, requireFormat, run, string, commandRunner, writeRecord } from './state.js';
 
 function refSha(value: unknown): string {
   const sha = string(object(object(value).object).sha);
@@ -24,11 +24,13 @@ function deploymentInstant(value: unknown): bigint {
 }
 export class Publisher {
   readonly github: GitHub;
+  private readonly command: typeof run;
   readonly leaseRef = 'refs/heads/enois-preview-publication-lease';
   get checkout(): string { return join(this.directory,'launcher'); }
-  constructor(readonly config: Config, readonly journal: Journal, readonly directory: string) { this.github = new GitHub(config.repository); }
+  constructor(readonly config: Config, readonly journal: Journal, readonly directory: string, readonly signal?: AbortSignal) { this.github = new GitHub(config.repository,signal); this.command = commandRunner(signal); }
   async save(): Promise<void> { await writeRecord(join(this.directory,'journal.json'),this.journal); }
   async intent(stage: string, details: Record<string, unknown> = {}): Promise<Record<string,unknown>> {
+    this.signal?.throwIfAborted();
     this.journal.stage = stage; this.journal.intents[stage] ??= details; await this.save(); return this.journal.intents[stage];
   }
   async complete(stage: string, result: unknown): Promise<void> { this.journal.checkpoints[stage] = result; await this.save(); }
@@ -37,46 +39,47 @@ export class Publisher {
     const recorded = this.journal.checkpoints.localImage;
     if (recorded) {
       let image = string(object(recorded).id);
-      try { await run(['docker','image','inspect',image]); }
+      try { await this.command(['docker','image','inspect',image]); }
       catch (error: unknown) {
+        this.signal?.throwIfAborted();
         if (!(error instanceof PreviewError)) throw error;
         const remote = this.journal.checkpoints.registry;
         if (!remote) throw new PreviewError('Validated local image unavailable; restore its recorded artifact. No rebuild or live recapture attempted.');
         const registry = object(remote); image = string(registry.image);
         if (image !== `${this.config.registry}@${string(registry.digest)}`) throw new PreviewError('Recorded registry identity mismatch.');
-        await run(['docker','pull',image],{timeout:1800});
+        await this.command(['docker','pull',image],{timeout:1800});
       }
-      await verifyImage(image,this.journal,this.directory); return;
+      await verifyImage(image,this.journal,this.directory,this.signal); return;
     }
-    const image = await buildImage(this.journal,this.directory);
-    await this.complete('localImage',{...image,validation:await validateLocal(image.id,this.journal,this.directory)});
+    const image = await buildImage(this.journal,this.directory,this.signal);
+    await this.complete('localImage',{...image,validation:await validateLocal(image.id,this.journal,this.directory,undefined,this.signal)});
   }
   async validatePublic(): Promise<ValidationResult> {
     await this.intent('publicValidation');
-    const result = await validate(this.config.origin,this.journal,{evidence:this.directory});
+    const result = await validate(this.config.origin,this.journal,{evidence:this.directory,signal:this.signal});
     await writeRecord(join(this.directory,'public-validation.json'),result);
     await this.complete('publicValidation',result); return result;
   }
   async refreshCheckout(): Promise<string> {
     await rm(this.checkout,{recursive:true,force:true});
-    await run(['git','clone','--single-branch','--branch',this.config.branch,`https://github.com/${this.config.repository}.git`,this.checkout]);
-    await run(['git','-C',this.checkout,'config','user.name','enois-preview']);
-    await run(['git','-C',this.checkout,'config','user.email','preview@enois.invalid']);
+    await this.command(['git','clone','--single-branch','--branch',this.config.branch,`https://github.com/${this.config.repository}.git`,this.checkout]);
+    await this.command(['git','-C',this.checkout,'config','user.name','enois-preview']);
+    await this.command(['git','-C',this.checkout,'config','user.email','preview@enois.invalid']);
     const worker = object(JSON.parse(await readFile(join(this.checkout,'wrangler.jsonc'),'utf8')));
     const vars = object(worker.vars);
     if (vars.GITHUB_REPOSITORY !== this.config.repository || vars.GITHUB_OWNER !== this.config.repository.split('/')[0]) throw new PreviewError('Private launcher does not match the installation.');
     const lock = await readRecord(join(this.checkout,'tool.lock.json'));
     const packageInfo = object(JSON.parse(await readFile(join(this.checkout,'package.json'),'utf8')));
     if (canonical(lock) !== canonical({ format:FORMAT,repository:'renanfranca/enois-preview',commit:this.config.toolCommit }) || object(packageInfo.devDependencies)['enois-preview'] !== `https://codeload.github.com/renanfranca/enois-preview/tar.gz/${this.config.toolCommit}` || worker.main !== 'launcher.ts') throw new PreviewError('Private launcher tool pin differs from the executor. Complete its reviewed TypeScript installation before publication or resume.');
-    return (await run(['git','-C',this.checkout,'rev-parse','HEAD'])).toString().trim();
+    return (await this.command(['git','-C',this.checkout,'rev-parse','HEAD'])).toString().trim();
   }
   async commitPush(paths: string[], message: string, stage: string): Promise<string> {
-    await run(['git','-C',this.checkout,'add','--',...paths]);
-    await run(['git','-C',this.checkout,'commit','-m',message]);
-    const commit = (await run(['git','-C',this.checkout,'rev-parse','HEAD'])).toString().trim();
+    await this.command(['git','-C',this.checkout,'add','--',...paths]);
+    await this.command(['git','-C',this.checkout,'commit','-m',message]);
+    const commit = (await this.command(['git','-C',this.checkout,'rev-parse','HEAD'])).toString().trim();
     const intent = this.journal.intents[stage]; if (!intent) throw new PreviewError('Missing recorded publication intent.');
     intent.commit = commit; await this.save();
-    await run(['git','-C',this.checkout,'push','origin',`HEAD:refs/heads/${this.config.branch}`],{logPath:join(this.directory,`${stage}-push.log`)});
+    await this.command(['git','-C',this.checkout,'push','origin',`HEAD:refs/heads/${this.config.branch}`],{logPath:join(this.directory,`${stage}-push.log`)});
     return commit;
   }
   async configuration(): Promise<void> {
@@ -92,7 +95,7 @@ export class Publisher {
     let commit: string;
     if (await exists(file)) {
       if (canonical(await readRecord(file)) !== canonical(expected) || await readFile(join(this.checkout,proofPath),'utf8') !== proofBytes) throw new PreviewError('Immutable configuration collision; previous scenario preserved.');
-      commit = (await run(['git','-C',this.checkout,'log','-1','--format=%H','--',relative])).toString().trim();
+      commit = (await this.command(['git','-C',this.checkout,'log','-1','--format=%H','--',relative])).toString().trim();
     } else {
       const directory = await privateDir(join(this.checkout,relative));
       const devcontainer = { name:`Énóis ${this.journal.slug}`,image:expected.image,overrideCommand:true,remoteUser:'demo',containerUser:'demo',hostRequirements:{cpus:2,memory:'4gb',storage:'16gb'},forwardPorts:[3000],portsAttributes:{'3000':{label:'Énóis preview',onAutoForward:'silent'}},postStartCommand:['node','/opt/render-demo/runtime/start.js','--daemon','--slug',this.journal.slug,'--origin',this.config.origin] };
@@ -126,10 +129,10 @@ export class Publisher {
     const packageName = this.config.registry.slice('ghcr.io/'.length);
     const credentials = Buffer.from(`enois-preview:${await this.github.credentials()}`).toString('base64');
     const query = new URLSearchParams({service:'ghcr.io',scope:`repository:${packageName}:pull`});
-    const authorization = await request(`https://ghcr.io/token?${query}`, 'GET', undefined, {Authorization:`Basic ${credentials}`});
+    const authorization = await request(`https://ghcr.io/token?${query}`, 'GET', undefined, {Authorization:`Basic ${credentials}`},this.signal);
     const token = string(object(await authorization.json()).token);
     let response: Response;
-    try { response = await request(`https://ghcr.io/v2/${packageName}/manifests/${tag}`,'GET',undefined,{Authorization:`Bearer ${token}`,Accept:'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json'}); }
+    try { response = await request(`https://ghcr.io/v2/${packageName}/manifests/${tag}`,'GET',undefined,{Authorization:`Bearer ${token}`,Accept:'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json'},this.signal); }
     catch (error: unknown) { if (error instanceof RemoteFailure && error.status === 404) return null; throw error; }
     const digest = `sha256:${createHash('sha256').update(new Uint8Array(await response.arrayBuffer())).digest('hex')}`;
     if (response.headers.get('Docker-Content-Digest') !== digest) throw new PreviewError('Registry manifest digest could not be verified.');
@@ -148,15 +151,15 @@ export class Publisher {
     if (digest === null) {
       if (record || intent.pushAttempted) throw new PreviewError('Registry push outcome is unresolved. Inspect its recorded tag; do not push a competing artifact.');
       const image = string(object(this.journal.checkpoints.localImage).id); const destination = `${this.config.registry}:${tag}`;
-      await run(['docker','tag',image,destination]); intent.pushAttempted = true; await this.save();
-      await run(['docker','push',destination],{timeout:3600}); digest = await this.registryDigest(tag);
+      await this.command(['docker','tag',image,destination]); intent.pushAttempted = true; await this.save();
+      await this.command(['docker','push',destination],{timeout:3600}); digest = await this.registryDigest(tag);
       if (digest === null) throw new PreviewError('Registry did not confirm the pushed artifact.');
     }
     const image = `${this.config.registry}@${digest}`;
-    await run(['docker','pull',image],{timeout:1800});
-    const metadata: unknown = JSON.parse((await run(['docker','image','inspect',image])).toString());
+    await this.command(['docker','pull',image],{timeout:1800});
+    const metadata: unknown = JSON.parse((await this.command(['docker','image','inspect',image])).toString());
     if (!Array.isArray(metadata) || object(object(object(metadata[0]).Config).Labels)['io.enois.preview.revision'] !== this.journal.revision) throw new PreviewError('Registry artifact belongs to another revision.');
-    await this.complete('registry',{image,digest,evidence:await verifyImage(image,this.journal,this.directory)});
+    await this.complete('registry',{image,digest,evidence:await verifyImage(image,this.journal,this.directory,this.signal)});
   }
   async deploy(): Promise<void> {
     const intent = await this.intent('deployment',{tag:this.journal.operation});
@@ -164,19 +167,19 @@ export class Publisher {
     const catalog = await readRecord(join(this.checkout,'catalog/scenarios.json'));
     const expected = object(object(catalog.scenarios)[this.journal.slug]); requireFormat(expected);
     if (expected.revision !== this.journal.revision) throw new PreviewError('Current remote catalog lost the recorded revision.');
-    for (const [label,args] of [['install',['npm','ci','--ignore-scripts']],['build',['npm','run','build']],['test',['npm','test']],['check',['npm','run','check']]] as const) await run(args,{cwd:this.checkout,timeout:1800,logPath:join(this.directory,`consumer-${label}.log`)});
-    const session = new Session(this.config.origin,{slug:this.journal.slug});
+    for (const [label,args] of [['install',['npm','ci','--ignore-scripts']],['build',['npm','run','build']],['test',['npm','test']],['check',['npm','run','check']]] as const) await this.command(args,{cwd:this.checkout,timeout:1800,logPath:join(this.directory,`consumer-${label}.log`)});
+    const session = new Session(this.config.origin,{slug:this.journal.slug,signal:this.signal});
     let actual: Record<string,unknown> | undefined;
-    try { actual = object(await session.json('/__demo/revision')); } catch (error: unknown) { if (!(error instanceof PreviewError)) throw error; }
+    try { actual = object(await session.json('/__demo/revision')); } catch (error: unknown) { this.signal?.throwIfAborted(); if (!(error instanceof PreviewError)) throw error; }
     const matching = actual && actual.catalogSha256 === identity(catalog) && Object.entries(expected).every(([key,value]) => Object.hasOwn(actual,key) && canonical(actual[key]) === canonical(value));
     const env = {...process.env,CLOUDFLARE_ACCOUNT_ID:this.config.cloudflareAccountId};
     if (!matching) {
       if (intent.attempted) throw new PreviewError('Deployment outcome unresolved; inspect Cloudflare deployments and resume after reconciliation.');
       if (refSha(await this.github.call(`git/ref/heads/${this.config.branch}`)) !== current) throw new PreviewError('Remote catalog advanced during validation; resume to preserve its additions before deploying.');
       intent.attempted = true; await this.save();
-      await run(['npx','--no-install','wrangler','deploy','--tag',this.journal.operation,'--message',`enois-preview ${this.journal.revision} catalog ${current}`,'--strict'],{cwd:this.checkout,env,logPath:join(this.directory,'deployment.log')});
+      await this.command(['npx','--no-install','wrangler','deploy','--tag',this.journal.operation,'--message',`enois-preview ${this.journal.revision} catalog ${current}`,'--strict'],{cwd:this.checkout,env,logPath:join(this.directory,'deployment.log')});
     }
-    const deployments: unknown = JSON.parse((await run(['npx','--no-install','wrangler','deployments','list','--json'],{cwd:this.checkout,env})).toString());
+    const deployments: unknown = JSON.parse((await this.command(['npx','--no-install','wrangler','deployments','list','--json'],{cwd:this.checkout,env})).toString());
     if (!Array.isArray(deployments) || !deployments.length) throw new PreviewError('Cloudflare did not confirm a deployment identity.');
     let latest = object(deployments[0]);
     for (const value of deployments) { const candidate = object(value); if (deploymentInstant(candidate.created_on) > deploymentInstant(latest.created_on)) latest = candidate; }
@@ -203,7 +206,7 @@ export class Publisher {
         catch (error: unknown) { if (!(error instanceof RemoteFailure) || ![409,422].includes(error.status)) throw error; }
       }
       if (performance.now() >= deadline) throw new PreviewError('Another remote publication still holds the lease. Retry with resume after its owner reconciles; do not delete an ambiguous lease.');
-      await delay(Math.min(2000,Math.max(50,deadline-performance.now())));
+      await delay(Math.min(2000,Math.max(50,deadline-performance.now())),undefined,{signal:this.signal});
     }
     await this.complete('remoteLease',{ commit:refSha(owned) });
   }

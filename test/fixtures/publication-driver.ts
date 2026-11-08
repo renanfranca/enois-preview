@@ -9,6 +9,10 @@ import { GitHubFixture } from './github.js';
 const rootArgument=process.argv[2];if(!rootArgument)throw new Error('Missing fixture root');const root:string=rootArgument;
 process.env.GIT_CONFIG_COUNT='1';process.env.GIT_CONFIG_KEY_0=`url.${join(root,'remote.git')}.insteadOf`;process.env.GIT_CONFIG_VALUE_0='https://github.com/fixture/launcher.git';
 process.env.PATH=`${join(root,'bin')}:${process.env.PATH??''}`;process.env.FIXTURE_LOST_GIT_ACK=join(root,'fail-once');
+const realValidatePublic=Publisher.prototype.validatePublic;
+const nativeFetch=globalThis.fetch;
+const httpFile=join(root,'http-url');
+if(existsSync(httpFile))globalThis.fetch=(input,init)=>{const url=new URL(input instanceof Request?input.url:String(input));const local=new URL(url.pathname+url.search,readFileSync(httpFile,'utf8'));return nativeFetch(local,init);};
 const github=new GitHubFixture(join(root,'remote.git'));GitHub.prototype.call=github.call.bind(github);
 interface Platform {builds:Record<string,number>;images:Record<string,{image:string;digest:string;evidence:Record<string,unknown>}>;deployments:Record<string,unknown>;validations:Record<string,number>}
 const file=join(root,'platform.json');
@@ -33,6 +37,7 @@ Object.assign(Publisher.prototype,{
     await this.complete('deployment',state.deployments[revision]);
   },
   async validatePublic(this:Publisher):Promise<Record<string,unknown>>{
+    if(existsSync(httpFile))return {...await realValidatePublic.call(this)};
     await this.intent('publicValidation');fail('beforePublicValidation');const state=read();state.validations[this.journal.revision]=(state.validations[this.journal.revision]??0)+1;save(state);fail('publicValidation');
     const result={identityVerified:true,readiness:'UP',transport:'controlled public validation double'};await this.complete('publicValidation',result);return result;
   }

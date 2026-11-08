@@ -71,3 +71,20 @@ test('image verification releases its disposable container when the evidence dir
     assert.equal(result.status,1);const commands=existsSync(join(directory,'docker-calls.log'))?(await readFile(join(directory,'docker-calls.log'),'utf8')).trim().split('\n'):[];assert.equal(commands.filter(command=>command==='create').length-commands.filter(command=>command==='rm').length,0,'No disposable image inspection container may remain owned after failure');
   }finally{await rm(directory,{recursive:true,force:true});}
 });
+
+
+test('interrupted image inspection and local verification clean their own containers even before creation acknowledgement',async()=>{
+  for(const operation of ['verifyImage','validateLocal']){
+    const directory=await mkdtemp(join(tmpdir(),'enois-cancelled-image-'));
+    try{
+      const bin=join(directory,'bin');await mkdir(bin);const fixture=resolve('dist/test/fixtures/docker-command.js');await chmod(fixture,0o755);await symlink(fixture,join(bin,'docker'));await writeFile(join(directory,'platform.json'),'{}');
+      const code=`import {${operation}} from ${JSON.stringify(new URL('../preview/build.js',import.meta.url).href)};import {existsSync} from 'node:fs';const controller=new AbortController();process.on('SIGTERM',()=>controller.abort(new Error('interrupted')));let sent=false;const timer=setInterval(()=>{if(!sent&&existsSync(process.argv[1]+'/resource.json')){sent=true;process.kill(process.pid,'SIGTERM');}},10);try{await ${operation}('fixture/image',{},process.argv[1],${operation==='validateLocal'?'undefined,':''}controller.signal);process.exitCode=2;}catch(error){console.error(error.message);process.exitCode=1;}finally{clearInterval(timer);}`;
+
+      const result=spawnSync(process.execPath,['--input-type=module','-e',code,directory],{encoding:'utf8',timeout:2000,killSignal:'SIGKILL',env:{...process.env,PATH:`${bin}:${process.env.PATH??''}`,FIXTURE_PLATFORM_ROOT:directory,FIXTURE_DOCKER_HOLD:'true'}});
+
+      assert.equal(result.status,1,`${operation}: ${result.error?.message??result.stderr}`);assert.match(result.stderr,/interrupted/);
+      assert.equal(existsSync(join(directory,'resource.json')),false,'owned resource must be removed despite cancelled creation');
+      const commands=(await readFile(join(directory,'docker-calls.log'),'utf8')).trim().split('\n');assert.ok(commands.includes(operation==='verifyImage'?'create':'run'));assert.equal(commands.filter(command=>command==='rm').length,1);
+    }finally{if(existsSync(join(directory,'resource.json'))){const resource=JSON.parse(await readFile(join(directory,'resource.json'),'utf8'));try{process.kill(-resource.pid,'SIGKILL');}catch{}}await rm(directory,{recursive:true,force:true});}
+  }
+});

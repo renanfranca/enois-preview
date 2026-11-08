@@ -1,0 +1,83 @@
+{
+  "version": "0.3.1",
+  "status": "passed",
+  "node": "24.16.0",
+  "baseCommit": "c216c3f27207092d39c48583ed3641e6421dc960",
+  "recordFormat": "enois-preview-ts-v1",
+  "firstSignalExitCodes": {
+    "SIGINT": 130,
+    "SIGTERM": 143
+  },
+  "furtherSignalsInterruptRestoration": false,
+  "historicalOperationResumeQualified": false,
+  "npm": "11.13.0",
+  "commands": [
+    {
+      "command": "npm ci --ignore-scripts",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    {
+      "command": "npm test",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run check",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run test:capture",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run test:consumer",
+      "exitCode": 0
+    }
+  ],
+  "standardTests": {
+    "passed": 100,
+    "failed": 0,
+    "skipped": 0
+  },
+  "installedConsumerTests": {
+    "passed": 100,
+    "failed": 0,
+    "skipped": 0
+  },
+  "realSpringAndH2": {
+    "backendRestoredHealthyBeforeCaptureReturned": true,
+    "capturedAdminPermissionPreserved": true,
+    "completeDataPreservedAfterInterruption": true,
+    "dataVersion": "a078c45b2c3bc1ba8a1fd91ea5f09a8d4807ba78edfde2b19b86a3dcd9c1378a",
+    "format": "enois-preview-ts-v1",
+    "interruptedCaptureRestoredHealthy": true,
+    "interruptionAfterActualBackendStopped": true,
+    "localOnly": true,
+    "originalLoginsRejectedInSanitizedCopy401": 4,
+    "originalLoginsStillValidAfterCapture": 4,
+    "realSpringAndH2": true,
+    "sanitizerSha256": "2f07d4f9ff5778c22b246c90884bd9692482b77d6a2123b0540ac850fe3373a1",
+    "validOriginalLoginsBeforeCapture": 4
+  },
+  "coverage": {
+    "I1": "actual PTY Ctrl+C and CLI SIGTERM, live descendants, positive control and independent HTTP service",
+    "I2": "CLI repeated signals with controlled service, real H2 preservation; separate actual Spring AbortSignal capture and restored readiness; accepted shutdown transition",
+    "I3": "failed restoration retained until next CLI readiness, before dirty source refusal",
+    "I4": "actual local flock owner preserved; production HTTP headers/body waits redirected to local recording server; H2 probe",
+    "I5": "accepted real local Git push before confirmation; CLI SIGTERM then frozen resume without duplicate effect; controlled build/registry/deploy",
+    "I6": "timeouts, prior states, logs/output, pre-cancelled invocation, exited group and next main invocation, distribution/HTTP regressions"
+  },
+  "limits": [
+    "Real Spring integration uses AbortSignal cancellation; repeated OS signals are exercised separately through the CLI with controlled service adapters.",
+    "Git acceptance uses real local repositories. Registry, build and deployment providers in interruption journeys are controlled.",
+    "Canonical public publication/resume and operational pin alignment follow this clean executable commit and are recorded in the release assets."
+  ],
+  "interruptedValidationAttempt": "Session switch terminated one final-source capture verifier before completion; its owned temporary backend was stopped through the identity-checked adapter. The retained attempt is not counted as passing; the subsequent final-source rerun passed."
+}

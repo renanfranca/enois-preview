@@ -8,7 +8,7 @@ import type { Config } from './config.js';
 import { capture, commits, recover, ROOT, sourceLease } from './capture.js';
 import type { DataManifest } from './capture.js';
 import type { AccountSelector } from './capture.js';
-import { canonical, exists, FORMAT, identity, inventory, lease, object, PreviewError, privateDir, readRecord, requireFormat, run, string, verify, writeRecord } from './state.js';
+import { canonical, exists, FORMAT, identity, inventory, lease, object, PreviewError, privateDir, readRecord, requireFormat, run, string, commandRunner, verify, writeRecord } from './state.js';
 import type { Inventory } from './state.js';
 
 export interface Inputs {
@@ -77,12 +77,13 @@ export function journalRecord(value: unknown): Journal {
 function target(config: Config): Record<string, string> {
   return { repository: config.repository, registry: config.registry, branch: config.branch, origin: config.origin, cloudflareAccountId: config.cloudflareAccountId };
 }
-async function toolCommit(config: Config): Promise<string> {
+async function toolCommit(config: Config, signal?: AbortSignal): Promise<string> {
+  const run = commandRunner(signal);
   if ((await run(['git','-C',ROOT,'rev-parse','HEAD'])).toString().trim() !== config.toolCommit || (await run(['git','-C',ROOT,'status','--porcelain=v1','--untracked-files=all'])).length) throw new PreviewError('Tool checkout differs from the configured public commit; restore that clean checkout before publishing or resuming.');
   return config.toolCommit;
 }
-export async function verifyJournal(config: Config, journal: Journal): Promise<string> {
-  if (journal.inputs.toolCommit !== await toolCommit(config)) throw new PreviewError('Resume requires the recorded TypeScript tool commit and installation pin.');
+export async function verifyJournal(config: Config, journal: Journal, signal?: AbortSignal): Promise<string> {
+  if (journal.inputs.toolCommit !== await toolCommit(config, signal)) throw new PreviewError('Resume requires the recorded TypeScript tool commit and installation pin.');
   if (canonical(journal.target) !== canonical(target(config))) throw new PreviewError('Revision targets another installation.');
   const location = join(config.state, 'operations', journal.revision);
   await verify(join(location, 'frozen/data'), journal.inputs.dataManifest.files);
@@ -91,8 +92,10 @@ export async function verifyJournal(config: Config, journal: Journal): Promise<s
   await verify(join(location, 'frozen'), journal.frozenFiles);
   return location;
 }
-export async function exportSources(config: Pick<Config,'repositories'>, versions: Record<string,string>, destination: string): Promise<void> {
+export async function exportSources(config: Pick<Config,'repositories'>, versions: Record<string,string>, destination: string, signal?: AbortSignal): Promise<void> {
+  const run = commandRunner(signal);
   for (const [name, commit] of Object.entries(versions)) {
+    signal?.throwIfAborted();
     const source = config.repositories[name]; if (!source) throw new PreviewError('Missing source repository.');
     const target = join(destination, name); await mkdir(target);
     const file = join(dirname(destination), `.archive-${randomUUID()}.tar`);
@@ -105,29 +108,32 @@ export async function exportSources(config: Pick<Config,'repositories'>, version
     } finally { await rm(file, { force: true }); }
   }
 }
-async function recoverPending(config: Config): Promise<void> {
-  if (await exists(join(config.state,'restoration.json'))) await sourceLease(config, () => recover(config));
+async function recoverPending(config: Config, signal?: AbortSignal): Promise<void> {
+  if (await exists(join(config.state,'restoration.json'))) await sourceLease(config, () => recover(config), signal);
 }
-async function continueRevision(config: Config, journal: Journal, dataReused: boolean): Promise<Record<string,unknown>> {
+async function continueRevision(config: Config, journal: Journal, dataReused: boolean, signal?: AbortSignal): Promise<Record<string,unknown>> {
   const directory=join(config.state,'operations',journal.revision);let publisher:Publisher|undefined;
   const already=journal.checkpoints.publicValidation!==undefined;
   let validation:unknown;
   try {
-    await verifyJournal(config,journal);publisher=new Publisher(config,journal,directory);
-    await publisher.buildAndValidate();await publisher.acquireRemoteLease();await publisher.registry();await publisher.configuration();await publisher.catalog();await publisher.deploy();validation=await publisher.validatePublic();await publisher.releaseRemoteLease();
+    signal?.throwIfAborted();
+    await verifyJournal(config,journal,signal);publisher=new Publisher(config,journal,directory,signal);
+    await publisher.buildAndValidate();await publisher.acquireRemoteLease();await publisher.registry();await publisher.configuration();await publisher.catalog();await publisher.deploy();validation=await publisher.validatePublic();await new Publisher(config,journal,directory).releaseRemoteLease();signal?.throwIfAborted();
   }catch(error:unknown){
     const stage=publisher?journal.stage:'frozenInputs';const reason=error instanceof PreviewError?error.message:'Invalid or unavailable private artifact.';
-    let released=false;
+    let released=object(journal.checkpoints.releaseLease??{}).released===true;
     if(publisher&&stage==='publicValidation'&&['remoteLease','registry','configuration','catalog','deployment'].every(key=>journal.checkpoints[key]!==undefined)){
-      try{await publisher.releaseRemoteLease();released=true;}catch{}
+      try{await new Publisher(config,journal,directory).releaseRemoteLease();released=true;}catch{}
     }
     await writeRecord(join(directory,'failure.json'),{stage,revision:journal.revision,backendRestoration:'complete',reason,publicationLeaseReleased:released});
     throw new PreviewError(`Stage ${stage} incomplete: ${reason} Backend restoration complete. Revision ${journal.revision}. Run enois-preview resume ${journal.revision}. Inspect private evidence at ${directory}.`);
   }
+  signal?.throwIfAborted();
   const registry=object(journal.checkpoints.registry);const configuration=object(journal.checkpoints.configuration);const catalog=object(journal.checkpoints.catalog);
   return {status:'validated',url:config.origin+'/preview/'+journal.slug,scenario:journal.inputs.scenario,revision:journal.revision,reused:already,commits:journal.inputs.commits,dataVersion:journal.inputs.data,dataReused,toolCommit:journal.inputs.toolCommit,image:string(registry.image),provenanceSha256:string(configuration.provenanceSha256),configurationCommit:string(configuration.commit),catalogCommit:string(catalog.commit),deployment:journal.checkpoints.deployment,validation,evidence:directory,next:'Update the PR link for a new revision. Publication checks do not replace functional PR validation.'};
 }
-export async function publishRevision(value: unknown, scenario: string, refresh = false, select?:AccountSelector): Promise<Record<string,unknown>> {
+export async function publishRevision(value: unknown, scenario: string, refresh = false, select?:AccountSelector, signal?: AbortSignal): Promise<Record<string,unknown>> {
+  signal?.throwIfAborted();
   const config = validateConfig(value);
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(scenario)) throw new PreviewError('Invalid scenario: use lowercase letters, digits and single separating hyphens.');
   const pointer = join(config.state,'scenarios',`${scenario}.json`);
@@ -142,32 +148,35 @@ export async function publishRevision(value: unknown, scenario: string, refresh 
   await readData();
   if (await exists(join(config.state,'restoration.json'))) await readRecord(join(config.state,'restoration.json'));
   return lease(join(config.state,'publication.lock'), async () => {
-    await recoverPending(config);
-    const versions = await commits(config); const publicTool = await toolCommit(config);
+    await recoverPending(config, signal);
+    signal?.throwIfAborted();
+    const versions = await commits(config, signal); const publicTool = await toolCommit(config, signal);
     let data = await readData();
     const dataReused = data !== undefined && !refresh;
     if (data) await verify(join(config.state,'data',data.id,'package'),data.files);
-    if (!data || refresh) { data = await capture(config, data, select); await writeRecord(pointer, { data: data.id }); }
+    if (!data || refresh) { data = await capture(config, data, select, signal); signal?.throwIfAborted(); await writeRecord(pointer, { data: data.id }); }
     const source = await privateDir(join(config.state,'exports',randomUUID()));
     let revision: string;
     try {
-      await exportSources(config, versions, source);
+      await exportSources(config, versions, source, signal);
       const recipe: Record<string,Inventory> = {};
-      for (const name of ['recipe','runtime','src','dist']) recipe[name] = await inventory(join(ROOT,name));
+      for (const name of ['recipe','runtime','src','dist']) { signal?.throwIfAborted(); recipe[name] = await inventory(join(ROOT,name)); }
       const inputs: Inputs = { format: FORMAT, scenario, commits: versions, data: data.id, dataManifest: data, recipe, sourceFiles: await inventory(source), toolCommit: publicTool };
+      signal?.throwIfAborted();
       revision = identity(inputs); const directory = join(config.state,'operations',revision);
       if (!await exists(directory)) {
         const pending = await privateDir(join(config.state,'operations',`.pending-${randomUUID()}`)); const frozen = await privateDir(join(pending,'frozen'));
         await cp(join(config.state,'data',data.id,'package'),join(frozen,'data'),{recursive:true}); await cp(source,join(frozen,'sources'),{recursive:true});
-        for (const name of Object.keys(recipe)) await cp(join(ROOT,name),join(frozen,name),{recursive:true});
+        for (const name of Object.keys(recipe)) { signal?.throwIfAborted(); await cp(join(ROOT,name),join(frozen,name),{recursive:true}); }
         const journal: Journal = { format: FORMAT, revision, inputs, slug: `${scenario}-${revision.slice(0,16)}`, operation: randomUUID(), target: target(config), frozenFiles: await inventory(frozen), checkpoints: {}, stage: 'frozenInputs', intents: {} };
         await writeRecord(join(pending,'journal.json'),journal); await rename(pending,directory);
       }
     } finally { await rm(source,{recursive:true,force:true}); }
-    return continueRevision(config,journalRecord(await readRecord(join(config.state,'operations',revision,'journal.json'))),dataReused);
-  });
+    return continueRevision(config,journalRecord(await readRecord(join(config.state,'operations',revision,'journal.json'))),dataReused,signal);
+  }, signal);
 }
-export async function resumeRevision(value: unknown, revision: string): Promise<Record<string,unknown>> {
+export async function resumeRevision(value: unknown, revision: string, signal?: AbortSignal): Promise<Record<string,unknown>> {
+  signal?.throwIfAborted();
   const config = validateConfig(value);
   if (!/^[a-f0-9]{64}$/.test(revision)) throw new PreviewError('Resume requires the full 64 character revision ID.');
   const file = join(config.state,'operations',revision,'journal.json');
@@ -175,9 +184,10 @@ export async function resumeRevision(value: unknown, revision: string): Promise<
   const journal = journalRecord(await readRecord(file));
   if (journal.revision !== revision) throw new PreviewError('Journal belongs to another revision.');
   return lease(join(config.state,'publication.lock'), async () => {
-    await recoverPending(config);
+    await recoverPending(config, signal);
+    signal?.throwIfAborted();
     const current=journalRecord(await readRecord(file));
     if(current.revision!==revision)throw new PreviewError('Journal belongs to another revision.');
-    return continueRevision(config,current,true);
-  });
+    return continueRevision(config,current,true,signal);
+  }, signal);
 }

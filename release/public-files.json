@@ -14,6 +14,7 @@
     "docs/en/TUTORIAL.md",
     "docs/pt-BR/LLM.md",
     "docs/pt-BR/TUTORIAL.md",
+    "docs/validation/interruptions-0.3.1/local.json",
     "docs/validation/node24-0.3.0/local.json",
     "docs/validation/typescript-0.2.0/acceptance-audit.md",
     "docs/validation/typescript-0.2.0/catalog-history.json",

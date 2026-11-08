@@ -2,6 +2,8 @@
 
 Use Node 24.x (`>=24 <25`); o arquivo `.nvmrc` seleciona a família 24 com `nvm install` e `nvm use`. Node 22 não é mais uma versão qualificada. A atualização para 0.3.0 preserva catálogos, links e registros históricos; a retomada de operações anteriores exige seu executor original e não é validada por esta atualização. Novas publicações e retomadas devem usar o mesmo SHA fixado em um checkout limpo.
 
+Na versão 0.3.1, `Ctrl+C` (`SIGINT`) e `SIGTERM` cancelam comandos ativos e impedem novas etapas. O primeiro sinal determina a saída: `130` ou `143`, respectivamente. Aguarde a restauração do backend; sinais adicionais não a interrompem. Se ela falhar dentro dos prazos existentes, preserve `restoration.json`: a próxima execução de publicação ou retomada tenta a recuperação antes de avaliar fontes. Uma captura incompleta mantém os dados completos anteriores. Após congelar uma revisão, use o identificador informado com `enois-preview resume <revisao-completa>`; um push ou deploy aceito pode precisar de reconciliação, pois cancelar a espera local não desfaz o efeito remoto. Não remova leases de outra operação. `SIGKILL` depende da recuperação durável na próxima execução.
+
 Este roteiro usa o terminal local do operador. Não execute comandos em um Codespace para completar o boot de uma revisão. O estado de verificação de cada etapa está em [VALIDATION.md](../../VALIDATION.md); os resultados observados e os limites dos roteiros estão registrados ali.
 
 1. Instale os requisitos do [README](../../README.md). Autentique no GitHub com `gh auth login` e no Docker com seu mecanismo de credenciais para GHCR. Não coloque tokens em argumentos, no chat ou em arquivos versionados. Não altere o plano de cobrança.

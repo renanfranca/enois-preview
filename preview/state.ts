@@ -18,32 +18,41 @@ export async function readRecord(file: string): Promise<Record<string, unknown> 
 
 export function identity(value: unknown): string { return createHash('sha256').update(canonical(value), 'utf8').digest('hex'); }
 
-export async function run(args: readonly string[], options: { cwd?: string; timeout?: number; env?: NodeJS.ProcessEnv; input?: string | Uint8Array; logPath?: string } = {}): Promise<Buffer> {
+export async function run(args: readonly string[], options: { cwd?: string; timeout?: number; env?: NodeJS.ProcessEnv; input?: string | Uint8Array; logPath?: string; signal?: AbortSignal | undefined; successCodes?: readonly number[] } = {}): Promise<Buffer> {
+  options.signal?.throwIfAborted();
   const executable = args[0];
   if (!executable) throw new PreviewError('Missing command.');
   if (options.logPath) await privateDir(dirname(options.logPath));
   const log = options.logPath ? await open(options.logPath, constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW, 0o600) : undefined;
   if (log) await log.chmod(0o600);
-  try { return await new Promise<Buffer>((resolve, reject) => {
+  try {
+    options.signal?.throwIfAborted();
+    return await new Promise<Buffer>((resolve, reject) => {
     const process = spawn(executable, args.slice(1), { cwd: options.cwd, env: options.env, detached: platform === 'linux', stdio: ['pipe',log?.fd ?? 'pipe',log?.fd ?? 'pipe'] });
     const output: Buffer[] = [];
     let timedOut=false;
-    const timer = setTimeout(() => {
-      timedOut=true;
+    let terminationError: PreviewError | undefined;
+    const terminate = () => {
       try {
         if (platform === 'linux' && process.pid) kill(-process.pid, 'SIGKILL');
         else process.kill('SIGKILL');
       } catch (error: unknown) {
-        if (object(error).code !== 'ESRCH') reject(new PreviewError(`${basename(executable)} timed out; command group termination failed; inspect private diagnostics and durable recovery state.`));
+        if (object(error).code !== 'ESRCH') terminationError = new PreviewError(`${basename(executable)} command group termination failed; inspect private diagnostics and durable recovery state.`);
       }
-    }, (options.timeout ?? 600) * 1000);
+    };
+    const timer = setTimeout(() => { timedOut=true; terminate(); }, (options.timeout ?? 600) * 1000);
+    const cancelled = () => terminate();
+    options.signal?.addEventListener('abort', cancelled, { once: true });
+    const cleanup = () => { clearTimeout(timer); options.signal?.removeEventListener('abort', cancelled); };
     process.stdout?.on('data', (chunk: Buffer) => output.push(chunk));
     process.stderr?.resume();
-    process.on('error', () => { clearTimeout(timer); reject(new PreviewError(`${basename(executable)} unavailable; inspect private diagnostics.`)); });
+    process.on('error', () => { cleanup(); reject(new PreviewError(`${basename(executable)} unavailable; inspect private diagnostics.`)); });
     process.on('close', code => {
-      clearTimeout(timer);
-      if(timedOut)reject(new PreviewError(`${basename(executable)} timed out; inspect private diagnostics and durable recovery state.`));
-      else if (code !== 0) reject(new PreviewError(`${basename(executable)} failed (exit ${code}); inspect the configured service or authentication.`));
+      cleanup();
+      if(options.signal?.aborted)reject(options.signal.reason);
+      else if(terminationError)reject(terminationError);
+      else if(timedOut)reject(new PreviewError(`${basename(executable)} timed out; inspect private diagnostics and durable recovery state.`));
+      else if (code === null || !(options.successCodes ?? [0]).includes(code)) reject(new PreviewError(`${basename(executable)} failed (exit ${code}); inspect the configured service or authentication.`));
       else if (options.logPath) void readFile(options.logPath).then(resolve, reject);
       else resolve(Buffer.concat(output));
     });
@@ -98,15 +107,40 @@ export async function inventory(root: string): Promise<Inventory> {
 export async function verify(root: string, expected: unknown): Promise<void> {
   if (canonical(await inventory(root)) !== canonical(expected)) throw new PreviewError('Frozen input integrity failure; restore the recorded artifact. No live recapture was attempted.');
 }
-export async function lease<T>(file: string, work: () => Promise<T>): Promise<T> {
+export async function lease<T>(file: string, work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  signal?.throwIfAborted();
   await privateDir(dirname(file));
   const handle = await open(file, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
   try {
+    signal?.throwIfAborted();
     await new Promise<void>((resolve, reject) => {
       const child = spawn('flock', ['--exclusive', '3'], { stdio: ['ignore','ignore','ignore', handle.fd] });
-      child.on('error', () => reject(new PreviewError('Linux flock is required for capture exclusion.')));
-      child.on('close', code => code === 0 ? resolve() : reject(new PreviewError('Unable to acquire process lease.')));
+      const cancelled = () => { child.kill('SIGKILL'); };
+      signal?.addEventListener('abort', cancelled, { once: true });
+      const cleanup = () => signal?.removeEventListener('abort', cancelled);
+      child.on('error', () => { cleanup(); reject(new PreviewError('Linux flock is required for capture exclusion.')); });
+      child.on('close', code => { cleanup(); if(signal?.aborted)reject(signal.reason); else if(code === 0)resolve(); else reject(new PreviewError('Unable to acquire process lease.')); });
     });
+    signal?.throwIfAborted();
     return await work();
   } finally { await handle.close(); }
+}
+
+export function commandRunner(signal?: AbortSignal): typeof run {
+  return (args, options = {}) => run(args, { ...options, signal });
+}
+
+export function listenForInterruption() {
+  const controller = new AbortController();
+  let first: 'SIGINT' | 'SIGTERM' | undefined;
+  const interrupt = (signal: 'SIGINT' | 'SIGTERM') => {
+    if(first)return;
+    first=signal;
+    console.error(`Interrupted by ${signal}; cancelling active work and completing required restoration.`);
+    controller.abort(new PreviewError(`Interrupted by ${signal}.`));
+  };
+  const onInt=()=>interrupt('SIGINT'), onTerm=()=>interrupt('SIGTERM');
+  process.on('SIGINT',onInt);process.on('SIGTERM',onTerm);
+  return {signal:controller.signal, get exitCode(){return first==='SIGINT'?130:first==='SIGTERM'?143:undefined;},
+    dispose(){process.removeListener('SIGINT',onInt);process.removeListener('SIGTERM',onTerm);}};
 }

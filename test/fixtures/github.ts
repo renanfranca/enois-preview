@@ -1,3 +1,6 @@
+import {existsSync,writeFileSync} from 'node:fs';
+import {dirname,join} from 'node:path';
+import {setTimeout as delay} from 'node:timers/promises';
 import { spawnSync } from 'node:child_process';
 import { RemoteFailure } from '../../preview/remote_http.js';
 export class GitHubFixture {
@@ -21,7 +24,9 @@ export class GitHubFixture {
       if(!data?.ref||!data.sha)throw new Error('Invalid fixture ref');
       const result=spawnSync('/usr/bin/git',['-C',this.bare,'update-ref',data.ref,data.sha,'']);if(result.status!==0)throw new RemoteFailure(422);return {object:{sha:data.sha}};
     }
-    if(path.startsWith('git/refs/')&&method==='DELETE'){this.git(['update-ref','-d',`refs/${path.slice('git/refs/'.length)}`]);return null;}
+    if(path.startsWith('git/refs/')&&method==='DELETE'){
+      const root=dirname(this.bare),hold=join(root,'hold-delete');if(existsSync(hold)){writeFileSync(join(root,'delete-paused'),String(process.pid));const deadline=Date.now()+15000;while(existsSync(hold)&&Date.now()<deadline)await delay(10);}
+      this.git(['update-ref','-d',`refs/${path.slice('git/refs/'.length)}`]);return null;}
     throw new Error('Unexpected fixture GitHub route');
   }
 }

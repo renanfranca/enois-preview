@@ -18,7 +18,7 @@ test('capture restores actual Spring readiness and preserves original synthetic 
   });
 
   assert.equal(result.code,0,result.output);const proof=await readRecord(join(evidence,'capture-validation.json'));
-  assert.equal(proof.realSpringAndH2,true);assert.equal(proof.validOriginalLoginsBeforeCapture,4);
+  assert.equal(proof.realSpringAndH2,true);assert.equal(proof.interruptionAfterActualBackendStopped,true);assert.equal(proof.interruptedCaptureRestoredHealthy,true);assert.equal(proof.completeDataPreservedAfterInterruption,true);assert.equal(proof.validOriginalLoginsBeforeCapture,4);
   assert.equal(proof.backendRestoredHealthyBeforeCaptureReturned,true);assert.equal(proof.originalLoginsStillValidAfterCapture,4);
   assert.equal(proof.originalLoginsRejectedInSanitizedCopy401,4);assert.equal(proof.capturedAdminPermissionPreserved,true);
   assert.equal(proof.localOnly,true);assert.equal(await sha(string(config.database)),before);

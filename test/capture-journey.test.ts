@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as captures from '../preview/capture.js';
 import { captureConfig } from '../preview/config.js';
-import { run, inventory, identity } from '../preview/state.js';
+import { run, inventory, identity, PreviewError } from '../preview/state.js';
 
 test('capture timeout prevents late child and grandchild effects while restoring prior state and preserving an independent service',async()=>{
   const f=fixture();
@@ -252,4 +252,36 @@ test('an actual open H2 connection refuses capture even when the service adapter
     assert.equal(existsSync(join(f.config.state,'restoration.json')),false);assert.equal(existsSync(join(f.config.state,'data')),false);
     const closed=once(child,'exit');child.stdin!.end('\n');assert.deepEqual(await closed,[0,null]);
   }finally{child?.kill('SIGKILL');f.cleanup();}
+});
+
+
+test('command cancellation handles output, private logs, an already cancelled call and an exited group without contaminating later commands',async()=>{
+  const root=mkdtempSync(join(tmpdir(),'enois-cancelled-command-'));
+  const controllers:AbortController[]=[];
+  try{
+    for(const logging of [false,true]){
+      const marker=join(root,logging?'logged':'streamed'),logPath=join(root,'private.log'),controller=new AbortController();controllers.push(controller);
+      const code="import {writeFileSync} from 'node:fs';process.stdout.write('active output',()=>writeFileSync(process.argv[1],String(process.pid)));setInterval(()=>process.stdout.write('more output'),10);";
+      const command=run([process.execPath,'--input-type=module','-e',code,marker],{signal:controller.signal,...(logging?{logPath}:{})});void command.catch(()=>{});
+      const deadline=Date.now()+5000;while(!existsSync(marker)&&Date.now()<deadline)await delay(10);assert.ok(existsSync(marker));
+      controller.abort(new PreviewError('command cancelled'));
+
+      await assert.rejects(command,/command cancelled/);
+      assert.match((await run([process.execPath,'-e','console.log("next command complete")'])).toString(),/next command complete/);
+      if(logging)assert.match(readFileSync(logPath,'utf8'),/active output/);
+      const already=join(root,'must-not-start');await assert.rejects(run([process.execPath,'-e','require("node:fs").writeFileSync(process.argv[1],"late")',already],{signal:controller.signal,logPath:join(root,'must-not-open.log')}),/command cancelled/);
+      assert.equal(existsSync(already),false);assert.equal(existsSync(join(root,'must-not-open.log')),false);
+    }
+    const controller=new AbortController();controllers.push(controller);
+    const independent="import {writeFileSync,existsSync} from 'node:fs';const root=process.argv[1];writeFileSync(root+'/independent.pid',String(process.pid));setInterval(()=>{if(existsSync(root+'/release')){writeFileSync(root+'/independent.effect','preserved');process.exit(0);}},10);";
+    const parent=`import {spawn} from 'node:child_process';import {writeFileSync,existsSync} from 'node:fs';const root=process.argv[1];writeFileSync(root+'/parent.pid',String(process.pid));spawn(process.execPath,['--input-type=module','-e',${JSON.stringify(independent)},root],{detached:true,stdio:'inherit'});setInterval(()=>{if(existsSync(root+'/independent.pid'))process.exit(0);},10);`;
+    const command=run([process.execPath,'--input-type=module','-e',parent,root],{signal:controller.signal});void command.catch(()=>{});
+    const deadline=Date.now()+5000;let exited=false;
+    while(Date.now()<deadline){if(existsSync(join(root,'parent.pid'))&&existsSync(join(root,'independent.pid'))){const pid=Number(readFileSync(join(root,'parent.pid'),'utf8'));exited=!existsSync(`/proc/${pid}`);if(exited)break;}await delay(10);}
+    assert.equal(exited,true);process.kill(Number(readFileSync(join(root,'independent.pid'),'utf8')),0);
+    controller.abort(new PreviewError('exited command cancelled'));writeFileSync(join(root,'release'),'');
+
+    await assert.rejects(command,/exited command cancelled/);
+    assert.equal(readFileSync(join(root,'independent.effect'),'utf8'),'preserved');
+  }finally{for(const controller of controllers)controller.abort();if(existsSync(join(root,'independent.pid'))){try{process.kill(Number(readFileSync(join(root,'independent.pid'),'utf8')),'SIGKILL');}catch{}}rmSync(root,{recursive:true,force:true});}
 });

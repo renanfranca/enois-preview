@@ -8,7 +8,7 @@ import { capture, ROOT } from '../preview/capture.js';
 import { captureConfig } from '../preview/config.js';
 import type { CaptureConfig } from '../preview/config.js';
 import { Session } from '../preview/validation.js';
-import { exists, object, PreviewError, privateDir, readRecord, run, string, writeRecord } from '../preview/state.js';
+import { exists, object, PreviewError, privateDir, readRecord, run, string, writeRecord, identity, inventory } from '../preview/state.js';
 
 function require(condition:unknown,message:string):asserts condition { if(!condition)throw new PreviewError(message); }
 async function freePort():Promise<number>{
@@ -59,6 +59,27 @@ export async function check(workspaceInput:string,destinationInput:string):Promi
 
     require(await command(live.config,'status')==='running','Actual Spring was not running before capture returned.');
     await ready(live.origin);await loginAll(live.origin);require(frozen.permissions.example_lia?.admin===true,'Captured administrator permission changed.');
+    const completeBefore=identity(await inventory(join(live.config.state,'data')));
+    const barrier=join(evidence,'interrupted-capture-paused');
+    const controller=new AbortController();
+    const released=[process.execPath,'--input-type=module','-e',"import {writeFileSync} from 'node:fs';writeFileSync(process.argv[1],String(process.pid));setInterval(()=>{},1000);",barrier];
+    const interrupted=capture({...live.config,service:{...live.config.service,released}},frozen,undefined,controller.signal);
+    void interrupted.catch(()=>{});
+    let cancelled=false;
+    try{
+    const pausedDeadline=Date.now()+120000;
+    while(!await exists(barrier)&&Date.now()<pausedDeadline)await delay(25);
+    require(await exists(barrier),'Interrupted capture did not reach the stopped-backend barrier.');
+    require(await command(live.config,'status')==='stopped','Interruption must occur after actual Spring stopped.');
+    controller.abort(new PreviewError('Integration capture interrupted after actual backend stop.'));
+    try{await interrupted;}catch(error:unknown){require(error instanceof PreviewError&&/Capture incomplete.*restored to its prior state.*interrupted/i.test(error.message),'Unexpected interrupted capture outcome.');cancelled=true;}
+    }finally{controller.abort();await interrupted.catch(()=>{});}
+    require(cancelled,'Interrupted capture unexpectedly succeeded.');
+    require(!await exists(join(live.config.state,'restoration.json')),'Interrupted capture left restoration pending.');
+    require(identity(await inventory(join(live.config.state,'data')))===completeBefore,'Interrupted capture changed complete data.');
+    require(await command(live.config,'status')==='running','Interrupted capture did not restore actual Spring.');
+    await ready(live.origin);await loginAll(live.origin);
+
     const cleanDb=join(await privateDir(join(evidence,'clean-data')),'rede.mv.db');
     await cp(join(live.config.state,'data',frozen.id,'package/seed/rede.mv.db'),cleanDb);clean=await adapter('clean',cleanDb);
     await command(clean.config,'start');await ready(clean.origin);
@@ -68,7 +89,7 @@ export async function check(workspaceInput:string,destinationInput:string):Promi
       catch(error:unknown){if(error instanceof PreviewError&&/HTTP 401\b/.test(error.message))rejected=true;else throw error;}
       require(rejected,'Sanitized copy accepted an original synthetic login.');
     }
-    await writeRecord(join(evidence,'capture-validation.json'),{realSpringAndH2:true,validOriginalLoginsBeforeCapture:4,backendRestoredHealthyBeforeCaptureReturned:true,originalLoginsStillValidAfterCapture:4,originalLoginsRejectedInSanitizedCopy401:4,capturedAdminPermissionPreserved:true,dataVersion:frozen.id,sanitizerSha256:frozen.sanitizerSha256,localOnly:true});
+    await writeRecord(join(evidence,'capture-validation.json'),{realSpringAndH2:true,interruptionAfterActualBackendStopped:true,interruptedCaptureRestoredHealthy:true,completeDataPreservedAfterInterruption:true,validOriginalLoginsBeforeCapture:4,backendRestoredHealthyBeforeCaptureReturned:true,originalLoginsStillValidAfterCapture:4,originalLoginsRejectedInSanitizedCopy401:4,capturedAdminPermissionPreserved:true,dataVersion:frozen.id,sanitizerSha256:frozen.sanitizerSha256,localOnly:true});
     console.log('Real Spring/H2 capture verified: four original logins preserved locally and rejected in the sanitized copy; backend restored healthy.');
   }finally{try{if(clean)await command(clean.config,'stop');}finally{await command(live.config,'stop');}}
 }

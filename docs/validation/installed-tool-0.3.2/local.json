@@ -1,0 +1,42 @@
+{
+  "version": "0.3.2",
+  "status": "passed",
+  "node": "24.16.0",
+  "npm": "11.13.0",
+  "baseCommit": "fa8e1b594518cc501e98e6bd9734532351d3adca",
+  "recordFormat": "enois-preview-ts-v1",
+  "commands": [
+    { "command": "npm ci --ignore-scripts", "exitCode": 0 },
+    { "command": "npm run build", "exitCode": 0 },
+    { "command": "npm run typecheck", "exitCode": 0 },
+    { "command": "npm test", "exitCode": 0 },
+    { "command": "npm run check", "exitCode": 0 },
+    { "command": "npm run test:capture", "exitCode": 0 },
+    { "command": "npm run test:consumer", "exitCode": 0 },
+    { "command": "npm run test:install", "exitCode": 0 }
+  ],
+  "standardTests": { "passed": 105, "failed": 0, "skipped": 0 },
+  "installedConsumerTests": { "passed": 105, "failed": 0, "skipped": 0 },
+  "installerTests": { "passed": 2, "failed": 0, "skipped": 0 },
+  "installer": {
+    "origin": "https://codeload.github.com/renanfranca/enois-preview/tar.gz",
+    "originOverridableFromEnvironment": false,
+    "contentProof": "install.json records the commit plus source and dist inventories; verifiedCommit recomputes both before publish and resume",
+    "immutableInstallations": true,
+    "archiveRootMustNameCommit": true,
+    "buildMustNotChangeSource": true,
+    "linksOnlyAfterStamp": true
+  },
+  "coverage": {
+    "C1": "installer CLI with a foreign origin in the environment contacts only codeload through a recording proxy; a local archive installs only through the test driver",
+    "C2": "publish and resume refuse unverified tools and accept the stamped installation",
+    "C4": "installation stays verified after the source folder changes",
+    "I3": "two CLI processes, first SIGKILLed during accepted shutdown; second waits for shutdown, restores before dirty source refusal, preserves H2"
+  },
+  "limits": [
+    "node_modules is outside the content proof.",
+    "Cross-process I3 recovery uses a controlled service adapter with a real H2 fixture.",
+    "Resume of operations created by fa8e1b5 or earlier requires the original executor and is not qualified.",
+    "The real installation, configuration alignment, launcher pin and canonical public publish/resume follow this commit and are recorded in the release assets."
+  ]
+}

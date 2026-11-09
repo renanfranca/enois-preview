@@ -13,9 +13,12 @@ import { inventory } from '../../preview/state.js';
 import { exportPublic } from '../../scripts/export-public.js';
 
 type Result = { code: number | null; stdout: string; stderr: string };
-function install(env: NodeJS.ProcessEnv, ...args: string[]): Promise<Result> {
+function install(archives: string, env: NodeJS.ProcessEnv, ...args: string[]): Promise<Result> {
+  return command(resolve('dist/test/fixtures/install-driver.js'), env, archives, ...args);
+}
+function command(script: string, env: NodeJS.ProcessEnv, ...args: string[]): Promise<Result> {
   return new Promise((done, reject) => {
-    const child = spawn(process.execPath, [resolve('dist/scripts/install-tool.js'), ...args], { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [script, ...args], { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = ''; let stderr = '';
     child.stdout.on('data', chunk => { stdout += String(chunk); }); child.stderr.on('data', chunk => { stderr += String(chunk); });
     child.on('error', reject); child.on('close', code => done({ code, stdout, stderr }));
@@ -27,6 +30,34 @@ async function archive(work: string, name: string, root: string, change?: (sourc
   const file = join(work, `${name}.tar.gz`); await create({ cwd: parent, file, gzip: true, portable: true }, [root]);
   return { file, source };
 }
+
+test('the installer command downloads only from the public codeload origin, even when ENOIS_PREVIEW_TEST_ARCHIVES names another origin', async () => {
+  const work = await mkdtemp(join(process.env.ENOIS_PREVIEW_EVIDENCE ?? tmpdir(), 'enois-install-origin-'));
+  const commit = 'a'.repeat(40); const prefix = join(work, 'prefix');
+  const archiveRequests: string[] = []; const tunnels: string[] = [];
+  const archives = createServer((request, response) => { archiveRequests.push(request.url ?? ''); response.writeHead(404).end(); });
+  const proxy = createServer((_request, response) => { response.writeHead(405).end(); });
+  proxy.on('connect', (request, socket) => { tunnels.push(request.url ?? ''); socket.end('HTTP/1.1 403 Forbidden\r\n\r\n'); });
+  archives.listen(0, '127.0.0.1'); proxy.listen(0, '127.0.0.1');
+  await Promise.all([new Promise(done => archives.once('listening', done)), new Promise(done => proxy.once('listening', done))]);
+  try {
+    const env = {
+      ENOIS_PREVIEW_TEST_ARCHIVES: `http://127.0.0.1:${(archives.address() as AddressInfo).port}/tar.gz`,
+      NODE_USE_ENV_PROXY: '1', HTTPS_PROXY: `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`, NO_PROXY: ''
+    };
+
+    const attempted = await command(resolve('dist/scripts/install-tool.js'), env, '--commit', commit, '--prefix', prefix);
+
+    assert.notEqual(attempted.code, 0);
+    assert.deepEqual(archiveRequests, []);
+    assert.deepEqual(tunnels, ['codeload.github.com:443']);
+    assert.equal(existsSync(join(prefix, commit)), false);
+    assert.equal(existsSync(join(prefix, 'current')), false);
+  } finally {
+    archives.close(); proxy.close();
+    await rm(work, { recursive: true, force: true });
+  }
+});
 
 test('installing a public commit creates a stamped installation outside the development folder, refuses replacement or another commit, and stays verified when the source changes later', async () => {
   const work = await mkdtemp(join(process.env.ENOIS_PREVIEW_EVIDENCE ?? tmpdir(), 'enois-install-tool-'));
@@ -46,10 +77,10 @@ test('installing a public commit creates a stamped installation outside the deve
   server.listen(0, '127.0.0.1'); await new Promise(done => server.once('listening', done));
   try {
     const global = join(work, 'global'); await mkdir(global);
-    const env = { ENOIS_PREVIEW_TEST_ARCHIVES: `http://127.0.0.1:${(server.address() as AddressInfo).port}/tar.gz`, NPM_CONFIG_PREFIX: global };
+    const archives = `http://127.0.0.1:${(server.address() as AddressInfo).port}/tar.gz`; const env = { NPM_CONFIG_PREFIX: global };
     const prefix = join(work, 'prefix'); const installation = join(prefix, commit);
 
-    const installed = await install(env, '--commit', commit, '--prefix', prefix);
+    const installed = await install(archives, env, '--commit', commit, '--prefix', prefix);
 
     assert.equal(installed.code, 0, installed.stderr);
     assert.equal(JSON.parse(installed.stdout).installation, installation);
@@ -64,19 +95,19 @@ test('installing a public commit creates a stamped installation outside the deve
     assert.deepEqual(readdirSync(prefix).filter(name => name.startsWith('.')), []);
 
     const before = readFileSync(join(installation, 'install.json'));
-    const again = await install(env, '--commit', commit, '--prefix', prefix);
+    const again = await install(archives, env, '--commit', commit, '--prefix', prefix);
 
     assert.notEqual(again.code, 0); assert.match(again.stderr, /^Commit c{40} is already installed at .*; installations are immutable.\n$/);
     assert.deepEqual(readFileSync(join(installation, 'install.json')), before);
 
     const separate = join(work, 'separate'); await mkdir(separate);
-    const mismatched = await install(env, '--commit', foreign, '--prefix', separate);
+    const mismatched = await install(archives, env, '--commit', foreign, '--prefix', separate);
 
     assert.notEqual(mismatched.code, 0); assert.match(mismatched.stderr, /^Archive root differs from enois-preview-e{40}; refusing to install another commit.\n$/);
     assert.deepEqual(readdirSync(separate), []);
 
     const unstable = join(work, 'unstable');
-    const changed = await install(env, '--commit', sideEffect, '--prefix', unstable);
+    const changed = await install(archives, env, '--commit', sideEffect, '--prefix', unstable);
 
     assert.notEqual(changed.code, 0); assert.match(changed.stderr, /Build changed source files outside dist: build-side-effect\.txt/);
     assert.equal(existsSync(join(unstable, sideEffect)), false); assert.equal(existsSync(join(unstable, 'current')), false);

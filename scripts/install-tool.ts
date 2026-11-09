@@ -10,7 +10,7 @@ import { sourceContents, stampInstallation } from '../preview/installation.js';
 const ARCHIVES = 'https://codeload.github.com/renanfranca/enois-preview/tar.gz';
 const USAGE = 'Usage: node dist/scripts/install-tool.js --commit PUBLIC_TOOL_COMMIT [--prefix DIRECTORY]';
 
-export async function installTool(commit: string, prefixInput = join(homedir(), '.local/share/enois-preview'), archives = process.env.ENOIS_PREVIEW_TEST_ARCHIVES ?? ARCHIVES): Promise<Record<string, unknown>> {
+export async function installTool(commit: string, prefixInput = join(homedir(), '.local/share/enois-preview'), archives = ARCHIVES): Promise<Record<string, unknown>> {
   if (!/^[a-f0-9]{40}$/.test(commit)) throw new PreviewError('Install requires the full 40 character public tool commit.');
   const prefix = resolve(prefixInput); const destination = join(prefix, commit);
   if (await exists(destination)) throw new PreviewError(`Commit ${commit} is already installed at ${destination}; installations are immutable.`);
@@ -49,18 +49,21 @@ export async function installTool(commit: string, prefixInput = join(homedir(), 
   } finally { await rm(staging, { recursive: true, force: true }); }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+export async function runInstaller(argv: string[], archives = ARCHIVES): Promise<number> {
   try {
-    const args = process.argv.slice(2); const options: Record<string, string> = {};
+    const args = [...argv]; const options: Record<string, string> = {};
     while (args.length) {
       const flag = args.shift(); const value = args.shift();
       if ((flag !== '--commit' && flag !== '--prefix') || !value || flag.slice(2) in options) throw new PreviewError(USAGE);
       options[flag.slice(2)] = value;
     }
     if (!options.commit) throw new PreviewError(USAGE);
-    console.log(JSON.stringify(await installTool(options.commit, options.prefix), null, 2));
+    console.log(JSON.stringify(await installTool(options.commit, options.prefix, archives), null, 2));
+    return 0;
   } catch (error: unknown) {
     console.error(error instanceof PreviewError ? error.message : 'Installation failed; inspect the logs under the installation prefix.');
-    process.exitCode = 1;
+    return 1;
   }
 }
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await runInstaller(process.argv.slice(2));

@@ -44,17 +44,24 @@ async function wait(config: CaptureConfig, action: 'status'|'ready'|'released', 
   } while (performance.now() < deadline);
   throw new PreviewError(`Backend ${action} did not confirm ${expected}; restoration is pending if recorded.`);
 }
-export async function recover(config: CaptureConfig, shutdownPending = false): Promise<void> {
+// The record is the cross-process fact: `shutdown: 'requested'` is persisted before a stop is issued
+// and cleared only after `stopped` is confirmed, so a later process settles an accepted stop first.
+function restorationRecord(config: CaptureConfig, running: boolean, shutdown?: 'requested'): object {
+  return { service: config.service, database: config.database, running, ...(shutdown ? { shutdown } : {}) };
+}
+export async function recover(config: CaptureConfig): Promise<void> {
   const file = join(config.state, 'restoration.json'); if (!await exists(file)) return;
   const record = await readRecord(file);
   if (canonical(record.service) !== canonical(config.service) || record.database !== config.database) throw new PreviewError('Pending restoration belongs to another service configuration.');
+  if (record.shutdown !== undefined && (record.shutdown !== 'requested' || record.running !== true)) throw new PreviewError('Pending restoration record is invalid; inspect before continuing.');
   if (await service(config, 'identity') !== config.service.expectedIdentity) throw new PreviewError('Pending backend restoration: service identity mismatch.');
   let status = await service(config, 'status');
   if (record.running === true) {
-    if(shutdownPending && status === 'running'){
-      await service(config,'stop');
-      await wait(config,'status','stopped');
-      status='stopped';
+    if (record.shutdown === 'requested') {
+      if (status === 'running') await service(config, 'stop');
+      await wait(config, 'status', 'stopped');
+      await writeRecord(file, restorationRecord(config, true));
+      status = 'stopped';
     }
     if (status === 'stopped') await service(config, 'start'); else if (status !== 'running') throw new PreviewError('Backend restoration: ambiguous service status.');
     await wait(config, 'ready', 'ready');
@@ -105,14 +112,14 @@ export async function capture(value: unknown, previous?: DataManifest, select?: 
     const staging = await privateDir(join(config.state, 'staging', randomUUID()));
     const raw = await privateDir(join(staging, 'raw')); const seed = await privateDir(join(staging, 'package/seed'));
     check();
-    await writeRecord(restoration, { service: config.service, database: config.database, running: initial === 'running' });
+    await writeRecord(restoration, restorationRecord(config, initial === 'running'));
     const media: DataManifest['media'] = [];
-    let shutdownPending=false;
     try {
       try {
         check();
-        if (initial === 'running') { shutdownPending=true; await service(config, 'stop', signal); }
-        await wait(config, 'status', 'stopped', signal); shutdownPending=false;
+        if (initial === 'running') { await writeRecord(restoration, restorationRecord(config, true, 'requested')); await service(config, 'stop', signal); }
+        await wait(config, 'status', 'stopped', signal);
+        if (initial === 'running') await writeRecord(restoration, restorationRecord(config, true));
         await wait(config, 'released', 'released', signal); check();
         try { await run(['fuser',config.database],{signal,timeout:config.service.timeout,successCodes:[1]}); }
         catch(error:unknown){ check(); throw new PreviewError('H2 is in use or cannot be checked. No lock file was removed.'); }
@@ -122,7 +129,7 @@ export async function capture(value: unknown, previous?: DataManifest, select?: 
           for (const file of Object.keys(files)) { check(); await safeCopy(join(mapping.root, file), join(target, file)); }
           await verify(mapping.root, files); await verify(target, files); media.push({ directory: String(index), url: mapping.url, inventory: files });
         }
-      } finally { await recover(config,shutdownPending); }
+      } finally { await recover(config); }
       check();
       let selectionAccounts=config.accounts.length?config.accounts:previous?.accounts??[];
       if(!selectionAccounts.length&&select)selectionAccounts=await select(await javaTool(config, signal,'list',join(raw,'rede')),signal);

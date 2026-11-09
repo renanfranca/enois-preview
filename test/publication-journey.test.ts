@@ -495,3 +495,61 @@ test('interruption during an accepted backend stop settles shutdown before trust
     recordEvidence('stop-transition-interruption',{transport:'CLI OS signals; controlled adapter with independent accepted shutdown worker',firstSignal:'SIGTERM',furtherSignal:'SIGINT',exitCode:143,healthyBeforePendingShutdown:true,shutdownSettledBeforeRestoration:true,backendRestored:true,restorationRecordRetainedUntilSettled:true,completeDataPreserved:true});
   }finally{child.kill('SIGKILL');for(const name of ['stop-worker.pid','stop-paused','stop-draining'])if(existsSync(join(f.root,name))){try{process.kill(Number(readFileSync(join(f.root,name),'utf8')),'SIGKILL');}catch{}}rmSync(f.root,{recursive:true,force:true});}
 });
+
+
+for(const variant of ['timeout','sigkill'] as const)test(`a restoration interrupted during an accepted stop stays pending across processes until shutdown settles and readiness returns (${variant})`,async()=>{
+  const h2=h2Fixture(),f=prepared(h2.root);const config={...f.config,...h2.config,state:f.config.state,service:{...h2.config.service,timeout:3}};
+  writeFileSync(join(f.home,'config.json'),JSON.stringify(config));writeFileSync(join(f.root,'hold-stop'),'');
+  const record=join(config.state,'restoration.json'),marker=(name:string)=>join(f.root,name),status=()=>readFileSync(marker('status'),'utf8');
+  const before=readFileSync(config.database),preserved=await inventory(join(config.state,'data')),complete=readFileSync(join(config.state,'data',f.data,'manifest.json'));
+  const independent=createServer((_request,response)=>response.end('independent ready'));independent.listen(0,'127.0.0.1');await once(independent,'listening');
+  const address=independent.address();assert.ok(address&&typeof address==='object');
+  const orphans:number[]=[];const remember=(name:string)=>{if(existsSync(marker(name)))orphans.push(Number(readFileSync(marker(name),'utf8')));};
+  async function phase(name:string,timeout=5000){const deadline=Date.now()+timeout;while(!existsSync(marker(name))&&Date.now()<deadline)await delay(10);return existsSync(marker(name));}
+  const child=spawn(process.execPath,[join(f.tool,'dist/preview/cli.js'),'--home',f.home,'publish','fixture','--refresh-data'],{stdio:['ignore','pipe','pipe']});
+  let stderr='',stdout='';child.stdout.on('data',data=>stdout+=String(data));child.stderr.on('data',data=>stderr+=String(data));const completed=once(child,'close');
+  let recovering:ReturnType<typeof spawn>|undefined;
+  try{
+    assert.equal(await phase('stop-worker.pid'),true,stderr);assert.equal(await phase('stop-paused'),true,stderr);
+    assert.equal(status(),'running');assert.equal(spawnSync(process.execPath,[resolve('dist/test/fixtures/service.js'),f.root,'ready'],{encoding:'utf8'}).stdout.trim(),'ready');
+    if(variant==='timeout'){
+      child.kill('SIGINT');
+      assert.equal(await phase('stop-draining',3000),true,`restoration must settle the accepted stop: ${stderr}`);
+      assert.equal(child.exitCode,null);child.kill('SIGTERM');
+      const timer=setTimeout(()=>child.kill('SIGKILL'),10000);try{assert.deepEqual(await completed,[130,null],stderr);}finally{clearTimeout(timer);}
+      assert.equal(stdout,'');assert.match(stderr,/restoration pending/);
+    }else{
+      remember('stop-paused');child.kill('SIGKILL');assert.deepEqual(await completed,[null,'SIGKILL']);
+    }
+    assert.equal(existsSync(record),true,'restoration record retained after the first process');assert.equal(status(),'running');assert.equal(existsSync(marker('stop-pending')),true);
+    remember('stop-paused');remember('stop-draining');
+    for(const name of ['stop-draining','stop-paused','ready-paused'])rmSync(marker(name),{force:true});
+    const eventsBefore=readFileSync(marker('events'),'utf8').length;const newEvents=()=>readFileSync(marker('events'),'utf8').slice(eventsBefore).trim().split('\n').filter(Boolean);
+    writeFileSync(join(config.repositories['enois-frontend']!,'source'),'dirty after interruption');writeFileSync(marker('hold-ready'),'');
+    recovering=spawn(process.execPath,[join(f.tool,'dist/preview/cli.js'),'--home',f.home,'publish','fixture'],{stdio:['ignore','ignore','pipe']});
+    let recoveryError='';recovering.stderr!.on('data',data=>recoveryError+=String(data));const recoveryComplete=once(recovering,'close');
+    const window=Date.now()+1500;
+    while(Date.now()<window&&!existsSync(marker('stop-draining'))&&!existsSync(marker('ready-paused'))&&recovering.exitCode===null)await delay(10);
+    assert.equal(existsSync(marker('stop-pending')),true,'accepted shutdown still pending during observation');
+    assert.equal(recovering.exitCode,null,recoveryError);assert.equal(existsSync(record),true,'record kept while shutdown is pending');
+    assert.equal(existsSync(marker('ready-paused')),false,`readiness trusted while the accepted stop is pending: ${newEvents().join(',')}`);
+    assert.deepEqual(newEvents().filter(event=>event==='ready'||event==='start'),[]);assert.doesNotMatch(recoveryError,/source changes/);
+    writeFileSync(marker('finish-stop'),'');
+    assert.equal(await phase('ready-paused'),true,recoveryError);
+    assert.equal(status(),'running');assert.equal(existsSync(record),true,'record must survive until readiness confirms');
+    const events=newEvents();assert.ok(events.includes('start'),events.join(','));assert.ok(events.indexOf('start')<events.lastIndexOf('ready'),events.join(','));
+    const firstEffect=events.findIndex(event=>event==='stop'||event==='start');assert.ok(events.indexOf('identity')!==-1&&events.indexOf('identity')<firstEffect,events.join(','));
+    rmSync(marker('hold-ready'));
+    assert.deepEqual(await recoveryComplete,[1,null],recoveryError);assert.match(recoveryError,/source changes.*No service was stopped/);
+    assert.equal(status(),'running');assert.equal(existsSync(record),false);
+    assert.deepEqual(readFileSync(config.database),before);assert.deepEqual(await inventory(join(config.state,'data')),preserved);
+    assert.deepEqual(readFileSync(join(config.state,'data',f.data,'manifest.json')),complete);assert.equal(existsSync(join(config.state,'operations')),false);
+    assert.equal(await(await fetch(`http://127.0.0.1:${address.port}`)).text(),'independent ready');
+    recordEvidence(`cross-process-shutdown-${variant}`,{transport:'two CLI processes; controlled adapter with independent accepted shutdown worker; real H2 fixture',firstProcess:variant==='timeout'?{firstSignal:'SIGINT',furtherSignal:'SIGTERM',exitCode:130,restorationTimedOut:true}:{signal:'SIGKILL',finallyRan:false},restorationPendingAfterFirstProcess:true,shutdownPendingAtSecondProcess:true,readinessQueriedWhileShutdownPending:false,recordRetainedWhileShutdownPending:true,secondProcessEvents:events,identityBeforeEffects:true,startBeforeReady:true,dirtySourceRefusalAfterRecovery:true,recordAfterRecovery:false,finalStatus:'running',priorH2Sha256:createHash('sha256').update(before).digest('hex'),finalH2Sha256:createHash('sha256').update(readFileSync(config.database)).digest('hex'),completeDataPreserved:true,independentServiceReady:true,operationsCreated:false});
+  }finally{
+    child.kill('SIGKILL');recovering?.kill('SIGKILL');if(existsSync(f.root))writeFileSync(marker('finish-stop'),'');
+    for(const name of ['stop-worker.pid','stop-paused','stop-draining','ready-paused'])remember(name);
+    for(const pid of orphans){try{process.kill(pid,'SIGKILL');}catch{}}
+    independent.closeAllConnections();await new Promise<void>(done=>independent.close(()=>done()));rmSync(f.root,{recursive:true,force:true});
+  }
+});

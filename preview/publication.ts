@@ -10,6 +10,7 @@ import type { DataManifest } from './capture.js';
 import type { AccountSelector } from './capture.js';
 import { canonical, exists, FORMAT, identity, inventory, lease, object, PreviewError, privateDir, readRecord, requireFormat, run, string, commandRunner, verify, writeRecord } from './state.js';
 import type { Inventory } from './state.js';
+import { verifiedCommit } from './installation.js';
 
 export interface Inputs {
   format: typeof FORMAT; scenario: string; commits: Record<string, string>; data: string;
@@ -78,8 +79,8 @@ function target(config: Config): Record<string, string> {
   return { repository: config.repository, registry: config.registry, branch: config.branch, origin: config.origin, cloudflareAccountId: config.cloudflareAccountId };
 }
 async function toolCommit(config: Config, signal?: AbortSignal): Promise<string> {
-  const run = commandRunner(signal);
-  if ((await run(['git','-C',ROOT,'rev-parse','HEAD'])).toString().trim() !== config.toolCommit || (await run(['git','-C',ROOT,'status','--porcelain=v1','--untracked-files=all'])).length) throw new PreviewError('Tool checkout differs from the configured public commit; restore that clean checkout before publishing or resuming.');
+  signal?.throwIfAborted();
+  if (await verifiedCommit(ROOT) !== config.toolCommit) throw new PreviewError('The verified installation belongs to another public commit; install the configured commit with install-tool before publishing or resuming.');
   return config.toolCommit;
 }
 export async function verifyJournal(config: Config, journal: Journal, signal?: AbortSignal): Promise<string> {

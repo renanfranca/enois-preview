@@ -13,6 +13,7 @@
     "test:example": "npm run build && node --test dist/test/integration/example.test.js",
     "test:image": "npm run build && node --test dist/test/integration/image.test.js",
     "test:capture": "npm run build && node --test dist/test/integration/capture.test.js",
+    "test:install": "npm run build && node --test dist/test/integration/install-tool.test.js",
     "test:memory": "npm run build && node --test dist/test/integration/gateway-memory.test.js",
     "test:startup": "npm run build && node --test dist/test/integration/startup.test.js",
     "test:flows": "npm run build && node --test dist/test/integration/application-flows.test.js",

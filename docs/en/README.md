@@ -4,14 +4,18 @@ An Énóis specific tool for immutable development and testing previews behind a
 
 [Português do Brasil](../../README.md) · [Tutorial](TUTORIAL.md) · [LLM guide](LLM.md) · [Diagnostics](../diagnostics/README.md)
 
-Use a clean tool checkout at the full public commit pinned by the private launcher’s `tool.lock.json`. Before installation, select it with `git checkout --detach <PINNED_PUBLIC_COMMIT>`. Publication and resume verify that identity.
+Install the tool with the installer, at the full public commit pinned by the private launcher’s `tool.lock.json`. The installer downloads that commit’s archive from GitHub, builds it outside your checkouts in `~/.local/share/enois-preview/<COMMIT>`, records the hashes of its source and `dist` in `install.json`, points `current` at it and links the `enois-preview` command. Publication and resume recompute those hashes and refuse, before any effect, an installation that differs from its record or from `toolCommit`. A development checkout cannot publish, even when clean at the same commit. Installations are immutable: install another commit for another version. Do not run `npm run` inside one, because it rebuilds `dist`. Revisions frozen by 0.3.1 or earlier resume only with their original executor: a clean checkout at their commit, built with `npm run build`.
 
 ```sh
+git clone https://github.com/renanfranca/enois-preview.git /absolute/temporary/enois-preview
+cd /absolute/temporary/enois-preview
+git checkout --detach <PINNED_PUBLIC_COMMIT>
 npm ci --ignore-scripts
 npm run build
-npx playwright install chromium
-npm link --ignore-scripts
-npm run example:prepare -- /absolute/new/fictional-workspace
+node dist/scripts/install-tool.js --commit <PINNED_PUBLIC_COMMIT>
+cd ~/.local/share/enois-preview/current
+npx --no-install playwright install chromium
+node dist/example/prepare.js /absolute/new/fictional-workspace
 enois-preview setup --config /absolute/new/fictional-workspace/.preview/config.json
 enois-preview publish my-scenario
 enois-preview publish my-scenario --refresh-data

@@ -22,15 +22,14 @@ function prepared(existingRoot?: string) {
   const config = workspace(root);
   const tool = join(root, 'tool'); mkdirSync(tool);
   for (const name of ['dist','preview','recipe','runtime','src','scripts','package.json','package-lock.json']) cpSync(resolve(name), join(tool, name), { recursive: true });
-  writeFileSync(join(tool,'.gitignore'),'node_modules/\ndist/\n');
   mkdirSync(join(tool,'node_modules'));
   for(const name of ['tar','tough-cookie']){
     let dependency=dirname(fileURLToPath(import.meta.resolve(name)));
     while(!existsSync(join(dependency,'package.json'))||JSON.parse(readFileSync(join(dependency,'package.json'),'utf8')).name!==name){const parent=dirname(dependency);assert.notEqual(parent,dependency,`Resolve real ${name} dependency`);dependency=parent;}
     symlinkSync(dependency,join(tool,'node_modules',name),'dir');
   }
-  git(tool, 'init', '-q'); git(tool, 'add', '.'); git(tool, '-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture tool');
-  config.toolCommit = git(tool, 'rev-parse','HEAD').trim();
+  config.toolCommit = createHash('sha1').update(root).digest('hex');
+  const stamped = spawnSync(process.execPath, [resolve('dist/test/fixtures/stamp-tool.js'), tool, config.toolCommit], { encoding: 'utf8' }); assert.equal(stamped.status, 0, stamped.stderr);
   const bytes = Buffer.from('explicitly simulated sanitized data');
   const files = { 'seed/rede.mv.db': { bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') } };
   const content = { accounts: [{ email: 'author@enois.invalid', id: 'author', label: 'Author' }], externalReads: [], files, format: 'enois-preview-ts-v1', logicalSeedSha256: 'a'.repeat(64), media: [], permissions: { author: { admin: false, moderator: false } }, sanitizerSha256: 'f'.repeat(64) };
@@ -283,6 +282,72 @@ test('CLI resume refuses tampered frozen inputs even when the mutable journal in
       assert.deepEqual(readdirSync(join(f.config.state,'data')),[f.data]);assert.equal(existsSync(join(f.config.state,'restoration.json')),false);
     }finally{rmSync(f.root,{recursive:true,force:true});}
   }
+});
+
+function captureReady(){
+  const h2=h2Fixture();const f=prepared(h2.root);const config={...f.config,...h2.config};
+  writeFileSync(join(f.home,'config.json'),JSON.stringify(config));
+  const publish=(...args:string[])=>spawnSync(process.execPath,[join(f.tool,'dist/preview/cli.js'),'--home',f.home,...args],{encoding:'utf8',timeout:60_000});
+  const untouched=()=>{
+    assert.equal(existsSync(join(f.root,'events'))&&readFileSync(join(f.root,'events'),'utf8').includes('stop'),false);
+    assert.equal(existsSync(join(config.state,'operations')),false);
+  };
+  return {f,config,publish,untouched};
+}
+
+test('a development checkout clean at the pinned commit with a different compiled dist is refused before stopping the service',()=>{
+  const {f,config,publish,untouched}=captureReady();
+  try{
+    rmSync(join(f.tool,'install.json'),{force:true});
+    writeFileSync(join(f.tool,'.gitignore'),'node_modules/\ndist/\n');git(f.tool,'init','-q');git(f.tool,'add','.');git(f.tool,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture tool');
+    config.toolCommit=git(f.tool,'rev-parse','HEAD').trim();writeFileSync(join(f.home,'config.json'),JSON.stringify(config));
+    writeFileSync(join(f.tool,'dist/preview/service.js'),readFileSync(join(f.tool,'dist/preview/service.js'),'utf8')+'\n// compiled from another branch\n');
+    assert.equal(git(f.tool,'status','--porcelain=v1','--untracked-files=all'),'');
+
+    const result=publish('publish','other-branch');
+
+    assert.equal(result.status,1,result.stderr);assert.equal(result.stdout,'');
+    assert.match(result.stderr,/verified installation/);
+    untouched();
+  }finally{rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('a stamped installation that differs from its record or the configured commit is refused before stopping the service',()=>{
+  const differences:Record<string,(f:ReturnType<typeof prepared>,config:ReturnType<typeof captureReady>['config'])=>void>={
+    'configured commit':(f,config)=>{config.toolCommit='d'.repeat(40);writeFileSync(join(f.home,'config.json'),JSON.stringify(config));},
+    'recipe source':f=>writeFileSync(join(f.tool,'recipe/SeedTool.java'),readFileSync(join(f.tool,'recipe/SeedTool.java'),'utf8')+'\n// changed\n'),
+    'compiled dist':f=>writeFileSync(join(f.tool,'dist/preview/service.js'),readFileSync(join(f.tool,'dist/preview/service.js'),'utf8')+'\n// changed\n'),
+    'extra source file':f=>writeFileSync(join(f.tool,'preview/extra.ts'),''),
+    'missing record':f=>rmSync(join(f.tool,'install.json')),
+  };
+  for(const [difference,apply] of Object.entries(differences)){
+    const {f,config,publish,untouched}=captureReady();
+    try{
+      apply(f,config);
+
+      const result=publish('publish','other-branch');
+
+      assert.equal(result.status,1,`${difference}: ${result.stderr}`);assert.equal(result.stdout,'');
+      assert.match(result.stderr,/verified installation/,difference);
+      untouched();
+    }finally{rmSync(f.root,{recursive:true,force:true});}
+  }
+});
+
+test('CLI resume of an existing revision refuses an installation whose compiled dist changed',()=>{
+  const f=prepared();
+  try{
+    assert.equal(f.invoke('publish','fixture').status,1);
+    const operations=join(f.config.state,'operations');const revision=readdirSync(operations).find(name=>!name.startsWith('.'));assert.ok(revision);
+    const journal=join(operations,revision,'journal.json');const before=readFileSync(journal);
+    writeFileSync(join(f.tool,'dist/preview/service.js'),readFileSync(join(f.tool,'dist/preview/service.js'),'utf8')+'\n// changed\n');
+
+    const resumed=f.invoke('resume',revision);
+
+    assert.equal(resumed.status,1);assert.equal(resumed.stdout,'');
+    assert.match(resumed.stderr,/Stage frozenInputs incomplete: Tool is not a verified installation/);
+    assert.deepEqual(readFileSync(journal),before);
+  }finally{rmSync(f.root,{recursive:true,force:true});}
 });
 
 test('simultaneous different CLI publications preserve both immutable catalog entries',async()=>{

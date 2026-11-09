@@ -4,14 +4,18 @@ Ferramenta específica ao Énóis para publicar revisões imutáveis de desenvol
 
 [English](docs/en/README.md) · [Tutorial](docs/pt-BR/TUTORIAL.md) · [Guia para LLM](docs/pt-BR/LLM.md) · [Diagnóstico](docs/diagnostics/README.md)
 
-Use um checkout limpo do commit público completo fixado em `tool.lock.json` no lançador privado. Antes de instalar, selecione esse commit com `git checkout --detach <COMMIT_PUBLICO_FIXADO>`. O CLI verifica essa identidade durante publicação e retomada.
+Instale a ferramenta pelo instalador, no commit público completo fixado em `tool.lock.json` no lançador privado. O instalador baixa o arquivo desse commit no GitHub, compila fora dos seus checkouts em `~/.local/share/enois-preview/<COMMIT>`, grava em `install.json` os hashes da fonte e do `dist`, aponta `current` para essa instalação e liga o comando `enois-preview`. Publicação e retomada recalculam esses hashes e recusam, antes de qualquer efeito, uma instalação que difira do registro ou do `toolCommit`. Um checkout de desenvolvimento não publica, nem limpo no mesmo commit. A instalação é imutável: para outra versão, instale outro commit. Não execute `npm run` dentro dela, porque isso recompila o `dist`. Revisões congeladas pela 0.3.1 ou anteriores só são retomadas pelo executor original: um checkout limpo no commit delas, com `npm run build`.
 
 ```sh
+git clone https://github.com/renanfranca/enois-preview.git /caminho/temporario/enois-preview
+cd /caminho/temporario/enois-preview
+git checkout --detach <COMMIT_PUBLICO_FIXADO>
 npm ci --ignore-scripts
 npm run build
-npx playwright install chromium
-npm link --ignore-scripts
-npm run example:prepare -- /caminho/novo/workspace-ficticio
+node dist/scripts/install-tool.js --commit <COMMIT_PUBLICO_FIXADO>
+cd ~/.local/share/enois-preview/current
+npx --no-install playwright install chromium
+node dist/example/prepare.js /caminho/novo/workspace-ficticio
 enois-preview setup --config /caminho/novo/workspace-ficticio/.preview/config.json
 enois-preview publish meu-cenario
 enois-preview publish meu-cenario --refresh-data

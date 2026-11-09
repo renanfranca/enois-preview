@@ -1,6 +1,6 @@
 # Prepare an operator's private infrastructure
 
-Use Node 24.x (`>=24 <25`); `.nvmrc` selects the 24 family with `nvm install` and `nvm use`. Node 22 is no longer qualified. The 0.3.0 update preserves catalogs, links and historical records; resuming earlier operations requires their original executor and is not validated by this update. New publications and resumes must use the same pinned SHA in a clean checkout.
+Use Node 24.x (`>=24 <25`); `.nvmrc` selects the 24 family with `nvm install` and `nvm use`. Node 22 is no longer qualified. The 0.3.0 update preserves catalogs, links and historical records; resuming earlier operations requires their original executor and is not validated by this update. New publications and resumes must use a verified installation of the pinned SHA, created by `install-tool`.
 
 This one time infrastructure procedure complements the [canonical tutorial](../en/TUTORIAL.md). Public validation of this TypeScript version is recorded separately in VALIDATION.md. Creating a separate platform account was not exercised; see [the validation scope](../../VALIDATION.md). Use a local terminal and your own accounts. Keep the initial Free plan and spending block confirmation; setup records it without renewal. Do not add a payment method or enable paid services.
 
@@ -9,18 +9,18 @@ Start from a published public tool commit. Substitute your actual full SHA and n
 ```sh
 git clone https://github.com/renanfranca/enois-preview.git
 cd enois-preview
-git checkout PUBLIC_TOOL_COMMIT
+git checkout --detach PUBLIC_TOOL_COMMIT
 npm ci --ignore-scripts
 npm run build
-npx playwright install chromium
-npm link --ignore-scripts
+node dist/scripts/install-tool.js --commit PUBLIC_TOOL_COMMIT
+(cd ~/.local/share/enois-preview/current && npx --no-install playwright install chromium)
 gh auth login
 gh auth setup-git
 npx wrangler login
 node dist/scripts/prepare-launcher.js /absolute/new/private-launcher --repository YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --tool-commit PUBLIC_TOOL_COMMIT --worker-name YOUR_WORKER_NAME
 ```
 
-The generator creates an empty private catalog and a Worker importing the pinned public package. It does not create accounts, repositories, secrets, images or Workers. Keep the public checkout clean. Set `toolCommit` in your private example configuration to the same SHA.
+The generator creates an empty private catalog and a Worker importing the pinned public package. It does not create accounts, repositories, secrets, images or Workers. The installer builds the commit in `~/.local/share/enois-preview/PUBLIC_TOOL_COMMIT`, records hashes of its source and `dist` in `install.json` and links `enois-preview` from `~/.local/share/enois-preview/current`; publication and resume refuse an installation that no longer matches that record. The clone above only bootstraps the installer and generator. Set `toolCommit` in your private example configuration to the same SHA.
 
 In the generated launcher directory, run `npm install --package-lock-only --ignore-scripts`, `npm ci --ignore-scripts`, `npm run build`, `npm test`, and `npm run check`. Review `package.json`, `package-lock.json`, `tool.lock.json`, `launcher.ts` and `wrangler.jsonc`. Create your private GitHub repository with `gh repo create YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --private`. Initialize a local Git repository, commit these reviewed files on your chosen publication branch and push that branch. Confirm `gh repo view YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --json isPrivate` reports true. Never add work captures or database files.
 

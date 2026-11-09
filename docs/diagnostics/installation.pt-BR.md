@@ -1,6 +1,6 @@
 # Preparar a infraestrutura privada do operador
 
-Use Node 24.x (`>=24 <25`); o arquivo `.nvmrc` seleciona a família 24 com `nvm install` e `nvm use`. Node 22 não é mais uma versão qualificada. A atualização para 0.3.0 preserva catálogos, links e registros históricos; a retomada de operações anteriores exige seu executor original e não é validada por esta atualização. Novas publicações e retomadas devem usar o mesmo SHA fixado em um checkout limpo.
+Use Node 24.x (`>=24 <25`); o arquivo `.nvmrc` seleciona a família 24 com `nvm install` e `nvm use`. Node 22 não é mais uma versão qualificada. A atualização para 0.3.0 preserva catálogos, links e registros históricos; a retomada de operações anteriores exige seu executor original e não é validada por esta atualização. Novas publicações e retomadas devem usar uma instalação verificada do SHA fixado, criada pelo `install-tool`.
 
 Este procedimento único de infraestrutura complementa o [tutorial canônico](../pt-BR/TUTORIAL.md). A validação pública desta versão TypeScript está registrada em VALIDATION.md. A criação de outra conta nas plataformas não foi exercitada; consulte [o escopo da validação](../../VALIDATION.md). Use o terminal local e suas próprias contas. Preserve a conferência inicial dos planos gratuitos e do bloqueio de gastos; o setup registra essa confirmação sem renovação. Não adicione forma de pagamento nem ative serviços pagos.
 
@@ -9,18 +9,18 @@ Comece por um commit público publicado da ferramenta. Substitua os nomes e o SH
 ```sh
 git clone https://github.com/renanfranca/enois-preview.git
 cd enois-preview
-git checkout COMMIT_PUBLICO_DA_FERRAMENTA
+git checkout --detach COMMIT_PUBLICO_DA_FERRAMENTA
 npm ci --ignore-scripts
 npm run build
-npx playwright install chromium
-npm link --ignore-scripts
+node dist/scripts/install-tool.js --commit COMMIT_PUBLICO_DA_FERRAMENTA
+(cd ~/.local/share/enois-preview/current && npx --no-install playwright install chromium)
 gh auth login
 gh auth setup-git
 npx wrangler login
 node dist/scripts/prepare-launcher.js /caminho/novo/lancador-privado --repository SEU_USUARIO/SEU_LANCADOR_PRIVADO --tool-commit COMMIT_PUBLICO_DA_FERRAMENTA --worker-name NOME_DO_SEU_WORKER
 ```
 
-O gerador cria um catálogo privado vazio e um Worker que importa o pacote público fixado. Ele não cria contas, repositórios, segredos, imagens ou Workers. Mantenha o checkout público limpo. Preencha `toolCommit` na configuração privada do exemplo com o mesmo SHA.
+O gerador cria um catálogo privado vazio e um Worker que importa o pacote público fixado. Ele não cria contas, repositórios, segredos, imagens ou Workers. O instalador compila o commit em `~/.local/share/enois-preview/COMMIT_PUBLICO_DA_FERRAMENTA`, grava em `install.json` os hashes da fonte e do `dist` e liga `enois-preview` a partir de `~/.local/share/enois-preview/current`; publicação e retomada recusam uma instalação que não corresponda mais a esse registro. O clone acima serve só para executar o instalador e o gerador. Preencha `toolCommit` na configuração privada do exemplo com o mesmo SHA.
 
 No diretório do lançador gerado, execute `npm install --package-lock-only --ignore-scripts`, `npm ci --ignore-scripts`, `npm run build`, `npm test` e `npm run check`. Revise `package.json`, `package-lock.json`, `tool.lock.json`, `launcher.ts` e `wrangler.jsonc`. Crie seu repositório privado com `gh repo create SEU_USUARIO/SEU_LANCADOR_PRIVADO --private`. Inicialize o Git local, comite os arquivos revisados na branch de publicação escolhida e envie essa branch. Confirme que `gh repo view SEU_USUARIO/SEU_LANCADOR_PRIVADO --json isPrivate` informa true. Não adicione capturas de trabalho nem bancos.
 

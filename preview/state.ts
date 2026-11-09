@@ -89,12 +89,13 @@ export async function sha(file: string): Promise<string> {
   finally { await handle.close(); }
 }
 export type Inventory = Record<string, { bytes: number; sha256: string }>;
-export async function inventory(root: string): Promise<Inventory> {
+export async function inventory(root: string, outside: readonly string[] = []): Promise<Inventory> {
   const result: Inventory = {};
   const base = await lstat(root);
   if (!base.isDirectory() || base.isSymbolicLink()) throw new PreviewError('Inventory root is missing or is a symlink.');
   async function visit(directory: string): Promise<void> {
     for (const name of (await readdir(directory)).sort()) {
+      if (directory === root && outside.includes(name)) continue;
       const file = join(directory, name); const info = await lstat(file);
       if (info.isSymbolicLink()) throw new PreviewError('Symlinks are not allowed in frozen inputs.');
       if (info.isFile()) result[relative(root, file).split(sep).join('/')] = { bytes: info.size, sha256: await sha(file) };

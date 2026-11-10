@@ -1,0 +1,52 @@
+{
+  "version": "0.3.5",
+  "status": "passed",
+  "node": "24.16.0",
+  "npm": "11.13.0",
+  "baseCommit": "5076258db39fe90afb393f7638767c202a6af17e",
+  "recordFormat": "enois-preview-ts-v1",
+  "commands": [
+    { "command": "npm ci --ignore-scripts", "exitCode": 0 },
+    { "command": "npm run build", "exitCode": 0 },
+    { "command": "npm run typecheck", "exitCode": 0 },
+    { "command": "npm test", "exitCode": 0 },
+    { "command": "npm run check", "exitCode": 0 },
+    { "command": "npm run test:capture", "exitCode": 0 },
+    { "command": "npm run test:consumer", "exitCode": 0 },
+    { "command": "npm run test:install", "exitCode": 0 }
+  ],
+  "standardTests": { "passed": 110, "failed": 0, "skipped": 0 },
+  "captureTests": { "passed": 1, "failed": 0, "skipped": 0 },
+  "installedConsumerTests": { "passed": 110, "failed": 0, "skipped": 0 },
+  "installerTests": { "passed": 2, "failed": 0, "skipped": 0 },
+  "productCodeChanged": false,
+  "gap": "cross-process I3 (a restoration interrupted during an accepted stop) was proved only with a controlled service adapter",
+  "barrier": "SIGSTOP on the owned JVM just before the first process stops it: the real stop's SIGTERM stays pending in the kernel, status stays running and ready fails, until SIGCONT releases Spring's graceful shutdown",
+  "coverage": {
+    "H1": "sigkill: the first CLI process ([null,'SIGKILL']) leaves restoration.json with shutdown 'requested' and running true while status is running and the JVM is paused",
+    "H2": "timeout: the first CLI process (SIGINT, then SIGTERM during its restoration) exits 130 with empty stdout, 'restoration pending' in stderr and the record retained with shutdown 'requested'",
+    "H3": "for 10 s the second CLI process stays alive and issues identity, status and stop, but no ready or start, keeps the record with shutdown and does not refuse the dirty source; on fa8e1b5 it issued identity, status, ready, ready while the JVM was paused",
+    "H4": "after SIGCONT: status stopped, start with the record present and without shutdown, ready with the record present, exit [1,null] with 'source changes… No service was stopped', then no record, status running with a new PID and the pidfile on the live JVM",
+    "H5": "logicalSha256 of the copy equal before and after both variants; fixture data inventory and manifest unchanged; no operations/; four original logins succeed; an independent HTTP server keeps answering; the original database file unchanged"
+  },
+  "red": {
+    "commit": "fa8e1b5",
+    "observed": [
+      "H1: the record retained after the first process was {running: true} without shutdown",
+      "H3 (H1 field check relaxed only in the red tree): the second process issued identity, status, ready, ready with the JVM paused and the record present"
+    ],
+    "harnessDifference": "on fa8e1b5 the fixture tool identity is a clean Git checkout instead of an installation stamp"
+  },
+  "limits": [
+    "The barrier is SIGSTOP: it models an accepted stop without effect, not a slow graceful shutdown with requests in flight.",
+    "An orphaned stop that removes the pidfile after the next process wrote a new one is a possible product race; the validator checks the final pidfile and did not observe it.",
+    "No test reads a restoration record written byte for byte by 0.3.1.",
+    "node_modules is outside the content proof.",
+    "Resume of operations created by fa8e1b5 or earlier requires the original executor and is not qualified.",
+    "Tag v0.3.2 remains a defective tag without a release.",
+    "The installation (current/), the configurations and the launcher stay on 0.3.4 by decision.",
+    "register-codespace runs for real only inside a Codespace; locally its guard is proved by the bare-environment refusal.",
+    "Outside the image the gateway cannot read its runtime manifest; its ready path is exercised by the canonical public publication.",
+    "logicalSha256 depends on the SCRIPT canonicalization of the configured H2 driver (h2Jar)."
+  ]
+}

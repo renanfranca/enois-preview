@@ -7,6 +7,7 @@ import { capture, ROOT } from '../preview/capture.js';
 import { captureConfig } from '../preview/config.js';
 import type { CaptureConfig } from '../preview/config.js';
 import { Session } from '../preview/validation.js';
+import { crossProcessRecovery } from './validate-capture-recovery.js';
 import { exists, object, PreviewError, privateDir, readRecord, run, string, writeRecord, identity, inventory, invokedDirectly } from '../preview/state.js';
 
 function require(condition:unknown,message:string):asserts condition { if(!condition)throw new PreviewError(message); }
@@ -35,11 +36,11 @@ export async function check(workspaceInput:string,destinationInput:string):Promi
   for(const [index,mapping]of originalCapture.media.entries()){const root=join(evidence,'media',String(index));await cp(mapping.root,root,{recursive:true});media.push({root,url:mapping.url});}
   const environmentFile=join(evidence,'service-environment.json');await writeRecord(environmentFile,{environment:{REDE_SECURITY_ENCRYPTION_KEY:randomBytes(32).toString('base64')}});
   const sourceAdapter=await readRecord(join(workspace,'.preview/service.json'));
-  async function adapter(name:string,db:string):Promise<{config:CaptureConfig;origin:string}>{
+  async function adapter(name:string,db:string):Promise<{config:CaptureConfig;origin:string;serviceFile:string}>{
     const port=await freePort();const file=join(evidence,`${name}-service.json`);
     await writeRecord(file,{...sourceAdapter,database:db,port,environmentFile,pidfile:join(evidence,`${name}.pid`),log:join(evidence,`${name}.log`)});
     const commands=Object.fromEntries(['identity','status','start','stop','released','ready'].map(action=>[action,[process.execPath,join(ROOT,'dist/preview/service.js'),file,action]]));
-    return {config:captureConfig({...originalCapture,database:db,state:join(evidence,'state'),media,service:{...commands,expectedIdentity:db,timeout:120}}),origin:`http://localhost:${port}`};
+    return {config:captureConfig({...originalCapture,database:db,state:join(evidence,'state'),media,service:{...commands,expectedIdentity:db,timeout:120}}),origin:`http://localhost:${port}`,serviceFile:file};
   }
   const live=await adapter('live',database);let clean:Awaited<ReturnType<typeof adapter>>|undefined;
   const originals=['lia','rui','maya','davi'].map(name=>({id:`example_${name}`,email:`${name}@enois.invalid`,password:randomBytes(24).toString('base64url')}));
@@ -88,7 +89,8 @@ export async function check(workspaceInput:string,destinationInput:string):Promi
       catch(error:unknown){if(error instanceof PreviewError&&/HTTP 401\b/.test(error.message))rejected=true;else throw error;}
       require(rejected,'Sanitized copy accepted an original synthetic login.');
     }
-    await writeRecord(join(evidence,'capture-validation.json'),{realSpringAndH2:true,interruptionAfterActualBackendStopped:true,interruptedCaptureRestoredHealthy:true,completeDataPreservedAfterInterruption:true,validOriginalLoginsBeforeCapture:4,backendRestoredHealthyBeforeCaptureReturned:true,originalLoginsStillValidAfterCapture:4,originalLoginsRejectedInSanitizedCopy401:4,capturedAdminPermissionPreserved:true,dataVersion:frozen.id,sanitizerSha256:frozen.sanitizerSha256,localOnly:true});
+    const crossProcessI3=await crossProcessRecovery({evidence,live,h2Jar:originalCapture.h2Jar,ready,loginAll});
+    await writeRecord(join(evidence,'capture-validation.json'),{realSpringAndH2:true,interruptionAfterActualBackendStopped:true,interruptedCaptureRestoredHealthy:true,completeDataPreservedAfterInterruption:true,validOriginalLoginsBeforeCapture:4,backendRestoredHealthyBeforeCaptureReturned:true,originalLoginsStillValidAfterCapture:4,originalLoginsRejectedInSanitizedCopy401:4,capturedAdminPermissionPreserved:true,dataVersion:frozen.id,sanitizerSha256:frozen.sanitizerSha256,localOnly:true,crossProcessI3});
     console.log('Real Spring/H2 capture verified: four original logins preserved locally and rejected in the sanitized copy; backend restored healthy.');
   }finally{try{if(clean)await command(clean.config,'stop');}finally{await command(live.config,'stop');}}
 }

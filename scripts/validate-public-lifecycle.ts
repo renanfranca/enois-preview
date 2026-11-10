@@ -1,11 +1,10 @@
 import { join,resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { credentials as credentialRecord } from '../src/contracts.js';
 import { denied,png,require } from '../preview/exercises.js';
 import { journalRecord } from '../preview/publication.js';
 import { Session,validate } from '../preview/validation.js';
-import { object,PreviewError,privateDir,readRecord,string,writeRecord } from '../preview/state.js';
+import { object,PreviewError,privateDir,readRecord,string,writeRecord,invokedDirectly } from '../preview/state.js';
 
 export async function check(directoryInput:string):Promise<void>{
   const directory=resolve(directoryInput),journal=journalRecord(await readRecord(join(directory,'journal.json')));
@@ -39,4 +38,4 @@ export async function check(directoryInput:string):Promise<void>{
   await writeRecord(join(evidence,'validation.json'),{publicWorker:true,revision:journal.revision,pollingDidNotPreventDeletion:true,observedExpiredBeforeRecreation:true,automaticRecreationValidated:basic,allPasswordsRotated:true,oldPasswordsRejected401:true,runtimePostDiscarded404:true,runtimeUploadDiscarded404:true,seedMediaRestored:true,oldUrlStill404AfterNewUpload:true,samples});
   console.log('Public inactivity and recreation verified: polling allowed deletion, automatic boot restored frozen data/media and rotated credentials, and old upload URLs remain 404.');
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const directory=process.argv[2];require(process.argv.length===3&&directory,'Usage: node dist/scripts/validate-public-lifecycle.js PRIVATE_OPERATION_DIRECTORY');await check(directory);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Public lifecycle verification failed; inspect private evidence.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{const directory=process.argv[2];require(process.argv.length===3&&directory,'Usage: node dist/scripts/validate-public-lifecycle.js PRIVATE_OPERATION_DIRECTORY');await check(directory);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Public lifecycle verification failed; inspect private evidence.');process.exitCode=1;}}

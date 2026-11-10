@@ -4,10 +4,9 @@ import http from 'node:http';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { ROOT } from '../preview/project.js';
-import { object, privateDir, PreviewError, run, writeRecord } from '../preview/state.js';
+import { object, privateDir, PreviewError, run, writeRecord, invokedDirectly } from '../preview/state.js';
 
 function require(condition:unknown,message:string):asserts condition{if(!condition)throw new PreviewError(message);}
 function response(url:string,method='GET'):Promise<http.IncomingMessage>{return new Promise((done,reject)=>{const request=http.request(url,{method,agent:false,timeout:30_000},done);request.on('error',reject);request.on('timeout',()=>request.destroy(new Error('Memory proof HTTP timeout')));request.end();});}
@@ -47,4 +46,4 @@ export async function proof(output:string):Promise<boolean>{
   }
   await writeRecord(resolve(output),report);console.log(JSON.stringify({passed:report.passed,headReadBytes:report.headReadBytes,get:report.get,...(report.error?{error:report.error}:{})}));return report.passed===true;
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{require(process.argv.length===3&&process.argv[2],'Usage: node dist/scripts/validate-gateway-memory.js NEW_PRIVATE_REPORT');process.exitCode=await proof(process.argv[2])?0:1;}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Gateway memory verification failed.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{require(process.argv.length===3&&process.argv[2],'Usage: node dist/scripts/validate-gateway-memory.js NEW_PRIVATE_REPORT');process.exitCode=await proof(process.argv[2])?0:1;}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Gateway memory verification failed.');process.exitCode=1;}}

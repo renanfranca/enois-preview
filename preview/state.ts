@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { chmod, lstat, mkdir, open, readdir, rename, rm } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, readdir, realpath, rename, rm } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 import { basename } from 'node:path';
@@ -14,6 +15,12 @@ export async function readRecord(file: string): Promise<Record<string, unknown> 
   const value: unknown = JSON.parse(await readFile(file, 'utf8'));
   requireFormat(value);
   return value;
+}
+
+/** True when this module is the process entry point, even when argv[1] reaches it through a symlink such as the installer's `current`. */
+export async function invokedDirectly(moduleUrl: string): Promise<boolean> {
+  const invoked = process.argv[1]; if (!invoked) return false;
+  try { return await realpath(invoked) === await realpath(fileURLToPath(moduleUrl)); } catch { return false; }
 }
 
 export function identity(value: unknown): string { return createHash('sha256').update(canonical(value), 'utf8').digest('hex'); }

@@ -1,10 +1,9 @@
 import { mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { extract } from 'tar';
-import { canonical, exists, inventory, PreviewError, privateDir, run } from '../preview/state.js';
+import { canonical, exists, inventory, PreviewError, privateDir, run, invokedDirectly } from '../preview/state.js';
 import { sourceContents, stampInstallation } from '../preview/installation.js';
 
 const ARCHIVES = 'https://codeload.github.com/renanfranca/enois-preview/tar.gz';
@@ -66,4 +65,4 @@ export async function runInstaller(argv: string[], archives = ARCHIVES): Promise
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await runInstaller(process.argv.slice(2));
+if (await invokedDirectly(import.meta.url)) process.exitCode = await runInstaller(process.argv.slice(2));

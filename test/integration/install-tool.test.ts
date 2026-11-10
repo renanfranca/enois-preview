@@ -94,6 +94,12 @@ test('installing a public commit creates a stamped installation outside the deve
     assert.equal(realpathSync(join(global, 'lib/node_modules/enois-preview')), realpathSync(installation));
     assert.deepEqual(readdirSync(prefix).filter(name => name.startsWith('.')), []);
 
+    const database = join(work, 'fixture.mv.db'); const serviceConfig = join(work, 'service.json');
+    await writeFile(serviceConfig, JSON.stringify({ format: 'enois-preview-ts-v1', database, jar: serviceConfig, cwd: work, port: 18089, pidfile: join(work, 'absent.pid'), log: join(work, 'service.log') }));
+    const throughCurrent = await command(join(prefix, 'current/dist/preview/service.js'), {}, serviceConfig, 'identity');
+
+    assert.deepEqual(throughCurrent, { code: 0, stdout: `${database}\n`, stderr: '' });
+
     const before = readFileSync(join(installation, 'install.json'));
     const again = await install(archives, env, '--commit', commit, '--prefix', prefix);
 

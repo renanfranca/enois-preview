@@ -1,10 +1,9 @@
 import { readFile, realpath, open, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
-import { exists, object, PreviewError, privateDir, readRecord, string } from './state.js';
+import { exists, object, PreviewError, privateDir, readRecord, string, invokedDirectly } from './state.js';
 interface ServiceConfig {database:string;jar:string;cwd:string;port:number;pidfile:string;log:string;environmentFile?:string}
 function configRecord(value:unknown):ServiceConfig{
   const data=object(value);const port=data.port;if(typeof port!=='number'||!Number.isInteger(port)||port<1||port>65535)throw new PreviewError('Invalid owned backend port.');
@@ -48,7 +47,7 @@ export async function service(file:string,action:string):Promise<void>{
     await delay(2000);if(!await ownedPid(config))throw new PreviewError('Owned backend exited; inspect its private log.');
   }else throw new PreviewError('Unknown owned backend action.');
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+if(await invokedDirectly(import.meta.url)){
   try{if(!process.argv[2]||!process.argv[3]||process.argv.length!==4)throw new PreviewError('Usage: node dist/preview/service.js PRIVATE_CONFIG ACTION');await service(process.argv[2],process.argv[3]);}
   catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Owned backend operation failed; inspect private service diagnostics.');process.exitCode=1;}
 }

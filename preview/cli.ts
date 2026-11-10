@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
-import { pathToFileURL } from 'node:url';
 import { installed, captureConfig, validateConfig, prerequisites } from './config.js';
 import type { Account } from './config.js';
 import { commits, recover, sourceLease } from './capture.js';
-import { access, realpath } from 'node:fs/promises';
+import { access } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { PreviewError, readRecord, exists, string, privateDir, lease, writeRecord, listenForInterruption } from './state.js';
+import { PreviewError, readRecord, exists, string, privateDir, lease, writeRecord, listenForInterruption, invokedDirectly } from './state.js';
 
 async function selectAccounts(listing:string,signal:AbortSignal):Promise<Account[]>{
   if(!process.stdin.isTTY)throw new PreviewError('Select stable account IDs with enois-preview publish SCENARIO in an interactive local terminal, or configure accounts.');
@@ -103,5 +102,4 @@ Commands:
   } finally { interruption.dispose(); }
 }
 
-const invoked=process.argv[1];
-if (invoked && await realpath(invoked).then(file=>import.meta.url===pathToFileURL(file).href,()=>false)) process.exitCode = await main();
+if (await invokedDirectly(import.meta.url)) process.exitCode = await main();

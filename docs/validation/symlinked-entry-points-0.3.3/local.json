@@ -1,0 +1,39 @@
+{
+  "version": "0.3.3",
+  "status": "passed",
+  "node": "24.16.0",
+  "npm": "11.13.0",
+  "baseCommit": "5421768ec51c2e9d93597dc2b1a8b5f545df0b7a",
+  "recordFormat": "enois-preview-ts-v1",
+  "commands": [
+    { "command": "npm ci --ignore-scripts", "exitCode": 0 },
+    { "command": "npm run build", "exitCode": 0 },
+    { "command": "npm run typecheck", "exitCode": 0 },
+    { "command": "npm test", "exitCode": 0 },
+    { "command": "npm run check", "exitCode": 0 },
+    { "command": "npm run test:capture", "exitCode": 0 },
+    { "command": "npm run test:consumer", "exitCode": 0 },
+    { "command": "npm run test:install", "exitCode": 0 }
+  ],
+  "standardTests": { "passed": 106, "failed": 0, "skipped": 0 },
+  "installedConsumerTests": { "passed": 106, "failed": 0, "skipped": 0 },
+  "installerTests": { "passed": 2, "failed": 0, "skipped": 0 },
+  "defect": {
+    "affected": "0.3.2 (tag v0.3.2, commit 5421768, no GitHub release)",
+    "cause": "entry point guards compared import.meta.url with argv[1] without resolving symlinks; Node resolves the main module's symlink, so a command reached through the installer's current link ran nothing and exited 0",
+    "observedEffect": "every service.js action (identity, status, start, ready, stop, released) printed nothing and exited 0 through current/dist/preview/service.js; scripts behaved the same",
+    "correction": "one invokedDirectly helper in preview/state.ts compares the realpath of argv[1] with the realpath of the module; cli.ts, service.ts and every script entry point use it"
+  },
+  "coverage": {
+    "E1": "standard test runs service.js identity/status and pin-scenario.js through a current symlink and through the real path with equal results; it first failed on 5421768 with empty output and exit 0 through the symlink",
+    "E1-install": "installer journey runs service.js identity through <prefix>/current after a real local installation",
+    "E2": "no guard compares pathToFileURL(argv[1]) any more"
+  },
+  "limits": [
+    "node_modules is outside the content proof.",
+    "Cross-process I3 recovery uses a controlled service adapter with a real H2 fixture.",
+    "Resume of operations created by fa8e1b5 or earlier requires the original executor and is not qualified.",
+    "Tag v0.3.2 remains published without a release; its service entry point does not run through the installer's current symlink.",
+    "The real installation, configuration alignment, launcher pin, real service cycle through current and canonical public publish/resume follow this commit and are recorded in the release assets."
+  ]
+}

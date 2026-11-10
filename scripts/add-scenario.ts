@@ -1,9 +1,8 @@
 import { readFile,writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { accounts } from '../shared/accounts.js';
-import { canonical,exists,object,PreviewError,privateDir,readRecord,requireFormat,string,writeRecord } from '../preview/state.js';
+import { canonical,exists,object,PreviewError,privateDir,readRecord,requireFormat,string,writeRecord,invokedDirectly } from '../preview/state.js';
 
 export async function addScenario(slug:string,image:string,publicOrigin:string,repository:string,provenanceFile:string):Promise<void>{
   if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)||!/^ghcr\.io\/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$/.test(image)||!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository))throw new PreviewError('Use a new slug, immutable registry digest and owner/repository.');
@@ -22,4 +21,4 @@ export async function addScenario(slug:string,image:string,publicOrigin:string,r
   await writeFile(provenancePath,proofBytes,{mode:0o600});
   await writeRecord(join(directory,'scenario.json'),{repository,image,devcontainerPath:`${directory}/devcontainer.json`,provenancePath,provenanceSha256:createHash('sha256').update(proofBytes).digest('hex'),revision,accounts:selected});
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const args=process.argv.slice(2);if(args.length!==5||args.some(value=>!value))throw new PreviewError('Usage: node dist/scripts/add-scenario.js SLUG IMAGE_DIGEST HTTPS_ORIGIN OWNER/REPO PROVENANCE_JSON');await addScenario(args[0]!,args[1]!,args[2]!,args[3]!,args[4]!);console.log('Versioned scenario prepared. Commit the configuration, then pin its immutable commit with dist/scripts/pin-scenario.js.');}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Scenario preparation failed; inspect private versioned provenance.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{const args=process.argv.slice(2);if(args.length!==5||args.some(value=>!value))throw new PreviewError('Usage: node dist/scripts/add-scenario.js SLUG IMAGE_DIGEST HTTPS_ORIGIN OWNER/REPO PROVENANCE_JSON');await addScenario(args[0]!,args[1]!,args[2]!,args[3]!,args[4]!);console.log('Versioned scenario prepared. Commit the configuration, then pin its immutable commit with dist/scripts/pin-scenario.js.');}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Scenario preparation failed; inspect private versioned provenance.');process.exitCode=1;}}

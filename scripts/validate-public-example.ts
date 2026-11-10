@@ -1,11 +1,10 @@
 import { join,resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { credentials as credentialRecord } from '../src/contracts.js';
 import { exercise,require } from '../preview/exercises.js';
 import { journalRecord } from '../preview/publication.js';
 import { ROOT } from '../preview/project.js';
 import { Session,validate } from '../preview/validation.js';
-import { PreviewError,privateDir,readRecord,run,writeRecord } from '../preview/state.js';
+import { PreviewError,privateDir,readRecord,run,writeRecord,invokedDirectly } from '../preview/state.js';
 
 export async function check(directoryInput:string):Promise<void>{
   const directory=resolve(directoryInput),journal=journalRecord(await readRecord(join(directory,'journal.json')));
@@ -18,4 +17,4 @@ export async function check(directoryInput:string):Promise<void>{
   await writeRecord(join(evidence,'validation.json'),{origin,revision:journal.revision,publicWorker:true,basic,browser,flows});
   console.log('Public fictional example verified: entry accounts, actual browser login, desktop/mobile emulation, blog distribution/ownership and disposable media at the exact 20 MiB boundary.');
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const directory=process.argv[2];require(process.argv.length===3&&directory,'Usage: node dist/scripts/validate-public-example.js PRIVATE_OPERATION_DIRECTORY');await check(directory);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Public fictional verification failed; inspect private evidence.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{const directory=process.argv[2];require(process.argv.length===3&&directory,'Usage: node dist/scripts/validate-public-example.js PRIVATE_OPERATION_DIRECTORY');await check(directory);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Public fictional verification failed; inspect private evidence.');process.exitCode=1;}}

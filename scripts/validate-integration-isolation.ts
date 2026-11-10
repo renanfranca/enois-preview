@@ -1,9 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { mkdtemp,readFile,rm } from 'node:fs/promises';
 import { join,resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { ROOT } from '../preview/project.js';
-import { object, PreviewError, privateDir, run, writeRecord } from '../preview/state.js';
+import { object, PreviewError, privateDir, run, writeRecord, invokedDirectly } from '../preview/state.js';
 
 export async function check(image:string,destination:string):Promise<void>{
   const evidence=await privateDir(resolve(destination));const inspection:unknown=JSON.parse((await run(['docker','image','inspect',image])).toString());
@@ -24,4 +23,4 @@ export async function check(image:string,destination:string):Promise<void>{
     console.log('Packaged integration isolation verified: six scheduled entry points, eligible external asset deletion and zero external HTTP attempts.');
   }finally{try{if(temporary)await rm(temporary,{recursive:true,force:true});}finally{await run(['docker','rm','-f',container]);}}
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const image=process.argv[2],evidence=process.argv[3];if(process.argv.length!==4||!image||!evidence)throw new PreviewError('Usage: node dist/scripts/validate-integration-isolation.js IMAGE PRIVATE_EVIDENCE_DIRECTORY');await check(image,evidence);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Invalid packaged integration proof; inspect private evidence.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{const image=process.argv[2],evidence=process.argv[3];if(process.argv.length!==4||!image||!evidence)throw new PreviewError('Usage: node dist/scripts/validate-integration-isolation.js IMAGE PRIVATE_EVIDENCE_DIRECTORY');await check(image,evidence);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Invalid packaged integration proof; inspect private evidence.');process.exitCode=1;}}

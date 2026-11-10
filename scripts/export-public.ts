@@ -1,8 +1,7 @@
 import { copyFile,lstat,readFile,realpath,rm,writeFile } from 'node:fs/promises';
 import { dirname,isAbsolute,join,normalize,relative,resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { ROOT } from '../preview/project.js';
-import { canonical,exists,identity,inventory,PreviewError,privateDir,readRecord,writeRecord } from '../preview/state.js';
+import { canonical,exists,identity,inventory,PreviewError,privateDir,readRecord,writeRecord,invokedDirectly } from '../preview/state.js';
 
 async function physical(path:string):Promise<string>{try{return await realpath(path);}catch(error:unknown){if(!(error&&typeof error==='object'&&'code'in error&&error.code==='ENOENT')||dirname(path)===path)throw error;return join(await physical(dirname(path)),relative(dirname(path),path));}}
 export async function exportPublic(destinationInput:string,sourceInput:string=ROOT):Promise<Record<string,unknown>>{
@@ -25,4 +24,4 @@ export async function exportPublic(destinationInput:string,sourceInput:string=RO
     const proof=await inventory(destination);return {destination,files:Object.keys(proof).length,sourceInventorySha256:identity(proof),historyCopied:false,operationalCatalogEntries:0,published:false};
   }catch(error:unknown){await rm(destination,{recursive:true,force:true});throw error;}
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const destination=process.argv[2];if(process.argv.length!==3||!destination)throw new PreviewError('Usage: node dist/scripts/export-public.js NEW_PUBLIC_SOURCE_DIRECTORY');console.log(JSON.stringify(await exportPublic(destination),null,2));}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Public export failed; review source allowlist and private evidence boundary.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{const destination=process.argv[2];if(process.argv.length!==3||!destination)throw new PreviewError('Usage: node dist/scripts/export-public.js NEW_PUBLIC_SOURCE_DIRECTORY');console.log(JSON.stringify(await exportPublic(destination),null,2));}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Public export failed; review source allowlist and private evidence boundary.');process.exitCode=1;}}

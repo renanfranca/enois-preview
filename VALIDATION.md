@@ -336,4 +336,17 @@ The installer origin cannot be redirected from the environment. The regression f
 
 This delivery also contains the cross-process I3 correction: when a first CLI is killed during an accepted shutdown, the next CLI waits for that shutdown before trusting readiness, restores before refusing a dirty source and preserves H2. That proof uses a controlled service adapter with a real H2 fixture.
 
-The real installation, the four configuration alignments (`toolCommit` and the installed `service.js` path only), the launcher pin, canonical public publish/resume, development folder independence and preservation receipts are delivered as [v0.3.2 release assets](https://github.com/renanfranca/enois-preview/releases/tag/v0.3.2) after execution. Resume of operations created by fa8e1b5 or earlier requires the original executor and is not qualified.
+The real installation, the four configuration alignments (`toolCommit` and the installed `service.js` path only), the launcher pin, canonical public publish/resume, development folder independence and preservation receipts were planned as v0.3.2 release assets. That release was not created: the delivery stopped when the installed `service.js` did nothing through the `current` link (see 0.3.3). Resume of operations created by fa8e1b5 or earlier requires the original executor and is not qualified.
+
+
+## Symlinked entry points (0.3.3)
+
+> **0.3.2 tag exists without a release; its service entry point does not run through the installer's `current` symlink; use 0.3.3.**
+
+Every entry point (the CLI, `preview/service.ts` and the scripts) checks whether it is the process entry point before running. On 0.3.2 only the CLI resolved symlinks in that check. Node resolves the main module's symlink, so `import.meta.url` named `<SHA>/…` while `argv[1]` named `current/…`. Through the installed path written in the configurations, `node …/enois-preview/current/dist/preview/service.js CONFIG ACTION` printed nothing and exited 0 for every action. Publish with reused data still worked; `--refresh-data` and pending restorations refused safely as ambiguous identity, before any effect. 0.3.3 replaces all guards with one `invokedDirectly` helper that compares the real paths of `argv[1]` and the module. No other behavior changes.
+
+The new journey runs `service.js identity`, `service.js status` and `pin-scenario.js` without arguments through a `current` symlink and through the real path, and requires equal results. It first failed on 5421768: through the symlink, all three printed nothing and exited 0, while the real path printed the database, `stopped` and the usage message with exit 1. The installer journey now also runs `service.js identity` through `<prefix>/current` after a real local installation.
+
+[Reviewed local results](docs/validation/symlinked-entry-points-0.3.3/local.json) record all eight commands with exit zero on Node 24.16.0/npm 11.13.0: ignored-script ci, build, typecheck, 106 standard tests, Worker dry run, actual Spring/H2 capture, the installed source consumer (106 tests plus dry run) and the two installer journeys.
+
+The real installation, the configuration alignment (`toolCommit` only; the `service` path stays on `current/`), the launcher pin, a real `start`/`ready`/`stop` cycle through the configured `current/` path, canonical public publish/resume and preservation receipts are delivered as [v0.3.3 release assets](https://github.com/renanfranca/enois-preview/releases/tag/v0.3.3) after execution. `node_modules` remains outside the content proof; cross-process I3 is proved only with a controlled adapter; resume of operations created by fa8e1b5 or earlier requires the original executor.

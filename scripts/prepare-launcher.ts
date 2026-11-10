@@ -1,9 +1,8 @@
 import { writeFile,readFile } from 'node:fs/promises';
 import { join,resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { ROOT } from '../preview/project.js';
-import { canonical,exists,object,PreviewError,privateDir,writeRecord } from '../preview/state.js';
+import { canonical,exists,object,PreviewError,privateDir,writeRecord,invokedDirectly } from '../preview/state.js';
 
 export async function prepare(destinationInput:string,repository:string,toolCommit:string,workerName:string):Promise<Record<string,unknown>>{
   const destination=resolve(destinationInput);
@@ -23,4 +22,4 @@ export async function prepare(destinationInput:string,repository:string,toolComm
   await plain('wrangler.jsonc',{name:workerName,main:'launcher.ts',compatibility_date:'2026-10-01',workers_dev:true,observability:{enabled:false},vars:{LAUNCH_ENABLED:'false',GITHUB_REPOSITORY:repository,GITHUB_OWNER:repository.split('/')[0]},durable_objects:{bindings:[{name:'SCENARIOS',class_name:'Scenario'}]},migrations:[{tag:'v1',new_sqlite_classes:['Scenario']}]});
   return {directory:destination,publicToolCommit:toolCommit,launchEnabled:false,remoteWrites:false,next:'Install with npm ci --ignore-scripts after creating its lockfile, run npm run build explicitly, then configure existing private infrastructure with enois-preview setup.'};
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const {values,positionals}=parseArgs({allowPositionals:true,options:{repository:{type:'string'},'tool-commit':{type:'string'},'worker-name':{type:'string'}}});const destination=positionals[0];if(positionals.length!==1||!destination||!values.repository||!values['tool-commit']||!values['worker-name'])throw new PreviewError('Usage: node dist/scripts/prepare-launcher.js NEW_DIRECTORY --repository OWNER/REPO --tool-commit FULL_SHA --worker-name EXISTING_WORKER');console.log(JSON.stringify(await prepare(destination,values.repository,values['tool-commit'],values['worker-name']),null,2));}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Private consumer preparation failed; existing destinations preserved.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{const {values,positionals}=parseArgs({allowPositionals:true,options:{repository:{type:'string'},'tool-commit':{type:'string'},'worker-name':{type:'string'}}});const destination=positionals[0];if(positionals.length!==1||!destination||!values.repository||!values['tool-commit']||!values['worker-name'])throw new PreviewError('Usage: node dist/scripts/prepare-launcher.js NEW_DIRECTORY --repository OWNER/REPO --tool-commit FULL_SHA --worker-name EXISTING_WORKER');console.log(JSON.stringify(await prepare(destination,values.repository,values['tool-commit'],values['worker-name']),null,2));}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Private consumer preparation failed; existing destinations preserved.');process.exitCode=1;}}

@@ -1,14 +1,13 @@
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { join,resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { credentials as credentialRecord } from '../src/contracts.js';
 import { validateLocal } from '../preview/build.js';
 import { denied,require } from '../preview/exercises.js';
 import { journalRecord } from '../preview/publication.js';
 import { Session } from '../preview/validation.js';
-import { exists,object,PreviewError,privateDir,readRecord,string,writeRecord } from '../preview/state.js';
+import { exists,object,PreviewError,privateDir,readRecord,string,writeRecord,invokedDirectly } from '../preview/state.js';
 
 interface Asset {id:string;uploadUrl:string;cdnUrl:string}
 interface Stored {id:string;url:string;inputBytes:number;storedBytes:number;physicalByteRangeBoundaryVerified:true}
@@ -92,4 +91,4 @@ export async function check(image:string,directoryInput:string):Promise<void>{
     await validateLocal(image,journal,await privateDir(join(directory,'capacity-evidence')),(origin,credentials,evidence)=>exerciseCapacity(origin,credentials,evidence));console.log('Local actual HTTP capacity verified, including cancellation, processing failure, concurrent uploads and physical deletion.');
   }
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const image=process.argv[2],directory=process.argv[3];require(process.argv.length===4&&image&&directory,'Usage: node dist/scripts/validate-capacity.js IMAGE_OR_--public PRIVATE_OPERATION_DIRECTORY');await check(image,directory);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Capacity verification failed; inspect private evidence.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{const image=process.argv[2],directory=process.argv[3];require(process.argv.length===4&&image&&directory,'Usage: node dist/scripts/validate-capacity.js IMAGE_OR_--public PRIVATE_OPERATION_DIRECTORY');await check(image,directory);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Capacity verification failed; inspect private evidence.');process.exitCode=1;}}

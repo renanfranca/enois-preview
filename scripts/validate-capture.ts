@@ -2,13 +2,12 @@ import { chmod, cp, writeFile } from 'node:fs/promises';
 import { randomBytes, pbkdf2Sync } from 'node:crypto';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { capture, ROOT } from '../preview/capture.js';
 import { captureConfig } from '../preview/config.js';
 import type { CaptureConfig } from '../preview/config.js';
 import { Session } from '../preview/validation.js';
-import { exists, object, PreviewError, privateDir, readRecord, run, string, writeRecord, identity, inventory } from '../preview/state.js';
+import { exists, object, PreviewError, privateDir, readRecord, run, string, writeRecord, identity, inventory, invokedDirectly } from '../preview/state.js';
 
 function require(condition:unknown,message:string):asserts condition { if(!condition)throw new PreviewError(message); }
 async function freePort():Promise<number>{
@@ -93,7 +92,7 @@ export async function check(workspaceInput:string,destinationInput:string):Promi
     console.log('Real Spring/H2 capture verified: four original logins preserved locally and rejected in the sanitized copy; backend restored healthy.');
   }finally{try{if(clean)await command(clean.config,'stop');}finally{await command(live.config,'stop');}}
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+if(await invokedDirectly(import.meta.url)){
   try{require(process.argv.length===4&&process.argv[2]&&process.argv[3],'Usage: node dist/scripts/validate-capture.js PREPARED_FICTIONAL_WORKSPACE NEW_PRIVATE_EVIDENCE');await check(string(process.argv[2]),string(process.argv[3]));}
   catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Real capture verification failed; inspect private evidence.');process.exitCode=1;}
 }

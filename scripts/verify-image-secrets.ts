@@ -2,11 +2,10 @@ import { createReadStream } from 'node:fs';
 import { chmod,mkdtemp,rm } from 'node:fs/promises';
 import { once } from 'node:events';
 import { join,resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { Parser } from 'tar';
 import type { ReadEntry } from 'tar';
-import { object,PreviewError,privateDir,readRecord,run,string,writeRecord } from '../preview/state.js';
+import { object,PreviewError,privateDir,readRecord,run,string,writeRecord,invokedDirectly } from '../preview/state.js';
 
 async function parse(source:AsyncIterable<Buffer>,visit:(entry:ReadEntry)=>void):Promise<void>{
   const warnings:string[]=[];let entries=0,eof=false;
@@ -55,4 +54,4 @@ export async function check(image:string,values:string,destination:string):Promi
     console.log('All distributed image layers inspected; synthetic original authentication controls absent, including deleted lower-layer files.');
   }finally{await rm(temporary,{recursive:true,force:true});}
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const {values,positionals}=parseArgs({allowPositionals:true,options:{values:{type:'string'},evidence:{type:'string'}}});const image=positionals[0];if(positionals.length!==1||!image||!values.values||!values.evidence)throw new PreviewError('Usage: node dist/scripts/verify-image-secrets.js IMAGE --values PRIVATE_CONTROLS --evidence PRIVATE_DIRECTORY');await check(image,values.values,values.evidence);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Image layer verification failed; inspect private evidence.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{const {values,positionals}=parseArgs({allowPositionals:true,options:{values:{type:'string'},evidence:{type:'string'}}});const image=positionals[0];if(positionals.length!==1||!image||!values.values||!values.evidence)throw new PreviewError('Usage: node dist/scripts/verify-image-secrets.js IMAGE --values PRIVATE_CONTROLS --evidence PRIVATE_DIRECTORY');await check(image,values.values,values.evidence);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Image layer verification failed; inspect private evidence.');process.exitCode=1;}}

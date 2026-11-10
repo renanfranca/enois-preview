@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { object, string } from '../preview/state.js';
+import { object, string, invokedDirectly } from '../preview/state.js';
 
 export interface DecodingRow { width: number; mobileEmulation: boolean; images: { path: string; width: number; height: number }[] }
 export async function decodeImages(value: unknown): Promise<DecodingRow[]> {
@@ -30,7 +29,7 @@ export async function decodeImages(value: unknown): Promise<DecodingRow[]> {
     return result;
   }finally{await browser.close();}
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+if(await invokedDirectly(import.meta.url)){
   try{const input:unknown=JSON.parse(readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(await decodeImages(input)));}
   catch{console.error('Recognized frozen image decoding failed; inspect private browser evidence.');process.exitCode=1;}
 }

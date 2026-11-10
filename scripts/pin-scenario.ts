@@ -1,8 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { pathToFileURL } from 'node:url';
 import { catalogRecord,validateScenario } from '../src/catalog.js';
-import { object,PreviewError,readRecord,run,string,writeRecord } from '../preview/state.js';
+import { object,PreviewError,readRecord,run,string,writeRecord,invokedDirectly } from '../preview/state.js';
 
 export async function pinScenario(slug:string,launcherCommit:string):Promise<void>{
   if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)||!/^[a-f0-9]{40}$/.test(launcherCommit))throw new PreviewError('Use a scenario slug and full immutable launcher commit.');
@@ -21,4 +20,4 @@ export async function pinScenario(slug:string,launcherCommit:string):Promise<voi
   if(dev.image!==item.image||dev.overrideCommand!==true||!Array.isArray(dev.forwardPorts)||!dev.forwardPorts.includes(3000))throw new PreviewError('Immutable image configuration differs.');
   scenarios[slug]=item;await writeRecord(file,{...catalog,scenarios});
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const [slug,commit,...extra]=process.argv.slice(2);if(!slug||!commit||extra.length)throw new PreviewError('Usage: node dist/scripts/pin-scenario.js SLUG LAUNCHER_COMMIT_SHA');await pinScenario(slug,commit);console.log('Immutable TypeScript scenario pinned. Commit the catalog before deployment.');}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Scenario pinning failed; inspect the committed configuration and versioned catalog.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{const [slug,commit,...extra]=process.argv.slice(2);if(!slug||!commit||extra.length)throw new PreviewError('Usage: node dist/scripts/pin-scenario.js SLUG LAUNCHER_COMMIT_SHA');await pinScenario(slug,commit);console.log('Immutable TypeScript scenario pinned. Commit the catalog before deployment.');}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Scenario pinning failed; inspect the committed configuration and versioned catalog.');process.exitCode=1;}}

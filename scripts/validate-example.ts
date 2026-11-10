@@ -1,6 +1,5 @@
 import { chmod,writeFile } from 'node:fs/promises';
 import { join,resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { credentials as credentialRecord } from '../src/contracts.js';
 import { validateLocal } from '../preview/build.js';
@@ -8,7 +7,7 @@ import { denied, exercise, png, require } from '../preview/exercises.js';
 import { journalRecord } from '../preview/publication.js';
 import { ROOT } from '../preview/project.js';
 import { Session, validate } from '../preview/validation.js';
-import { object, PreviewError, readRecord, run, string, writeRecord } from '../preview/state.js';
+import { object, PreviewError, readRecord, run, string, writeRecord, invokedDirectly } from '../preview/state.js';
 
 export async function check(image:string,directoryInput:string):Promise<void>{
   const directory=resolve(directoryInput),journal=journalRecord(await readRecord(join(directory,'journal.json')));
@@ -54,4 +53,4 @@ export async function check(image:string,directoryInput:string):Promise<void>{
   const second=await validateLocal(image,journal,directory,resetChecks);await writeRecord(join(directory,'recreation-validation.json'),second);
   console.log('Local fictional runtime verified: actual browser, independent accounts, blog and media, restart and recreation with rotated credentials.');
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const image=process.argv[2],directory=process.argv[3];require(process.argv.length===4&&image&&directory,'Usage: node dist/scripts/validate-example.js IMAGE PRIVATE_OPERATION_DIRECTORY');await check(image,directory);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Local fictional runtime verification failed; inspect private evidence.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{const image=process.argv[2],directory=process.argv[3];require(process.argv.length===4&&image&&directory,'Usage: node dist/scripts/validate-example.js IMAGE PRIVATE_OPERATION_DIRECTORY');await check(image,directory);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Local fictional runtime verification failed; inspect private evidence.');process.exitCode=1;}}

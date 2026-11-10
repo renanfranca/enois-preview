@@ -1,12 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { chmod,readFile,writeFile } from 'node:fs/promises';
 import { basename,join,resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { credentials as credentialRecord } from '../src/contracts.js';
 import { denied,png,require } from '../preview/exercises.js';
 import { journalRecord } from '../preview/publication.js';
 import { Session } from '../preview/validation.js';
-import { object,PreviewError,privateDir,readRecord,run,string,writeRecord } from '../preview/state.js';
+import { object,PreviewError,privateDir,readRecord,run,string,writeRecord,invokedDirectly } from '../preview/state.js';
 
 function pdf():Buffer{
   const objects=['<</Type /Catalog /Pages 2 0 R>>','<</Type /Pages /Kids [3 0 R] /Count 1>>','<</Type /Page /Parent 2 0 R /MediaBox [0 0 100 100]>>','<</Author (private-metadata-marker)>>'];let raw='%PDF-1.4\n';const offsets:number[]=[];
@@ -48,7 +47,7 @@ export async function check(value:unknown,local=false):Promise<Record<string,unk
   }
   const proof={localOnly:local,publicWorker:!local,revision,formats:results,declaredAndActualSizeMismatchRejected400:true,typeMismatchRejected400:true,activeSvgUploadRejected400:true,traversalRefused:true,failedUploadsUnreadable404:true};await writeRecord(join(evidence,'validation.json'),proof);return proof;
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{
+if(await invokedDirectly(import.meta.url)){try{
   if(process.argv.length===3&&process.argv[2]==='--local'){const value:unknown=JSON.parse(readFileSync(0,'utf8'));console.log(JSON.stringify(await check(value,true)));}
   else{const input=process.argv[2];require(process.argv.length===3&&input,'Usage: node dist/scripts/validate-media-contracts.js PRIVATE_OPERATION_DIRECTORY_OR_--local');const directory=resolve(input),journal=journalRecord(await readRecord(join(directory,'journal.json'))),origin=journal.target.origin;require(origin,'Missing public origin.');const credentials=await new Session(origin,{slug:journal.slug}).json('/__demo/access.json');await check({origin,slug:journal.slug,credentials,image:object(journal.checkpoints.registry).image,revision:journal.revision,evidence:join(directory,'media-contract-evidence')});console.log('Public media MIME and metadata matrix verified; malformed body, MIME, SVG and traversal refused.');}
 }catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Media contract verification failed; inspect private evidence.');process.exitCode=1;}}

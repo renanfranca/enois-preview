@@ -1,8 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { join,resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
 import { validateScenario } from '../src/catalog.js';
-import { object,PreviewError,readRecord,string } from '../preview/state.js';
+import { object,PreviewError,readRecord,string,invokedDirectly } from '../preview/state.js';
 
 export async function check(directory:string=process.cwd()):Promise<void>{
   const config=object(JSON.parse(await readFile(join(directory,'wrangler.jsonc'),'utf8'))),vars=object(config.vars);
@@ -12,4 +11,4 @@ export async function check(directory:string=process.cwd()):Promise<void>{
   for(const [slug,item]of Object.entries(catalog))validateScenario(slug,item,string(vars.GITHUB_REPOSITORY));
   console.log('Pinned catalog validated. Financial verification is recorded only during initial setup.');
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){try{await check();}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Invalid release configuration; no deployment attempted.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{await check();}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Invalid release configuration; no deployment attempted.');process.exitCode=1;}}

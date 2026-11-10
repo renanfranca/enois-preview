@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { object, readRecord, sha, string } from '../../preview/state.js';
@@ -8,7 +10,8 @@ import { object, readRecord, sha, string } from '../../preview/state.js';
 test('capture restores actual Spring readiness and preserves original synthetic logins while sanitizing only a private copy',async()=>{
   const input=process.env.ENOIS_PREVIEW_EXAMPLE_WORKSPACE;assert.ok(input,'Set ENOIS_PREVIEW_EXAMPLE_WORKSPACE to a prepared fictional workspace');
   const workspace=resolve(input);const config=await readRecord(join(workspace,'.preview/config.json'));
-  const before=await sha(string(config.database));const evidence=join(workspace,'.preview',`host-capture-${randomUUID()}`);
+  const before=await sha(string(config.database));const evidence=join(process.env.ENOIS_PREVIEW_EVIDENCE??tmpdir(),`host-capture-${randomUUID()}`);
+  const stateBefore=(await readdir(join(workspace,'.preview'))).sort();
 
   const result=await new Promise<{code:number|null;output:string}>((done,reject)=>{
     const child=spawn(process.execPath,['dist/scripts/validate-capture.js',workspace,evidence],{stdio:['ignore','pipe','pipe']});let output='';
@@ -23,13 +26,18 @@ test('capture restores actual Spring readiness and preserves original synthetic 
   assert.equal(proof.backendRestoredHealthyBeforeCaptureReturned,true);assert.equal(proof.originalLoginsStillValidAfterCapture,4);
   assert.equal(proof.originalLoginsRejectedInSanitizedCopy401,4);assert.equal(proof.capturedAdminPermissionPreserved,true);
   assert.equal(proof.localOnly,true);assert.equal(await sha(string(config.database)),before);
+  assert.deepEqual((await readdir(join(workspace,'.preview'))).sort(),stateBefore,'test:capture must not leave evidence in the example workspace');
+  const durations=object(proof.durations);
+  assert.deepEqual(durations.budgetsSeconds,{capturePhases:600,crossProcess:1200});
+  assert.ok(typeof durations.capturePhasesSeconds==='number'&&durations.capturePhasesSeconds>0&&durations.capturePhasesSeconds<=600,`capture phases took ${durations.capturePhasesSeconds} s`);
+  assert.ok(typeof durations.crossProcessSeconds==='number'&&durations.crossProcessSeconds>0&&durations.crossProcessSeconds<=1200,`cross-process phase took ${durations.crossProcessSeconds} s`);
 
   const crossProcess=object(proof.crossProcessI3);
   assert.equal(crossProcess.realSpringAndH2,true);assert.equal(crossProcess.logicalContentUnchanged,true);assert.equal(crossProcess.logicalSha256After,crossProcess.logicalSha256Before);
   assert.equal(crossProcess.originalLoginsValidAfterCrossProcess,4);assert.equal(crossProcess.independentServiceReady,true);
   for(const name of ['sigkill','timeout']){
     const variant=object(object(crossProcess.variants)[name]);const first=object(variant.firstProcess);
-    if(name==='sigkill'){assert.deepEqual(first.exit,[null,'SIGKILL']);assert.equal(first.finallyRan,false);}
+    if(name==='sigkill'){assert.deepEqual(first.exit,[null,'SIGKILL']);assert.equal(first.finallyRan,false);assert.deepEqual(object(variant.orphanStop).codes,[0]);}
     else{assert.deepEqual(first.exit,[130,null]);assert.equal(first.stdoutEmpty,true);assert.equal(first.restorationPendingReported,true);}
     assert.deepEqual(variant.acceptedStopPendingAtFirstProcess,{recordShutdown:'requested',statusWhilePaused:'running',sigtermPending:true});
     assert.equal(variant.restorationPendingAfterFirstProcess,true);

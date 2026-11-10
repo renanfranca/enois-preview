@@ -10,6 +10,7 @@ import { Session } from '../preview/validation.js';
 import { crossProcessRecovery } from './validate-capture-recovery.js';
 import { exists, object, PreviewError, privateDir, readRecord, run, string, writeRecord, identity, inventory, invokedDirectly } from '../preview/state.js';
 
+const CAPTURE_BUDGET_SECONDS=600;const CROSS_PROCESS_BUDGET_SECONDS=1200;
 function require(condition:unknown,message:string):asserts condition { if(!condition)throw new PreviewError(message); }
 async function freePort():Promise<number>{
   const server=createServer();await new Promise<void>((done,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',done);});
@@ -24,6 +25,7 @@ async function ready(origin:string):Promise<void>{
 }
 
 export async function check(workspaceInput:string,destinationInput:string):Promise<void>{
+  const began=performance.now();const seconds=(from:number)=>Math.round((performance.now()-from)/100)/10;
   const workspace=resolve(workspaceInput);const destination=resolve(destinationInput);
   const manifest=await readRecord(join(workspace,'example-manifest.json'));require(object(manifest.observed).users===4,'Use a prepared fictional workspace.');
   const original=await readRecord(join(workspace,'.preview/config.json'));const originalCapture=captureConfig(original);
@@ -89,8 +91,11 @@ export async function check(workspaceInput:string,destinationInput:string):Promi
       catch(error:unknown){if(error instanceof PreviewError&&/HTTP 401\b/.test(error.message))rejected=true;else throw error;}
       require(rejected,'Sanitized copy accepted an original synthetic login.');
     }
-    const crossProcessI3=await crossProcessRecovery({evidence,live,h2Jar:originalCapture.h2Jar,ready,loginAll});
-    await writeRecord(join(evidence,'capture-validation.json'),{realSpringAndH2:true,interruptionAfterActualBackendStopped:true,interruptedCaptureRestoredHealthy:true,completeDataPreservedAfterInterruption:true,validOriginalLoginsBeforeCapture:4,backendRestoredHealthyBeforeCaptureReturned:true,originalLoginsStillValidAfterCapture:4,originalLoginsRejectedInSanitizedCopy401:4,capturedAdminPermissionPreserved:true,dataVersion:frozen.id,sanitizerSha256:frozen.sanitizerSha256,localOnly:true,crossProcessI3});
+    const capturePhasesSeconds=seconds(began);require(capturePhasesSeconds<=CAPTURE_BUDGET_SECONDS,`Capture phases exceeded their ${CAPTURE_BUDGET_SECONDS} s budget (${capturePhasesSeconds} s).`);
+    const crossProcessBegan=performance.now();const crossProcessI3=await crossProcessRecovery({evidence,live,h2Jar:originalCapture.h2Jar,ready,loginAll});
+    const crossProcessSeconds=seconds(crossProcessBegan);require(crossProcessSeconds<=CROSS_PROCESS_BUDGET_SECONDS,`Cross-process phase exceeded its ${CROSS_PROCESS_BUDGET_SECONDS} s budget (${crossProcessSeconds} s).`);
+    const durations={capturePhasesSeconds,crossProcessSeconds,budgetsSeconds:{capturePhases:CAPTURE_BUDGET_SECONDS,crossProcess:CROSS_PROCESS_BUDGET_SECONDS}};
+    await writeRecord(join(evidence,'capture-validation.json'),{realSpringAndH2:true,interruptionAfterActualBackendStopped:true,interruptedCaptureRestoredHealthy:true,completeDataPreservedAfterInterruption:true,validOriginalLoginsBeforeCapture:4,backendRestoredHealthyBeforeCaptureReturned:true,originalLoginsStillValidAfterCapture:4,originalLoginsRejectedInSanitizedCopy401:4,capturedAdminPermissionPreserved:true,dataVersion:frozen.id,sanitizerSha256:frozen.sanitizerSha256,localOnly:true,durations,crossProcessI3});
     console.log('Real Spring/H2 capture verified: four original logins preserved locally and rejected in the sanitized copy; backend restored healthy.');
   }finally{try{if(clean)await command(clean.config,'stop');}finally{await command(live.config,'stop');}}
 }

@@ -1,0 +1,60 @@
+{
+  "version": "0.3.6",
+  "status": "passed",
+  "node": "24.16.0",
+  "npm": "11.13.0",
+  "baseCommit": "f2d9197276c49b6d949bff69ca533f425655ec73",
+  "recordFormat": "enois-preview-ts-v1",
+  "commands": [
+    { "command": "npm ci --ignore-scripts", "exitCode": 0 },
+    { "command": "npm run build", "exitCode": 0 },
+    { "command": "npm run typecheck", "exitCode": 0 },
+    { "command": "npm test", "exitCode": 0 },
+    { "command": "npm run check", "exitCode": 0 },
+    { "command": "npm run test:capture", "exitCode": 0 },
+    { "command": "npm run test:consumer", "exitCode": 0 },
+    { "command": "npm run test:install", "exitCode": 0 }
+  ],
+  "standardTests": { "passed": 114, "failed": 0, "skipped": 0 },
+  "captureTests": { "passed": 1, "failed": 0, "skipped": 0 },
+  "installedConsumerTests": { "passed": 114, "failed": 0, "skipped": 0 },
+  "installerTests": { "passed": 2, "failed": 0, "skipped": 0 },
+  "productCodeChanged": true,
+  "defect": "an orphaned stop followed the pidfile instead of the process it signalled: it waited for a newer backend it never signalled and failed after 60 s, and it removed the pidfile after its check, so it could delete a newer backend's pidfile",
+  "pidfile": {
+    "format": "{\"pid\":<PID>,\"starttime\":<field 22 of /proc/<pid>/stat>}",
+    "write": "atomic: temporary file in the same directory, mode 600, then rename",
+    "legacy": "a bare decimal PID is still read with the previous behavior",
+    "stale": "a missing PID, a zombie or a different starttime counts as stopped",
+    "stop": "waits for the signalled PID and starttime to exit; never removes the pidfile"
+  },
+  "coverage": {
+    "J1": "real service.js with a fake java on PATH: the orphaned stop, paused with SIGSTOP until backend B is started, exits 0 within seconds after SIGCONT; B is alive, never signalled, still owned by the pidfile and status is running",
+    "J2": "a new-format pidfile with a live helper PID and another starttime answers stopped; start replaces it; the helper receives no signal",
+    "J3": "a new-format pidfile with the PID and starttime of a live foreign process: status and stop exit 1 with the ownership mismatch and no signal",
+    "J4": "legacy pidfiles: live owned backend running and stopped by stop; dead PID stopped; live foreign PID mismatch without signal",
+    "J5": "test:capture cross-process phase still green: sigkill orphanStop.codes [0], pidfile on the live restarted JVM, logicalSha256 equal, original database byte for byte equal",
+    "J6": "capture-validation.json records durations of the capture phases and of the cross-process phase with budgets 600 s and 1200 s; evidence is written outside the example workspace"
+  },
+  "red": {
+    "commit": "f2d9197",
+    "observed": [
+      "J1: the orphaned stop exited 1 with 'Owned backend did not stop; no force kill was used.' after about 65 s",
+      "J2 and J3: the new-format pidfile was refused with 'Ambiguous owned backend PID record.'",
+      "J4: the legacy stop of a backend that exits promptly on SIGTERM failed (ownership re-check during exit); 5 of 6 standalone cycles failed",
+      "J6: capture-validation.json had no durations"
+    ]
+  },
+  "closedByConstruction": "the window between the old ownership check and the pidfile removal is not reproducible deterministically through public paths; it is closed because stop no longer removes the pidfile",
+  "acceptedLimits": [
+    "The SIGSTOP barrier does not model requests in flight: recovery waits for stopped and does not depend on shutdown duration.",
+    "No test reads a restoration record written byte for byte by 0.3.1: none is pending in the maintained workspaces.",
+    "node_modules is outside the content proof: integrity comes from npm ci with the lockfile.",
+    "Tag v0.3.2 remains a defective tag: rewriting tags is not allowed.",
+    "logicalSha256 depends on the configured h2Jar: a property of the criterion.",
+    "Resume of operations created by fa8e1b5 or earlier is not qualified: every such operation in both workspaces is concluded."
+  ],
+  "limits": [
+    "register-codespace runs for real only inside a Codespace and the gateway ready route only in a public publication; the v0.3.6 release records the canonical publication evidence."
+  ]
+}

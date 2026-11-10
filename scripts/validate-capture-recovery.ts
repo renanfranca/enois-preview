@@ -9,6 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { ROOT } from '../preview/capture.js';
 import type { CaptureConfig } from '../preview/config.js';
 import { exists, identity, inventory, object, PreviewError, privateDir, readRecord, run, string } from '../preview/state.js';
+import { readPidRecord } from '../preview/service.js';
 import { publicationHome } from '../test/fixtures/publication-home.js';
 
 export interface LiveSpring { config: CaptureConfig; origin: string; serviceFile: string }
@@ -68,7 +69,7 @@ export async function crossProcessRecovery(context: CrossProcessContext): Promis
   const { live } = context; const timeout = live.config.service.timeout;
   const service = async (action: typeof ACTIONS[number]) => (await run(live.config.service[action], { timeout })).toString().trim();
   const pidfile = string(object(JSON.parse(await readFile(live.serviceFile, 'utf8'))).pidfile);
-  const ownedPid = async () => await exists(pidfile) ? Number((await readFile(pidfile, 'utf8')).trim()) : undefined;
+  const ownedPid = async () => (await readPidRecord(pidfile))?.pid;
   const stopReleased = async () => {
     await service('stop'); require(await service('status') === 'stopped', 'Copy Spring did not stop.');
     require(await until(async () => await service('released') === 'released', 30_000), 'Copy H2 was not released after stop.');

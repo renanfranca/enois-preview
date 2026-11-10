@@ -1,6 +1,7 @@
-import { readFile, realpath, open, rm, writeFile } from 'node:fs/promises';
+import { readFile, realpath, open, rename, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { dirname } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { exists, object, PreviewError, privateDir, readRecord, string, invokedDirectly } from './state.js';
@@ -9,18 +10,42 @@ function configRecord(value:unknown):ServiceConfig{
   const data=object(value);const port=data.port;if(typeof port!=='number'||!Number.isInteger(port)||port<1||port>65535)throw new PreviewError('Invalid owned backend port.');
   return {database:string(data.database),jar:string(data.jar),cwd:string(data.cwd),port,pidfile:string(data.pidfile),log:string(data.log),...(data.environmentFile?{environmentFile:string(data.environmentFile)}:{})};
 }
-async function ownedPid(config:ServiceConfig):Promise<number|undefined>{
-  if(!await exists(config.pidfile))return;
-  const value=(await readFile(config.pidfile,'utf8')).trim();if(!/^[1-9][0-9]*$/.test(value))throw new PreviewError('Ambiguous owned backend PID record.');
-  const pid=Number(value);if(!Number.isSafeInteger(pid)||!await exists(`/proc/${pid}`))return;
-  const stat=await readFile(`/proc/${pid}/stat`,'utf8');if(/^\d+ \(.*\) Z /s.test(stat))return;
-  const command=(await readFile(`/proc/${pid}/cmdline`)).toString().split('\0');
+interface BackendIdentity {pid:number;starttime:number}
+interface PidRecord {pid:number;starttime?:number}
+const missing=(error:unknown)=>typeof error==='object'&&error!==null&&['ENOENT','ESRCH'].includes(String((error as {code?:unknown}).code));
+async function processStat(pid:number):Promise<{state:string;starttime:number}|undefined>{
+  try{const stat=await readFile(`/proc/${pid}/stat`,'utf8');const fields=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {state:fields[0]!,starttime:Number(fields[19])};}
+  catch(error:unknown){if(missing(error))return;throw error;}
+}
+/** Reads the owned backend pidfile: `{"pid":N,"starttime":T}` (0.3.6+) or the legacy bare PID. */
+export async function readPidRecord(pidfile:string):Promise<PidRecord|undefined>{
+  if(!await exists(pidfile))return;
+  const text=(await readFile(pidfile,'utf8')).trim();if(/^[1-9][0-9]*$/.test(text))return Number.isSafeInteger(Number(text))?{pid:Number(text)}:undefined;
+  let record:unknown;try{record=JSON.parse(text);}catch{throw new PreviewError('Ambiguous owned backend PID record.');}
+  const {pid,starttime}=(record??{}) as Record<string,unknown>;
+  if(typeof record!=='object'||Array.isArray(record)||Object.keys(record as object).sort().join()!=='pid,starttime'||!Number.isSafeInteger(pid)||(pid as number)<1||!Number.isSafeInteger(starttime)||(starttime as number)<0)throw new PreviewError('Ambiguous owned backend PID record.');
+  return {pid:pid as number,starttime:starttime as number};
+}
+async function alive(record:PidRecord):Promise<BackendIdentity|undefined>{
+  const stat=await processStat(record.pid);if(!stat||stat.state==='Z'||stat.state==='X'||(record.starttime!==undefined&&stat.starttime!==record.starttime))return;
+  return {pid:record.pid,starttime:stat.starttime};
+}
+async function ownedPid(config:ServiceConfig):Promise<BackendIdentity|undefined>{
+  const record=await readPidRecord(config.pidfile);const identity=record&&await alive(record);if(!identity)return;
   const expected=`--spring.datasource.url=jdbc:h2:file:${config.database.replace(/\.mv\.db$/,'')};MODE=MySQL`;
-  if(!command.includes(config.jar)||!command.includes(expected)||await realpath(`/proc/${pid}/cwd`)!==await realpath(config.cwd))throw new PreviewError('Backend ownership mismatch; no process was signalled.');
-  return pid;
+  let owned:boolean;
+  try{const command=(await readFile(`/proc/${identity.pid}/cmdline`)).toString().split('\0');owned=command.includes(config.jar)&&command.includes(expected)&&await realpath(`/proc/${identity.pid}/cwd`)===await realpath(config.cwd);}
+  catch(error:unknown){if(!missing(error))throw error;owned=false;}
+  if(!owned){if(!await alive(identity))return;throw new PreviewError('Backend ownership mismatch; no process was signalled.');}
+  return identity;
+}
+async function writePidRecord(pidfile:string,identity:BackendIdentity):Promise<void>{
+  const temporary=join(dirname(pidfile),`.${basename(pidfile)}.${process.pid}.${randomUUID()}.tmp`);
+  try{await writeFile(temporary,JSON.stringify(identity),{mode:0o600,flag:'wx'});await rename(temporary,pidfile);}
+  finally{await rm(temporary,{force:true});}
 }
 export async function service(file:string,action:string):Promise<void>{
-  const config=configRecord(await readRecord(file));const pid=await ownedPid(config);
+  const config=configRecord(await readRecord(file));const owned=await ownedPid(config);const pid=owned?.pid;
   if(action==='identity')console.log(config.database);
   else if(action==='status')console.log(pid?'running':'stopped');
   else if(action==='released')console.log(spawnSync('fuser',[config.database],{stdio:'ignore'}).status===1?'released':'locked');
@@ -30,8 +55,8 @@ export async function service(file:string,action:string):Promise<void>{
     if(!response.ok)throw new PreviewError('Owned backend readiness failed.');
     console.log(object(await response.json()).status==='UP'?'ready':'not-ready');
   }else if(action==='stop'){
-    if(!pid)return;process.kill(pid,'SIGTERM');
-    for(let attempt=0;attempt<600;attempt++){if(!await ownedPid(config)){await rm(config.pidfile,{force:true});return;}await delay(100);}
+    if(!owned)return;process.kill(owned.pid,'SIGTERM');
+    for(let attempt=0;attempt<600;attempt++){if(!await alive(owned))return;await delay(100);}
     throw new PreviewError('Owned backend did not stop; no force kill was used.');
   }else if(action==='start'){
     if(pid)return;const env={...process.env};
@@ -42,7 +67,8 @@ export async function service(file:string,action:string):Promise<void>{
     try{
       const child=spawn('java',args,{cwd:config.cwd,env,detached:true,stdio:['ignore',log.fd,log.fd]});
       await new Promise<void>((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});
-      if(!child.pid)throw new PreviewError('Owned backend did not start.');child.unref();await writeFile(config.pidfile,String(child.pid),{mode:0o600});
+      if(!child.pid)throw new PreviewError('Owned backend did not start.');child.unref();
+      const started=await alive({pid:child.pid});if(!started)throw new PreviewError('Owned backend exited; inspect its private log.');await writePidRecord(config.pidfile,started);
     }finally{await log.close();}
     await delay(2000);if(!await ownedPid(config))throw new PreviewError('Owned backend exited; inspect its private log.');
   }else throw new PreviewError('Unknown owned backend action.');

@@ -6,40 +6,22 @@ import { spawnSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, chmodSync, symlinkSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { inventory } from '../preview/state.js';
 import { createServer } from 'node:http';
-import { git, workspace } from './fixtures/workspace.js';
+import { git } from './fixtures/workspace.js';
+import { unstampedPublicationHome } from './fixtures/publication-home.js';
 
 function recordEvidence(name:string,value:unknown):void{
   if(process.env.ENOIS_PREVIEW_EVIDENCE)writeFileSync(join(process.env.ENOIS_PREVIEW_EVIDENCE,name+'.json'),JSON.stringify(value,null,2)+'\n',{mode:0o600});
 }
 
 function prepared(existingRoot?: string) {
-  const root = existingRoot ?? mkdtempSync(join(tmpdir(), 'enois-publication-'));
-  const config = workspace(root);
-  const tool = join(root, 'tool'); mkdirSync(tool);
-  for (const name of ['dist','preview','recipe','runtime','src','scripts','package.json','package-lock.json']) cpSync(resolve(name), join(tool, name), { recursive: true });
-  mkdirSync(join(tool,'node_modules'));
-  for(const name of ['tar','tough-cookie']){
-    let dependency=dirname(fileURLToPath(import.meta.resolve(name)));
-    while(!existsSync(join(dependency,'package.json'))||JSON.parse(readFileSync(join(dependency,'package.json'),'utf8')).name!==name){const parent=dirname(dependency);assert.notEqual(parent,dependency,`Resolve real ${name} dependency`);dependency=parent;}
-    symlinkSync(dependency,join(tool,'node_modules',name),'dir');
-  }
-  config.toolCommit = createHash('sha1').update(root).digest('hex');
+  const { root, config, tool, home, data } = unstampedPublicationHome(existingRoot ?? mkdtempSync(join(tmpdir(), 'enois-publication-')), resolve('.'));
   const stamped = spawnSync(process.execPath, [resolve('dist/test/fixtures/stamp-tool.js'), tool, config.toolCommit], { encoding: 'utf8' }); assert.equal(stamped.status, 0, stamped.stderr);
-  const bytes = Buffer.from('explicitly simulated sanitized data');
-  const files = { 'seed/rede.mv.db': { bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') } };
-  const content = { accounts: [{ email: 'author@enois.invalid', id: 'author', label: 'Author' }], externalReads: [], files, format: 'enois-preview-ts-v1', logicalSeedSha256: 'a'.repeat(64), media: [], permissions: { author: { admin: false, moderator: false } }, sanitizerSha256: 'f'.repeat(64) };
-  const id = createHash('sha256').update(JSON.stringify(content)).digest('hex');
-  const data = join(config.state, 'data', id); mkdirSync(join(data, 'package/seed'), { recursive: true });
-  writeFileSync(join(data, 'package/seed/rede.mv.db'), bytes);
-  writeFileSync(join(data, 'manifest.json'), JSON.stringify({ ...content, id }));
-  mkdirSync(join(config.state, 'scenarios')); writeFileSync(join(config.state, 'scenarios/fixture.json'), JSON.stringify({ format: 'enois-preview-ts-v1', data: id }));
-  const home = join(root, 'home'); mkdirSync(home); writeFileSync(join(home, 'config.json'), JSON.stringify(config));
-  return { root, config, tool, home, data: id, invoke: (...args: string[]) => spawnSync(process.execPath, [join(tool, 'dist/preview/cli.js'), '--home', home, ...args], { encoding: 'utf8', timeout: 10_000 }) };
+  writeFileSync(join(home, 'config.json'), JSON.stringify(config));
+  return { root, config, tool, home, data, invoke: (...args: string[]) => spawnSync(process.execPath, [join(tool, 'dist/preview/cli.js'), '--home', home, ...args], { encoding: 'utf8', timeout: 10_000 }) };
 }
 
 test('code-only publication freezes new commits with D1 while live data and service remain unavailable', () => {

@@ -378,5 +378,42 @@ The real installation, the configuration alignment (`toolCommit` only; the `serv
 **Red.** The same files, built on `fa8e1b5` (the parent of the I3 fix), fail. The first process leaves `{running: true}` without `shutdown` (H1). With that check relaxed only in the red tree, the second process runs `identity, status, ready, ready…` while the JVM is paused and the record present (H3). The red harness differed in one fixture detail only: on `fa8e1b5` the tool identity is a clean Git checkout, not an installation stamp.
 
 **Orphan stop.** In the observed `sigkill` runs, the orphaned stop of the first process exits 0 after the JVM stops and before the second process starts the backend. A narrow race exists in the product: an orphan that observes the old JVM gone and then removes the pidfile could delete a pidfile written in between by the second process's `start`. The validator checks at the end that the pidfile points to the live JVM; the race was not observed. This release does not change product code.
+Fixed in 0.3.6: see [Orphan stop and pidfile ownership (0.3.6)](#orphan-stop-and-pidfile-ownership-036).
 
 [Reviewed local results](docs/validation/i3-real-spring-0.3.5/local.json) record the eight commands. Production code (`preview/`, `runtime/`, `recipe/`, `src/`) is unchanged from 0.3.4. The installation (`current/`), the configurations and the launcher stay on 0.3.4 on purpose. Limits: the barrier is `SIGSTOP`; no test reads a record written byte for byte by 0.3.1; `node_modules` remains outside the content proof; resume of operations created by fa8e1b5 or earlier requires the original executor; `v0.3.2` remains a defective tag; the `register-codespace`, gateway `ready` route and `h2Jar` limits of 0.3.4 remain.
+
+## Orphan stop and pidfile ownership (0.3.6)
+
+**Defect.** Up to 0.3.5, `service.js stop` sent `SIGTERM` and then, every 100 ms, re-read the pidfile and re-checked ownership until no owned backend was found, and then removed the pidfile. A stop orphaned by a killed CLI process therefore followed the pidfile, not the process it had signalled. If another process started a new backend in the meantime, the orphan waited for that backend, which it never signalled, and failed after 60 s with `Owned backend did not stop; no force kill was used.`; and in the window between its check and its `rm` it could delete the new backend's pidfile, leaving a running backend reported as `stopped`. The re-check also read `/proc/<pid>/cmdline` and `cwd` of a backend that was exiting: a backend that exits promptly on `SIGTERM` could be caught with an empty command line and reported as `Backend ownership mismatch`.
+
+**Pidfile format.** `start` now writes the pidfile atomically (a temporary file in the same directory, mode 600, then `rename`) as one JSON object with exactly two fields, `{"pid":<PID>,"starttime":<T>}`, where `starttime` is field 22 of `/proc/<pid>/stat` (clock ticks after boot) read when the backend is spawned. The legacy format, a bare decimal PID, is still read. Anything else is refused with `Ambiguous owned backend PID record.`
+
+**Ownership.** A pidfile whose PID does not exist, is a zombie, or exists with a different `starttime` is treated as `stopped`: the PID was reused. With the same PID and `starttime` (or a legacy PID that is alive), the `cmdline` and `cwd` checks are unchanged, and a divergence still fails with `Backend ownership mismatch; no process was signalled.` A legacy pidfile keeps exactly the previous behavior.
+
+**Stop.** `stop` records the identity it signals (PID and `starttime`) and waits for that process to exit or become a zombie, at most 60 s, without re-reading the pidfile and without re-checking ownership. It never removes the pidfile. A stale pidfile left behind answers `stopped`, and the next `start` replaces it.
+
+**Journey (`test/service-journey.test.ts`).** The real `dist/preview/service.js` runs with a fake `java` on `PATH` that `exec`s a Node fixture, so the command line carries the configured `-jar` and datasource URL.
+
+- J1: `start` runs backend A; `stop` S runs in the background; once A has received `SIGTERM` the test pauses S with `SIGSTOP`, lets A exit, and a real `start` runs backend B (`status` = `running` with B's PID); then `SIGCONT`. S exits 0 within seconds without `did not stop`; B is alive, never signalled, still owned by the pidfile, and `status` is `running`. On f2d9197 S exited 1 with `Owned backend did not stop` after about 65 s.
+- J2: a new-format pidfile with the PID of a live helper process and another `starttime` answers `stopped`; `start` launches the backend and rewrites the pidfile; the helper receives no signal. On f2d9197: `Ambiguous owned backend PID record.`
+- J3: a new-format pidfile with the PID and `starttime` of a live process without the configured jar, datasource or `cwd`: `status` and `stop` exit 1 with the ownership mismatch, and the process receives no signal.
+- J4: legacy pidfiles: a live owned backend answers `running` and `stop` stops it; a dead PID answers `stopped`; a live foreign PID gives the mismatch without a signal. On f2d9197 the legacy `stop` of a promptly exiting backend failed in 5 of 6 standalone cycles (the exit window above); 0.3.6 waits on the signalled identity and passes.
+
+**Closed by construction, not observed.** The microsecond window between the old check and `rm` cannot be reproduced deterministically through public paths. It is closed because `stop` has no path that removes the pidfile. J1 proves the observable half: the orphan ends with its own process and does not hide or wait for a newer backend.
+
+**Real Spring (J5, J6).** `npm run test:capture` keeps the 0.3.5 cross-process phase green with the new service: in the `sigkill` variant the orphaned stop exits 0 (`orphanStop.codes` = `[0]`), and the pidfile names the live restarted JVM. The validator measures the capture phases and the cross-process phase separately, records them in `capture-validation.json` as `durations` (`capturePhasesSeconds`, `crossProcessSeconds`, `budgetsSeconds` 600 and 1200), and fails above either budget; the test timer stays 1800 s overall. The evidence goes to `ENOIS_PREVIEW_EVIDENCE` or the system temporary directory, never into the example workspace; the test compares the workspace `.preview/` listing before and after.
+
+[Reviewed local results](docs/validation/orphan-stop-0.3.6/local.json) record the eight commands. The fixture CLI home is now one fixture (`test/fixtures/publication-home.ts`) with a synchronous core used by `test/publication-journey.test.ts`.
+
+## Accepted limits
+
+Decided by the maintainer on 10 November 2026. They are no longer open gaps.
+
+1. **The SIGSTOP barrier does not model requests in flight.** Recovery waits for `stopped` and never depends on how long a graceful shutdown takes, so a slow shutdown with requests in flight exercises the same wait.
+2. **No restoration record written byte for byte by 0.3.1 is read by a test.** No such record is pending: every operation in both maintained workspaces is concluded and neither has a `restoration.json` (checked before the 0.3.6 installation).
+3. **`node_modules` is outside the content proof.** Its integrity comes from `npm ci` against the committed lockfile.
+4. **`v0.3.2` is a defective tag without a release.** Rewriting tags is not allowed; the note stays.
+5. **`logicalSha256` depends on the configured `h2Jar`.** It is a property of the criterion: the digest is the `SCRIPT` canonicalization of that driver.
+6. **Resume of operations created by fa8e1b5 or earlier is not qualified.** Every such operation in both workspaces is concluded (public validation recorded and remote lease released), so none needs a resume.
+
+Open: `register-codespace` runs for real only inside a Codespace, and the gateway `ready` route is exercised only by a public publication; the v0.3.6 release records whether its canonical publication evidence shows both.

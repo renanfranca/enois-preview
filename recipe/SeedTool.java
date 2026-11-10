@@ -3,7 +3,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.sql.*;
 import java.util.*;
 
-/** Operates on a closed private copy. Exports sanitized rows into new H2 pages. */
+/** Operates on a closed private copy. Exports sanitized rows into new H2 pages, or reports the logical digest of the copy. */
 public final class SeedTool {
     static final Set<String> DROP = Set.of("AUTH_SESSIONS", "PASSWORD_RESET_TOKENS", "EMAIL_VERIFICATION_TOKENS",
         "OAUTH_AUTHORIZATION_REQUESTS", "USER_EXTERNAL_IDENTITIES", "PENDING_SIGNUPS", "USER_TWO_FACTOR_SECRETS",
@@ -19,8 +19,28 @@ public final class SeedTool {
         }
         return result;
     }
+    /** Logical identity of a database: its H2 SCRIPT without CREATE USER lines, hashed. Physical page layout does not affect it. */
+    static String logicalSha256(Connection db, Path script) throws Exception {
+        try (Statement sql = db.createStatement()) { sql.execute("SCRIPT TO '" + script.toString().replace("'", "''") + "'"); }
+        String canonical = Files.readAllLines(script).stream().filter(line -> !line.startsWith("CREATE USER ")).collect(java.util.stream.Collectors.joining("\n"));
+        return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+    static Path privateScript(Path directory, String prefix) throws Exception {
+        return Files.createTempFile(directory, prefix, ".sql", PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+    }
     public static void main(String[] args) throws Exception {
         try (Connection db = open(args[1])) {
+            if (args[0].equals("digest") && args.length == 2) {
+                Path script = privateScript(Path.of(args[1]).toAbsolutePath().getParent(), ".digest-");
+                try {
+                    System.out.println("logical\t" + logicalSha256(db, script));
+                    for (String table : schema(db).keySet()) {
+                        if (!table.matches("[A-Za-z0-9_]+")) throw new IllegalStateException("Unsupported table identifier");
+                        try (ResultSet rows = db.createStatement().executeQuery("SELECT COUNT(*) FROM PUBLIC.\"" + table + "\"")) { rows.next(); System.out.println("table\t" + table + "\t" + rows.getLong(1)); }
+                    }
+                } finally { Files.deleteIfExists(script); }
+                return;
+            }
             if (args[0].equals("list")) {
                 try (ResultSet rs = db.createStatement().executeQuery("SELECT ID, NAME FROM USERS ORDER BY ID")) {
                     while (rs.next()) System.out.println(rs.getString(1).replaceAll("[\\t\\r\\n]", " ") + "\t" + rs.getString(2).replaceAll("[\\t\\r\\n]", " "));
@@ -103,12 +123,9 @@ public final class SeedTool {
                 }
                 if (selected.isEmpty()) throw new IllegalArgumentException("No selected identities");
                 db.commit();
-                Path script = Files.createTempFile(Path.of(args[2]).getParent(), ".sanitized-", ".sql",
-                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+                Path script = privateScript(Path.of(args[2]).getParent(), ".sanitized-");
                 try {
-                    sql.execute("SCRIPT TO '" + script.toString().replace("'", "''") + "'");
-                    String canonical = Files.readAllLines(script).stream().filter(line -> !line.startsWith("CREATE USER ")).collect(java.util.stream.Collectors.joining("\n"));
-                    String logical = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                    String logical = logicalSha256(db, script);
                     Files.writeString(Path.of(args[2]).getParent().resolve("logical.sha256"), logical + "\n");
                     try (Connection clean = DriverManager.getConnection("jdbc:h2:file:" + args[2] + ";MODE=MySQL", "sa", "")) {
                         clean.createStatement().execute("RUNSCRIPT FROM '" + script.toString().replace("'", "''") + "'");

@@ -20,9 +20,12 @@ enois-preview setup --config /absolute/new/fictional-workspace/.preview/config.j
 enois-preview publish my-scenario
 enois-preview publish my-scenario --refresh-data
 enois-preview resume <full-revision>
+enois-preview source-digest
 ```
 
 In 0.3.1, `Ctrl+C` (`SIGINT`) and `SIGTERM` cancel active commands and prevent later stages. The first signal determines exit status: `130` or `143`, respectively. Wait for backend restoration; further signals do not interrupt it. If restoration fails within its existing deadlines, preserve `restoration.json`: the next publication or resume attempts recovery before inspecting sources. An incomplete capture preserves previous complete data. Once a revision is frozen, use the reported identity with `enois-preview resume <full-revision>`; an accepted push or deployment may need reconciliation because cancelling the local wait does not undo the remote effect. Never remove another operation’s lease. `SIGKILL` relies on durable recovery during the next invocation.
+
+In 0.3.4, `enois-preview source-digest` is read only: with the source backend stopped and released, it copies the H2 database into a private directory and prints JSON with `databaseSha256`, the logical digest `logicalSha256` (the H2 `SCRIPT` without `CREATE USER` lines, hashed with sha256) and per-table row counts. It never starts or stops the backend and refuses a running backend or a pending restoration. A `start`/`stop` rewrites the file without changing data: compare `logicalSha256`, not the file hash.
 
 This version uses strict TypeScript and ESM. Build explicitly after installation; installation lifecycle scripts are unnecessary. Development commands are `npm ci --ignore-scripts`, `npm run build`, `npm run typecheck`, `npm test`, and `npm run check`. Tests rebuild before execution. Python is not required.
 

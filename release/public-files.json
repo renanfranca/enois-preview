@@ -14,6 +14,7 @@
     "docs/en/TUTORIAL.md",
     "docs/pt-BR/LLM.md",
     "docs/pt-BR/TUTORIAL.md",
+    "docs/validation/entry-guards-source-digest-0.3.4/local.json",
     "docs/validation/installed-tool-0.3.2/local.json",
     "docs/validation/interruptions-0.3.1/local.json",
     "docs/validation/node24-0.3.0/local.json",
@@ -96,6 +97,7 @@
     "runtime/DemoCredentials.java",
     "runtime/activity-entry.ts",
     "runtime/demo-activity.ts",
+    "runtime/entry.ts",
     "runtime/gateway.ts",
     "runtime/image-type.ts",
     "runtime/register-codespace.ts",
@@ -186,6 +188,7 @@
     "test/remote-publication.test.ts",
     "test/runtime-interaction.test.ts",
     "test/scenario-journey.test.ts",
+    "test/source-digest.test.ts",
     "test/upload-transport.test.ts",
     "tsconfig.cloudflare.json",
     "tsconfig.json"

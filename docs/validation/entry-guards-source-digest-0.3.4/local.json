@@ -1,0 +1,46 @@
+{
+  "version": "0.3.4",
+  "status": "passed",
+  "node": "24.16.0",
+  "npm": "11.13.0",
+  "baseCommit": "e10488159b1acb76f24d04e1a78f3066b72e11b2",
+  "recordFormat": "enois-preview-ts-v1",
+  "commands": [
+    { "command": "npm ci --ignore-scripts", "exitCode": 0 },
+    { "command": "npm run build", "exitCode": 0 },
+    { "command": "npm run typecheck", "exitCode": 0 },
+    { "command": "npm test", "exitCode": 0 },
+    { "command": "npm run check", "exitCode": 0 },
+    { "command": "npm run test:capture", "exitCode": 0 },
+    { "command": "npm run test:consumer", "exitCode": 0 },
+    { "command": "npm run test:install", "exitCode": 0 }
+  ],
+  "standardTests": { "passed": 110, "failed": 0, "skipped": 0 },
+  "installedConsumerTests": { "passed": 110, "failed": 0, "skipped": 0 },
+  "installerTests": { "passed": 2, "failed": 0, "skipped": 0 },
+  "gaps": {
+    "guards": "0.3.3 corrected only preview/ and scripts/; runtime/start.ts, runtime/register-codespace.ts, runtime/gateway.ts, runtime/image-type.ts, recipe/prepare.ts and example/prepare.ts kept guards without realpath",
+    "database": "0.3.3 preservation compared the H2 file hash, which any backend start/stop changes without changing data"
+  },
+  "correction": {
+    "guards": "invokedDirectly moved to the Node-only runtime/entry.ts, re-exported by preview/state.ts; every entry point uses it",
+    "database": "read-only enois-preview source-digest reports logicalSha256 from a private copy with the sanitized seed's canonical form; delivery preservation compares it"
+  },
+  "coverage": {
+    "F1": "standard test runs image-type, start, register-codespace, gateway, recipe/prepare and example/prepare through a current symlink and through the real path with equal results; on e104881 each printed nothing and exited 0 through the symlink",
+    "F2": "repository search outside node_modules and dist finds no guard without realpath",
+    "F3": "on a real H2 fixture, SHUTDOWN COMPACT changes the file hash and keeps logicalSha256; changing a row changes logicalSha256",
+    "F4": "a running backend, a pending restoration and extra arguments are refused with nonzero exit, the source file stays byte for byte equal and no start or stop is issued"
+  },
+  "limits": [
+    "node_modules is outside the content proof.",
+    "Cross-process I3 recovery uses a controlled service adapter with a real H2 fixture.",
+    "Resume of operations created by fa8e1b5 or earlier requires the original executor and is not qualified.",
+    "Tag v0.3.2 remains published without a release.",
+    "The v0.3.3 local.json still says all guards; VALIDATION.md corrects it.",
+    "register-codespace runs for real only inside a Codespace; locally its guard is proved by the bare-environment refusal.",
+    "Outside the image the gateway cannot read its runtime manifest; its ready path is exercised by the canonical public publication.",
+    "logicalSha256 depends on the SCRIPT canonicalization of the configured H2 driver (h2Jar).",
+    "The real installation, configuration alignment, launcher pin, real service cycle with digest and canonical public publish/resume follow this commit and are recorded in the release assets."
+  ]
+}

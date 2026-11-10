@@ -95,6 +95,34 @@ async function javaTool(config: CaptureConfig, signal: AbortSignal, action: stri
     throw error;
   }
 }
+export interface SourceDigest { format: typeof FORMAT; databaseSha256: string; logicalSha256: string; tables: Record<string, number> }
+/** Read only: digests a private copy of the stopped, released source. Never starts or stops the backend. */
+export async function sourceDigest(value: unknown, signal: AbortSignal): Promise<SourceDigest> {
+  const config = captureConfig(value);
+  const restoration = join(config.state, 'restoration.json');
+  const refuseRestoration = async () => { if (await exists(restoration)) throw new PreviewError('Backend restoration pending; run publish or resume to settle it first. No digest computed.'); };
+  await refuseRestoration();
+  return sourceLease(config, async () => {
+    await refuseRestoration(); signal.throwIfAborted();
+    if (await service(config, 'identity', signal) !== config.service.expectedIdentity) throw new PreviewError('Backend identity mismatch; no digest computed.');
+    if (await service(config, 'status', signal) !== 'stopped' || await service(config, 'released', signal) !== 'released') throw new PreviewError('The source backend must be stopped and released; source-digest never stops it. No digest computed.');
+    try { await run(['fuser', config.database], { signal, timeout: config.service.timeout, successCodes: [1] }); }
+    catch { signal.throwIfAborted(); throw new PreviewError('H2 is in use or cannot be checked; no digest computed.'); }
+    const directory = await privateDir(join(config.state, 'digest', randomUUID()));
+    try {
+      const copy = join(directory, 'rede.mv.db'); await safeCopy(config.database, copy); const databaseSha256 = await sha(copy);
+      let logicalSha256: string | undefined; const tables: Record<string, number> = {};
+      for (const line of (await javaTool(config, signal, 'digest', join(directory, 'rede'))).trim().split('\n')) {
+        const fields = line.split('\t');
+        if (fields[0] === 'logical' && fields.length === 2 && /^[a-f0-9]{64}$/.test(fields[1]!) && logicalSha256 === undefined) logicalSha256 = fields[1];
+        else if (fields[0] === 'table' && fields.length === 3 && /^[A-Za-z0-9_]+$/.test(fields[1]!) && /^\d+$/.test(fields[2]!)) tables[fields[1]!] = Number(fields[2]);
+        else throw new PreviewError('Unrecognized digest output; no digest reported.');
+      }
+      if (!logicalSha256) throw new PreviewError('Logical digest missing; no digest reported.');
+      return { format: FORMAT, databaseSha256, logicalSha256, tables };
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  }, signal);
+}
 export async function capture(value: unknown, previous?: DataManifest, select?: AccountSelector, operationSignal?: AbortSignal): Promise<DataManifest> {
   const interruption = operationSignal ? undefined : listenForInterruption();
   const signal = operationSignal ?? interruption!.signal;

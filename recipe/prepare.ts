@@ -1,8 +1,7 @@
 import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { accounts } from '../preview/config.js';
-import { object, PreviewError, readRecord, string } from '../preview/state.js';
+import { invokedDirectly, object, PreviewError, readRecord, string } from '../preview/state.js';
 
 export async function prepare(rootInput:string):Promise<void>{
   const root=resolve(rootInput);const recipe=join(root,'recipe');const backend=join(root,'sources/enois-backend');const frontend=join(root,'sources/enois-frontend');const java=join(backend,'src/main/java/com/socialcoisa/rede');
@@ -50,7 +49,7 @@ export async function prepare(rootInput:string):Promise<void>{
   await writeFile(join(root,'media-mappings.tsv'),mappings.flatMap(mapping=>mapping.paths.map(path=>`${mapping.url}${path}\t${mapping.directory}/${path}\n`)).join(''),{mode:0o600});
   for(const name of await readdir(join(recipe,'test'))){if(!name.endsWith('.java'))continue;const source=join(recipe,'test',name);const packageName=/^package ([\w.]+);/m.exec(await readFile(source,'utf8'))?.[1];if(!packageName)throw new PreviewError('Invalid demo Java contract test.');const target=join(backend,'src/test/java',packageName.replaceAll('.','/'));await mkdir(target,{recursive:true});await copyFile(source,join(target,name));}
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+if(await invokedDirectly(import.meta.url)){
   try{if(!process.argv[2]||process.argv.length!==3)throw new PreviewError('Usage: node dist/recipe/prepare.js FROZEN_BUILD_CONTEXT');await prepare(process.argv[2]);}
   catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Demo recipe input unavailable; inspect private build diagnostics.');process.exitCode=1;}
 }

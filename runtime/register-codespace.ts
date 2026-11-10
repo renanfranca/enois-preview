@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { credentials } from '../src/contracts.js';
+import { invokedDirectly } from './entry.js';
 
 export async function register():Promise<void>{
   for(const key of ['DEMO_WORKER_URL','DEMO_CALLBACK_SECRET','CODESPACE_NAME','GITHUB_TOKEN','CODESPACE_PORT_FORWARDING_DOMAIN','DEMO_SLUG'])if(!process.env[key])throw new Error(`Missing ${key}`);
@@ -17,4 +17,4 @@ export async function register():Promise<void>{
   }
   throw new Error('Private port registration failed');
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{await register();}catch{console.error('Private port registration failed; inspect configured startup environment.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{await register();}catch{console.error('Private port registration failed; inspect configured startup environment.');process.exitCode=1;}}

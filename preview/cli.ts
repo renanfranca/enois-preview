@@ -3,7 +3,7 @@ import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
 import { installed, captureConfig, validateConfig, prerequisites } from './config.js';
 import type { Account } from './config.js';
-import { commits, recover, sourceLease } from './capture.js';
+import { commits, recover, sourceDigest, sourceLease } from './capture.js';
 import { access } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -26,6 +26,7 @@ async function selectAccounts(listing:string,signal:AbortSignal):Promise<Account
 export async function main(args: string[] = process.argv.slice(2)): Promise<number> {
   const interruption = listenForInterruption();
   const signal = interruption.signal;
+  let failure = 'Publication incomplete';
   try {
   const { values, positionals } = parseArgs({ args, allowPositionals: true, options: { help: { type: 'boolean', short: 'h' }, home: { type: 'string' }, config: { type: 'string' }, 'refresh-data': { type: 'boolean' } } });
   if (values.help) {
@@ -36,19 +37,30 @@ Usage: enois-preview [--home PRIVATE_DIRECTORY] COMMAND
 Commands:
   setup --config PRIVATE_JSON    Verify existing infrastructure and initial Free plans
   publish SCENARIO [--refresh-data]    Publish commits with frozen scenario data
-  resume REVISION    Continue the recorded immutable revision`);
+  resume REVISION    Continue the recorded immutable revision
+  source-digest    Report the logical digest of the stopped source database from a private copy (read only)`);
     return 0;
   }
   const command=positionals[0];
+  if (command==='source-digest') failure='Source digest incomplete';
   if ((command==='setup' && (positionals.length!==1 || values['refresh-data'])) ||
       (command==='publish' && (positionals.length!==2 || values.config!==undefined)) ||
-      (command==='resume' && (positionals.length!==2 || values.config!==undefined || values['refresh-data']))) {
+      (command==='resume' && (positionals.length!==2 || values.config!==undefined || values['refresh-data'])) ||
+      (command==='source-digest' && (positionals.length!==1 || values.config!==undefined || values['refresh-data']))) {
     throw new PreviewError('Invalid command arguments. Run enois-preview --help.');
   }
   const home = values.home ?? process.env.ENOIS_PREVIEW_HOME ?? join(homedir(), '.config/enois-preview-ts');
   const file = join(home, 'config.json');
   const hasConfig = await access(file).then(() => true, () => false);
   const config = hasConfig ? await readRecord(file) : undefined;
+  if (command==='source-digest') {
+    // Read only, so it needs no verified installation: it must work before the tool is installed.
+    if (!config) throw new PreviewError('Configuration missing. Run enois-preview setup --config PRIVATE_JSON first.');
+    const report = await sourceDigest(config, signal);
+    signal.throwIfAborted();
+    console.log(JSON.stringify(report,null,2));
+    return 0;
+  }
   if (['publish', 'resume'].includes(positionals[0] ?? '') && config) {
     installed(config);
     const restoration = join(string(config.state), 'restoration.json');
@@ -94,10 +106,10 @@ Commands:
     console.log('Installation verified. Configuration preserved privately. Publish and resume require no financial renewal.');
     return 0;
   }
-  console.error('Choose setup, publish or resume. Run enois-preview --help.');
+  console.error('Choose setup, publish, resume or source-digest. Run enois-preview --help.');
   return 1;
   } catch (error: unknown) {
-    console.error(`Publication incomplete: ${error instanceof PreviewError ? error.message : 'Invalid or unavailable private input. Run enois-preview --help.'}`);
+    console.error(`${failure}: ${error instanceof PreviewError ? error.message : 'Invalid or unavailable private input. Run enois-preview --help.'}`);
     return interruption.exitCode ?? 1;
   } finally { interruption.dispose(); }
 }

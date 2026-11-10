@@ -4,7 +4,7 @@ Este guia descreve o fluxo do operador; ele não garante compatibilidade univers
 
 Trabalhe no terminal local. Não peça ao operador que cole tokens, senhas, cookies ou arquivos privados na conversa. Para autenticação ou confirmação financeira inicial, oriente a interação diretamente no terminal ou na interface oficial da plataforma. Não renove a conferência financeira em publish, resume ou após passagem de tempo.
 
-Use exatamente os comandos públicos: `enois-preview setup`, `enois-preview publish <cenario>`, `enois-preview publish <cenario> --refresh-data` e `enois-preview resume <revisao>`. “Publicar de novo” significa publish sem refresh. Não substitua esses comandos por uma sequência manual de Docker, Git, GHCR e Wrangler.
+Use exatamente os comandos públicos: `enois-preview setup`, `enois-preview publish <cenario>`, `enois-preview publish <cenario> --refresh-data` e `enois-preview resume <revisao>`. `enois-preview source-digest` só lê e informa o digest lógico do banco de origem parado. “Publicar de novo” significa publish sem refresh. Não substitua esses comandos por uma sequência manual de Docker, Git, GHCR e Wrangler.
 
 Antes de publicar, confira que as três aplicações têm commits e fontes limpas. Não comite mudanças do operador automaticamente. O CLI exporta os commits e prepara a demo fora das aplicações. Preserve arquivos privados e o journal. Se houver captura incompleta, informe o estado da restauração e a ação de repetição; resume nunca deve recapturar dados sob uma identidade antiga.
 

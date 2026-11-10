@@ -2,10 +2,11 @@ import { spawn } from 'node:child_process';
 import { chmod, copyFile, cp, mkdir, open, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 import { object } from '../shared/records.js';
+import { invokedDirectly } from './entry.js';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 function origin(value:string|undefined):string{
@@ -63,4 +64,4 @@ export async function start(args:string[]=process.argv.slice(2)):Promise<number>
     process.removeListener('SIGHUP',hangup);process.removeListener('SIGTERM',stop);process.removeListener('SIGINT',stop);
   }
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{process.exitCode=await start();}catch{console.error('Demo startup failed; inspect private runtime diagnostics and configured environment.');process.exitCode=1;}}
+if(await invokedDirectly(import.meta.url)){try{process.exitCode=await start();}catch{console.error('Demo startup failed; inspect private runtime diagnostics and configured environment.');process.exitCode=1;}}

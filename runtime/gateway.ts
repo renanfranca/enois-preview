@@ -5,6 +5,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream';
 import { IMAGE_PREFIX_BYTES, imageType } from './image-type.js';
 import { createUploadTransport } from './upload-transport.js';
+import { invokedDirectly } from './entry.js';
 
 // Defense in depth: all public traffic enters this gateway, including direct forwarded ports.
 function demoBlocked(pathname:string):boolean {
@@ -93,6 +94,6 @@ export function createGateway({ mediaRoot = '/tmp/demo-media', manifestPath = '/
   });
   server.on('close',uploadTransport.close);return server;
 }
-if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').href) {
+if (await invokedDirectly(import.meta.url)) {
   createGateway().listen(Number(process.env.PORT ?? 3000), '0.0.0.0', () => console.log('Demo gateway ready'));
 }

@@ -4,7 +4,7 @@ This guide describes the operator workflow, not universal compatibility with eve
 
 Work in the local terminal. Never ask the operator to paste tokens, passwords, cookies or private files into the conversation. Authentication and initial financial confirmation belong in the terminal or official platform interface. Do not renew financial verification during publish, resume or merely because time passed.
 
-Use the public commands exactly: `enois-preview setup`, `enois-preview publish <scenario>`, `enois-preview publish <scenario> --refresh-data`, and `enois-preview resume <revision>`. “Publish again” means publish without refresh. Do not replace them with a manual Docker, Git, GHCR and Wrangler sequence.
+Use the public commands exactly: `enois-preview setup`, `enois-preview publish <scenario>`, `enois-preview publish <scenario> --refresh-data`, and `enois-preview resume <revision>`. `enois-preview source-digest` is read only and reports the logical digest of the stopped source database. “Publish again” means publish without refresh. Do not replace them with a manual Docker, Git, GHCR and Wrangler sequence.
 
 Check committed, clean sources in all three applications before publication. Do not automatically commit the operator's changes. The CLI exports commits and prepares demo adjustments outside the applications. Preserve private files and journals. For an incomplete capture, report restoration state and the retry action; resume must never recapture live data under an earlier identity.
 

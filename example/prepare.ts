@@ -1,9 +1,8 @@
 import { cp, readFile, readdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { ROOT, REPOSITORIES } from '../preview/capture.js';
-import { exists, inventory, object, PreviewError, privateDir, readRecord, run, sha, string, writeRecord } from '../preview/state.js';
+import { exists, invokedDirectly, inventory, object, PreviewError, privateDir, readRecord, run, sha, string, writeRecord } from '../preview/state.js';
 
 export async function prepare(destinationInput:string):Promise<void>{
   const destination=resolve(destinationInput);if(await exists(destination))throw new PreviewError('Example destination must not exist. Choose a new empty location.');
@@ -35,7 +34,7 @@ export async function prepare(destinationInput:string):Promise<void>{
   await writeRecord(join(destination,'example-manifest.json'),{sources:pins,media:await inventory(join(destination,'media')),observed,canonicalDataSha256:await sha(join(state,'canonical-data.txt')),recipeSha256:await sha(join(root,'seed.sql'))});
   console.log(`Fictional workspace prepared at ${destination}. Configure existing private infrastructure in .preview/config.json, then run enois-preview setup --config ${join(state,'config.json')}. No preview was published.`);
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+if(await invokedDirectly(import.meta.url)){
   try{if(process.argv.length!==3||!process.argv[2])throw new PreviewError('Usage: npm run example:prepare -- /ABSOLUTE/NEW_WORKSPACE');await prepare(process.argv[2]);}
   catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Example preparation failed; inspect private workspace diagnostics.');process.exitCode=1;}
 }

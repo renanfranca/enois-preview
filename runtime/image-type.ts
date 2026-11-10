@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { invokedDirectly } from './entry.js';
 
 export const IMAGE_PREFIX_BYTES = 4096;
 
@@ -35,7 +36,7 @@ export function imageType(bytes: Buffer): string | null {
   return null;
 }
 
-if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').href) {
+if (await invokedDirectly(import.meta.url)) {
   const prefixes: unknown = JSON.parse(fs.readFileSync(0, 'utf8'));
   if (!Array.isArray(prefixes) || !prefixes.every((prefix: unknown) => typeof prefix === 'string')) throw new Error('Expected base64 image prefixes');
   process.stdout.write(JSON.stringify(prefixes.map((prefix: string) => imageType(Buffer.from(prefix, 'base64')))));

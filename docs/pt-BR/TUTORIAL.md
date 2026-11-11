@@ -142,7 +142,7 @@ A preparação cria cópias isoladas das três aplicações públicas nos commit
 | O `publish` falhou | [Retomar uma publicação que falhou](RECIPES.md#5-retomar-uma-publicação-que-falhou) |
 | Você interrompeu o comando | [Ctrl+C, SIGTERM ou processo morto](RECIPES.md#6-ctrlc-sigterm-ou-processo-morto) |
 | Seus próprios dados | [Usar meus próprios dados](RECIPES.md#8-usar-meus-próprios-dados) |
-| Limites para quem abre o link | [Compartilhar o link no PR](RECIPES.md#9-compartilhar-o-link-no-pr) |
+| Limites para quem abre o link | [Mostrar no PR que o problema foi resolvido](RECIPES.md#9-mostrar-no-pr-que-o-problema-foi-resolvido) |
 
 ## Lançador da versão Python
 

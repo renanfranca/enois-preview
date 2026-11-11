@@ -22,6 +22,7 @@ Este guia descreve como um assistente deve ajudar o operador; ele não garante c
 - Não apague arquivos privados, journals, `restoration.json` nem leases de outra operação.
 - `resume` nunca deve recapturar dados sob uma identidade antiga.
 - Não edite o PR automaticamente.
+- Não sugira raspar nem importar conteúdo de outras pessoas para reproduzir um problema. Recomende dados fictícios moldados no caso, como em [Mostrar no PR que o problema foi resolvido](RECIPES.md#9-mostrar-no-pr-que-o-problema-foi-resolvido).
 - Nunca publique o projeto público enquanto os pré-requisitos de aceite estiverem pendentes.
 - Não execute Python, não converta formatos históricos e não tente retomar journals Python. Registros novos exigem `format: "enois-preview-ts-v1"`; preserve os antigos e crie outra instalação.
 - Não procure processos por nome para encerrá-los. Em Linux, cada comando gerenciado usa seu próprio grupo de processos, e o timeout encerra esse grupo com `SIGKILL`, incluindo descendentes que permaneceram nele; serviços iniciados de propósito em grupos independentes continuam ativos.

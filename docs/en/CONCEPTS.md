@@ -16,13 +16,13 @@ Read this guide before running the first command. It explains the words that app
 
 A pull request (PR) is a code review request on GitHub: you propose changes to one of the three applications and other people read and test them before accepting.
 
-**Why it matters to you:** enois-preview exists so the PR can carry a link where readers see the change running, without setting anything up on their own machine.
+**Why it matters to you:** in the PR, you need to show that the change works. enois-preview exists so the PR can carry a link where reviewers open the change running and explore it however they prefer, without relying only on screenshots and videos and without setting anything up on their own machine.
 
 ### Operator and visitor
 
-The **operator** is whoever opens the PR and runs enois-preview in their own terminal to publish the link. A **visitor** is whoever opens that link in a browser, for example someone reading the PR.
+The **operator** is whoever opens the PR and runs enois-preview in their own terminal to publish the link. A **visitor** is anyone who has the link and opens it in a browser, for example someone reviewing the PR.
 
-**Why it matters to you:** this guide speaks to the operator. Visitors install nothing and share the same accounts, data and upload capacity.
+**Why it matters to you:** this guide speaks to the operator. Visitors install nothing and share the same accounts, data and upload capacity. In a public PR, anyone reading the PR can also be a visitor; what that requires of the data is in [Show in the PR that the problem is fixed](RECIPES.md#9-show-in-the-pr-that-the-problem-is-fixed).
 
 ### CLI
 

@@ -142,7 +142,7 @@ Preparation creates isolated copies of the three public applications at the comm
 | `publish` failed | [Resume a failed publication](RECIPES.md#5-resume-a-failed-publication) |
 | You interrupted the command | [Ctrl+C, SIGTERM or a killed process](RECIPES.md#6-ctrlc-sigterm-or-a-killed-process) |
 | Your own data | [Use my own data](RECIPES.md#8-use-my-own-data) |
-| Limits for whoever opens the link | [Share the link in the PR](RECIPES.md#9-share-the-link-in-the-pr) |
+| Limits for whoever opens the link | [Show in the PR that the problem is fixed](RECIPES.md#9-show-in-the-pr-that-the-problem-is-fixed) |
 
 ## Python era launcher
 

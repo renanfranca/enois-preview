@@ -1,12 +1,14 @@
 # enois-preview
 
-A command line tool that publishes a preview link for a pull request (PR), a code review request on GitHub, made to one of the applications of Énóis ([enois.ia.br](https://enois.ia.br)), a free, nonprofit social network without ads, built together with its community. Whoever opens the link gets the whole app running, with realistic data, in a disposable environment.
+A command line tool that publishes a preview link for a pull request (PR), a code review request on GitHub, made to one of the applications of Énóis. Énóis ([enois.ia.br](https://enois.ia.br)) is a free, nonprofit social network without ads, built together with its community. Whoever opens the link gets the whole app running, with realistic data, in a disposable environment.
 
 [Português do Brasil](../../README.md) · [Concepts](CONCEPTS.md) · [Flow](FLOW.md) · [Recipes](RECIPES.md) · [Tutorial](TUTORIAL.md) · [Changelog](CHANGELOG.md)
 
 ## The problem
 
-Reviewing an Énóis PR properly needs the backend, the frontend and the design system running together, with data that looks real. Setting that up on every reviewer's machine is slow and fragile.
+In an Énóis PR, whoever fixes a problem today proves the fix with screenshots and videos, often one recorded on a phone and another on a desktop. Reviewers only see what was recorded: they cannot follow another path, try another screen size or open the change on their own device. And setting up the backend, the frontend and the design system running together, with data that looks real, on every reviewer's machine is slow and fragile.
+
+With a preview link in the PR, reviewers open the change running in a real environment and explore it however they prefer, including on their own phone. The link becomes the main evidence of the fix; a screenshot can go with it, but never replaces it. What to paste into the PR and which data to use are in [Show in the PR that the problem is fixed](RECIPES.md#9-show-in-the-pr-that-the-problem-is-fixed).
 
 enois-preview solves this for whoever opens the PR (the operator). You run `enois-preview publish <scenario>` in your terminal, where the [scenario](CONCEPTS.md#scenario) is a short name you choose, and get an HTTPS link. When someone opens the link, a GitHub Codespace, a cloud development machine from GitHub, boots by itself with the three applications at your commits and a [sanitized](CONCEPTS.md#frozen-data-and-capture) copy of your data, without sessions, tokens or passwords. After ten minutes without use, the environment is deleted.
 
@@ -91,7 +93,7 @@ The first publication, with fictional data, is in the [tutorial](TUTORIAL.md).
 
 - Publication never changes or commits the three source applications. It refuses sources with staged, unstaged or untracked changes.
 - Code always comes from the current commits and data stays frozen since the scenario's last capture, which reads the local database only on the first publication or with `--refresh-data`. Details are in [Code vs data](CONCEPTS.md#code-vs-data).
-- Visitors share accounts, data and upload capacity, and the environment is deleted after ten minutes without interaction. The exact limits are in [Share the link in the PR](RECIPES.md#9-share-the-link-in-the-pr).
+- Visitors share accounts, data and upload capacity, and the environment is deleted after ten minutes without interaction. In a public PR, the link is public too, and all content of the captured data is visible. The exact limits and which data to use are in [Show in the PR that the problem is fixed](RECIPES.md#9-show-in-the-pr-that-the-problem-is-fixed).
 - Free plan and spending block verification occurs only at `setup`. Publish, resume and link visits require no renewal. The tool never asks for a card, purchases resources or enables paid plans. Human confirmation is not a billing API audit. Read [Codespaces billing](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces) and [Durable Objects Free limits](https://developers.cloudflare.com/durable-objects/platform/pricing/).
 - This is a temporary development and testing preview associated with the project. [Codespaces terms](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features#codespaces) restrict disproportionate server use and hosting production facing applications. Technical operation does not establish GitHub approval of this architecture.
 

@@ -1,19 +1,32 @@
 # LLM assistance guide
 
-This guide describes the operator workflow, not universal compatibility with every LLM. Read the README, tutorial and VALIDATION.md before claiming implementation or revision acceptance.
+[Português do Brasil](../pt-BR/LLM.md) · [README](README.md) · [Concepts](CONCEPTS.md) · [Recipes](RECIPES.md)
 
-Work in the local terminal. Never ask the operator to paste tokens, passwords, cookies or private files into the conversation. Authentication and initial financial confirmation belong in the terminal or official platform interface. Do not renew financial verification during publish, resume or merely because time passed.
+This guide describes how an assistant should help the operator; it does not promise universal compatibility with every LLM. Read the [README](README.md), [concepts](CONCEPTS.md), [tutorial](TUTORIAL.md), [recipes](RECIPES.md) and [VALIDATION.md](../../VALIDATION.md) before claiming implementation or revision acceptance.
 
-Use the public commands exactly: `enois-preview setup`, `enois-preview publish <scenario>`, `enois-preview publish <scenario> --refresh-data`, and `enois-preview resume <revision>`. `enois-preview source-digest` is read only and reports the logical digest of the stopped source database. “Publish again” means publish without refresh. Do not replace them with a manual Docker, Git, GHCR and Wrangler sequence.
+## How to guide
 
-Check committed, clean sources in all three applications before publication. Do not automatically commit the operator's changes. The CLI exports commits and prepares demo adjustments outside the applications. Preserve private files and journals. For an incomplete capture, report restoration state and the retry action; resume must never recapture live data under an earlier identity.
+- Use the public commands exactly: `enois-preview setup`, `enois-preview publish <scenario>`, `enois-preview publish <scenario> --refresh-data`, `enois-preview resume <revision>` and `enois-preview source-digest` (read only). “Publish again” means `publish` without refresh.
+- For each situation, follow the matching recipe in [Recipes](RECIPES.md) and copy the real CLI error message when looking for the cause.
+- Installation, authentication, preparation, `publish` and `resume` run in the local terminal. The Codespace must boot by itself; needing to open its terminal to copy files or start processes is a boot failure, not a normal step.
+- Only describe a link as validated after exit zero and a report confirming public readiness, accounts, media and revision identity. Report failures and gaps.
+- Tell the operator to update the PR link and test its specific functionality. Immutable links do not promise permanent availability, and visitors share state and accounts.
+- For an incomplete capture, report the restoration state and the retry action. For an interruption, follow the [Ctrl+C and SIGTERM recipe](RECIPES.md#6-ctrlc-sigterm-or-a-killed-process): wait for restoration, preserve `restoration.json` and use `resume` for an already frozen revision.
 
-Distinguish terminals: setup, authentication, preparation, publish and resume run locally. Codespaces must boot automatically. Opening its terminal to copy files or start processes is a boot failure, not a normal step.
+## Prohibitions
 
-Only describe a link as validated after exit zero and a report confirming public readiness, accounts, media and revision identity. Report failures and gaps. Never publish the public project while acceptance prerequisites remain outstanding. Immutable links do not promise permanent availability; visitors share state and accounts. Tell the operator to update the PR link and test its specific functionality; never edit the PR automatically.
+- Never ask the operator to paste tokens, passwords, cookies or private files into the conversation. Authentication and initial financial confirmation belong in the terminal or the official platform interface.
+- Do not renew financial verification during `publish`, `resume` or merely because time passed.
+- Do not replace the public commands with a manual Docker, Git, GHCR and Wrangler sequence.
+- Do not automatically commit the operator's changes. Before publication, check committed, clean sources in all three applications; the CLI exports commits and prepares demo adjustments outside the applications.
+- Do not delete private files, journals, `restoration.json` or another operation's leases.
+- `resume` must never recapture live data under an earlier identity.
+- Never edit the PR automatically.
+- Never publish the public project while acceptance prerequisites remain outstanding.
+- Do not run Python, convert historical formats or resume Python journals. New records require `format: "enois-preview-ts-v1"`; preserve earlier records and create a fresh installation.
+- Do not find processes by name to terminate them. On Linux, each managed command has its own process group, and a timeout sends `SIGKILL` to that group, including descendants remaining in it; services intentionally started in independent groups stay active.
+- Preserve records from before 0.3.0 without claiming their resumes were validated.
 
-The toolchain is TypeScript: use Node 24.x (`>=24 <25`) and run `npm run build` after `npm ci --ignore-scripts`. The private consumer explicitly builds its dependency and uses `launcher.ts`. Do not run Python, convert historical formats or resume their journals. New records require `format: "enois-preview-ts-v1"`; preserve earlier records and create a fresh installation.
+## Toolchain
 
-On Linux, each managed command has its own process group. A timeout sends SIGKILL to that group, including descendants remaining in it; services intentionally started in independent groups stay active. Do not find processes by name to terminate them. Preserve records from before 0.3.0 without claiming their resumes were validated.
-
-In 0.3.1, `Ctrl+C` (`SIGINT`) and `SIGTERM` cancel active commands and prevent later stages. The first signal determines exit status: `130` or `143`, respectively. Wait for backend restoration; further signals do not interrupt it. If restoration fails within its existing deadlines, preserve `restoration.json`: the next publication or resume attempts recovery before inspecting sources. An incomplete capture preserves previous complete data. Once a revision is frozen, use the reported identity with `enois-preview resume <full-revision>`; an accepted push or deployment may need reconciliation because cancelling the local wait does not undo the remote effect. Never remove another operation’s lease. `SIGKILL` relies on durable recovery during the next invocation.
+The toolchain is TypeScript: use Node 24.x (`>=24 <25`) and run `npm run build` after `npm ci --ignore-scripts`. Publication and resume use only the verified installation created by `install-tool` (see [`toolCommit` and `install.json`](CONCEPTS.md#toolcommit-and-installjson)). The private launcher also builds its dependency explicitly and uses `launcher.ts`.

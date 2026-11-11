@@ -1,10 +1,78 @@
 # enois-preview
 
-Ferramenta específica ao Énóis para publicar revisões imutáveis de desenvolvimento e teste por um Worker HTTPS e Codespaces privados. A publicação só informa sucesso após as verificações públicas. Consulte o resultado individual dos critérios em [VALIDATION.md](VALIDATION.md) antes de considerar uma revisão pronta para compartilhar.
+Ferramenta de linha de comando que publica um link de preview do Énóis para um PR: quem abre o link recebe o app inteiro rodando, com dados realistas, num ambiente descartável.
 
-[English](docs/en/README.md) · [Tutorial](docs/pt-BR/TUTORIAL.md) · [Guia para LLM](docs/pt-BR/LLM.md) · [Diagnóstico](docs/diagnostics/README.md)
+[English](docs/en/README.md) · [Conceitos](docs/pt-BR/CONCEPTS.md) · [Fluxo](docs/pt-BR/FLOW.md) · [Receitas](docs/pt-BR/RECIPES.md) · [Tutorial](docs/pt-BR/TUTORIAL.md) · [Histórico](CHANGELOG.md)
 
-Instale a ferramenta pelo instalador, no commit público completo fixado em `tool.lock.json` no lançador privado. O instalador baixa o arquivo desse commit no GitHub, compila fora dos seus checkouts em `~/.local/share/enois-preview/<COMMIT>`, grava em `install.json` os hashes da fonte e do `dist`, aponta `current` para essa instalação e liga o comando `enois-preview`. Publicação e retomada recalculam esses hashes e recusam, antes de qualquer efeito, uma instalação que difira do registro ou do `toolCommit`. Um checkout de desenvolvimento não publica, nem limpo no mesmo commit. A instalação é imutável: para outra versão, instale outro commit. Não execute `npm run` dentro dela, porque isso recompila o `dist`. Revisões congeladas pela 0.3.1 ou anteriores só são retomadas pelo executor original: um checkout limpo no commit delas, com `npm run build`.
+## O problema
+
+Para revisar um PR do Énóis de verdade, é preciso o backend, o frontend e o design system rodando juntos, com dados que pareçam reais. Montar isso na máquina de cada revisor é lento e frágil.
+
+O enois-preview resolve isso para quem abre o PR (o operador). Você roda `enois-preview publish <cenario>` no seu terminal e recebe um link HTTPS. Quando alguém abre o link, um GitHub Codespace sobe sozinho com as três aplicações nos seus commits e com uma cópia sanitizada dos seus dados. Depois de dez minutos sem uso, o ambiente é apagado.
+
+Em resumo:
+- **No `publish`:** a ferramenta confere que as fontes estão comitadas, copia os dados só quando precisa, congela tudo numa revisão imutável, constrói a imagem, grava a configuração no seu lançador privado, publica o Worker e só informa sucesso depois de abrir o link e conferir o resultado.
+- **Na visita:** o Worker da Cloudflare cria o Codespace, mostra as contas e senhas geradas no boot e encaminha a navegação até o app.
+
+O passo a passo de cada lado está em [Fluxo](docs/pt-BR/FLOW.md).
+
+## Onde roda o quê
+
+```mermaid
+flowchart LR
+  subgraph Local["Sua máquina"]
+    CLI["CLI enois-preview (preview/)"]
+    Apps["3 aplicações e H2 local"]
+  end
+  GHCR["GHCR privado: imagem feita de recipe/ e runtime/"]
+  Launcher["Lançador privado no GitHub: catálogo e .devcontainer"]
+  subgraph CF["Cloudflare"]
+    Worker["Worker e Durable Object (src/)"]
+  end
+  subgraph CS["GitHub Codespace"]
+    Gateway["gateway :3000"]
+    Spring["Spring :8081"]
+    Nuxt["Nuxt :3001"]
+  end
+  Visitor["Visitante no navegador"]
+  Apps --> CLI
+  CLI -->|docker push| GHCR
+  CLI -->|git push| Launcher
+  CLI -->|wrangler deploy| Worker
+  Visitor -->|HTTPS| Worker
+  Worker -->|cria pela API do GitHub| CS
+  Launcher -.->|devcontainer| CS
+  GHCR -.->|imagem| CS
+  Worker -->|encaminha| Gateway
+  Gateway --> Spring
+  Gateway --> Nuxt
+```
+
+## Comandos
+
+| Comando | Para que serve | Receita |
+| --- | --- | --- |
+| `enois-preview setup --config <arquivo>` | Confere a infraestrutura existente e registra a confirmação inicial dos planos gratuitos | [Instalar](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado) · [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados) |
+| `enois-preview publish <cenario>` | Publica os commits atuais com os dados congelados do cenário | [Código novo](docs/pt-BR/RECIPES.md#3-publicar-de-novo-só-com-código-novo) |
+| `enois-preview publish <cenario> --refresh-data` | Captura dados novos e publica | [Dados novos](docs/pt-BR/RECIPES.md#4-publicar-com-dados-novos) |
+| `enois-preview resume <revisao-completa>` | Continua uma publicação que falhou, sem recapturar dados | [Retomar](docs/pt-BR/RECIPES.md#5-retomar-uma-publicação-que-falhou) |
+| `enois-preview source-digest` | Só lê: informa o digest lógico do banco de origem parado | [Conferir o banco](docs/pt-BR/RECIPES.md#7-conferir-se-o-banco-mudou) |
+
+`enois-preview --help` mostra o resumo. Todos aceitam `--home <diretorio>` para usar outra instalação privada.
+
+## Requisitos
+
+- Linux com Node 24.x (`>=24 <25`); o `.nvmrc` seleciona a família 24.
+- Git, Java 25 e Javac, Docker, `fuser`, `flock` e GitHub CLI.
+- Autenticação no GitHub, no GHCR e na Cloudflare.
+- Sua própria infraestrutura privada: um repositório lançador privado, um pacote GHCR privado e um Worker da Cloudflare. Para criá-la, siga o [diagnóstico de instalação](docs/diagnostics/installation.pt-BR.md).
+- O driver H2 deve corresponder ao banco configurado. A receita da imagem já traz `ffmpeg` e o modelo local de classificação de imagens; uploads novos não usam serviço externo de escrita de mídia.
+
+A ferramenta usa TypeScript estrito e ESM, compilado explicitamente; Python não é requisito. Para desenvolvimento, use `npm ci --ignore-scripts`, `npm run build`, `npm run typecheck`, `npm test` e `npm run check`. O teste recompila antes de executar.
+
+## Instalação
+
+Instale pelo instalador, no commit público completo fixado em `tool.lock.json` no lançador privado. O instalador baixa esse commit do GitHub, compila fora dos seus checkouts em `~/.local/share/enois-preview/<COMMIT>`, grava em `install.json` os hashes da fonte e do `dist`, aponta `current` para essa instalação e liga o comando `enois-preview`.
 
 ```sh
 git clone https://github.com/renanfranca/enois-preview.git /caminho/temporario/enois-preview
@@ -23,24 +91,40 @@ enois-preview resume <revisao-completa>
 enois-preview source-digest
 ```
 
-Na versão 0.3.1, `Ctrl+C` (`SIGINT`) e `SIGTERM` cancelam comandos ativos e impedem novas etapas. O primeiro sinal determina a saída: `130` ou `143`, respectivamente. Aguarde a restauração do backend; sinais adicionais não a interrompem. Se ela falhar dentro dos prazos existentes, preserve `restoration.json`: a próxima execução de publicação ou retomada tenta a recuperação antes de avaliar fontes. Uma captura incompleta mantém os dados completos anteriores. Após congelar uma revisão, use o identificador informado com `enois-preview resume <revisao-completa>`; um push ou deploy aceito pode precisar de reconciliação, pois cancelar a espera local não desfaz o efeito remoto. Não remova leases de outra operação. `SIGKILL` depende da recuperação durável na próxima execução.
+Atenção:
+- `publish` e `resume` recalculam os hashes e recusam, antes de qualquer efeito, uma instalação que difira do registro ou do `toolCommit`.
+- A instalação é imutável: para outra versão, instale outro commit. Não execute `npm run` dentro dela, porque isso recompila o `dist`.
+- Um checkout de desenvolvimento não publica, nem limpo no mesmo commit.
+- Revisões congeladas pela 0.3.1 ou anteriores só são retomadas pelo executor original: um checkout limpo no commit delas, com `npm run build`.
+- Configuração, dados, journals, proveniência e catálogo usam `format: "enois-preview-ts-v1"`. A instalação privada padrão fica em `~/.config/enois-preview-ts`. Registros antigos com `schema` ou sem esse `format` são recusados antes de alterações: crie uma instalação e um catálogo novos, sem copiar a confirmação nem converter journals Python. Arquivos antigos e histórico são preservados, sem promessa de retomada ou de funcionamento dos links anteriores.
 
-Na versão 0.3.4, `enois-preview source-digest` só lê: com o backend de origem parado e liberado, copia o banco H2 para um diretório privado e imprime em JSON o `databaseSha256`, o digest lógico `logicalSha256` (o `SCRIPT` do H2 sem as linhas `CREATE USER`, com sha256) e as contagens por tabela. Nunca inicia nem para o backend; recusa um backend em execução ou uma restauração pendente. Um `start`/`stop` reescreve o arquivo sem mudar os dados: compare o `logicalSha256`, não o hash do arquivo.
+A primeira publicação, com dados fictícios, está no [tutorial](docs/pt-BR/TUTORIAL.md).
 
-Esta versão usa TypeScript estrito e ESM. Depois de instalar, compile explicitamente; não depende de scripts de instalação. Para desenvolvimento, execute `npm ci --ignore-scripts`, `npm run build`, `npm run typecheck`, `npm test` e `npm run check`. O teste recompila a ferramenta antes de executar. Python não é requisito.
+## Mapa da documentação
 
-Configuração, dados, journals, proveniência e catálogo novos usam `format: "enois-preview-ts-v1"`. A instalação padrão fica em `~/.config/enois-preview-ts`. Registros antigos com `schema` ou sem esse `format` são recusados antes de alterações. Crie uma instalação e catálogo novos: não copie a confirmação nem converta journals Python. Arquivos antigos e histórico são preservados; não há promessa de retomada ou funcionamento dos links anteriores.
+| Documento | Quando ler |
+| --- | --- |
+| [Conceitos](docs/pt-BR/CONCEPTS.md) | Antes de tudo: revisão, captura, lançador, journal, lease |
+| [Fluxo](docs/pt-BR/FLOW.md) | Para entender o que acontece no `publish` e na visita |
+| [Tutorial](docs/pt-BR/TUTORIAL.md) | Na primeira publicação, com o exemplo fictício |
+| [Receitas](docs/pt-BR/RECIPES.md) | No dia a dia: publicar de novo, refresh, retomar, interrupções, erros |
+| [Diagnóstico](docs/diagnostics/README.md) | Para preparar a infraestrutura ou investigar uma falha |
+| [Guia para LLM](docs/pt-BR/LLM.md) | Se um assistente for ajudar você a operar |
+| [Histórico de versões](CHANGELOG.md) | Para saber o que mudou em cada versão |
 
-A preparação do exemplo cria cópias isoladas dos três projetos públicos nos commits de [example/sources.json](example/sources.json). Ela não usa o catálogo operacional, H2 ou imagens privadas. As quatro personagens são fictícias; os retratos são ilustrações vetoriais originais. A semente contém oito posts, três com imagens, seis comentários, duas respostas e oito reações. Lia e Rui são as contas selecionadas; as senhas são criadas no boot e aparecem somente na entrada do ambiente. Maya e Davi preservam perfil e conteúdo, com login desabilitado.
+## Limites e custos
 
-Configure suas próprias contas e infraestrutura privada antes de executar `setup`. A instalação usa Linux e precisa de Node 24.x (`>=24 <25`), Git, Java 25/Javac, Docker, `fuser`, `flock`, GitHub CLI e autenticação Cloudflare. O driver H2 deve corresponder ao banco configurado. A receita fornece `ffmpeg` e o modelo local de classificação de imagens na imagem, sem serviço externo de escrita de mídia.
+- A ferramenta não comita nem altera as três aplicações. Ela recusa fontes com mudanças staged, unstaged ou arquivos não rastreados.
+- O primeiro `publish` de um cenário captura dados e para somente o backend identificado. As publicações seguintes usam os commits atuais e os dados congelados, sem ler ou parar o banco local. `--refresh-data` faz outra captura; uma falha preserva a versão completa anterior. As fontes são exportadas por commit e o pacote do design system é construído novamente.
+- Os visitantes compartilham contas, dados e capacidade: 20 MiB por arquivo novo e 256 MiB por ambiente. As mídias da semente não gastam essa capacidade. O boot restaura a semente e gera senhas novas; alterações e uploads são descartáveis.
+- Dez minutos sem interação reconhecida iniciam a exclusão. Polling não renova o prazo. Disponibilidade e franquias das plataformas limitam essa proteção; um link imutável não garante um ambiente permanentemente ativo.
+- A conferência dos planos gratuitos e do bloqueio de gastos ocorre somente no `setup`. Publicar, retomar e abrir links não exigem renovação. A ferramenta não solicita cartão, não contrata recursos e não ativa planos pagos. A confirmação humana não audita faturamento por API. Consulte [a cobrança do Codespaces](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces) e [os limites gratuitos de Durable Objects](https://developers.cloudflare.com/durable-objects/platform/pricing/).
+- Este é um uso temporário associado ao desenvolvimento e teste do projeto. Os [termos do Codespaces](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features#codespaces) restringem uso desproporcional como servidor e hospedagem de aplicações de produção. O funcionamento técnico não demonstra aprovação desta arquitetura pelo GitHub.
 
-O primeiro `publish` captura dados após fechar somente o backend identificado. Publicações seguintes usam os commits atuais e os dados congelados, sem ler ou parar o banco local. `--refresh-data` solicita outra captura; uma falha preserva a versão completa anterior. As fontes são exportadas por commit e o pacote do design system é construído novamente. A ferramenta não comita nem altera as três aplicações.
+## Para auditar
 
-Os visitantes compartilham contas, dados e capacidade: 20 MiB por arquivo novo e 256 MiB por ambiente. As mídias da semente não gastam essa capacidade. O boot restaura a semente e gera novas senhas; alterações e uploads são descartáveis. Dez minutos sem interação reconhecida iniciam a exclusão. Polling não renova o prazo. Disponibilidade e franquias das plataformas limitam essa proteção; um link imutável não garante um ambiente permanentemente ativo.
+A publicação só informa sucesso após as verificações públicas. O resultado individual de cada critério de aceite, com as evidências por versão, está em [VALIDATION.md](VALIDATION.md); consulte esse arquivo antes de considerar uma revisão pronta para compartilhar. Para falhas e recuperação, veja o [diagnóstico](docs/diagnostics/README.md).
 
-A conferência de planos gratuitos e bloqueio de gastos ocorre somente na instalação. Publicar, retomar e abrir links não exigem renovação. A ferramenta não solicita cartão, contrata recursos nem ativa planos pagos. A confirmação humana não audita faturamento por API. Consulte [a cobrança do Codespaces](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces) e [os limites gratuitos de Durable Objects](https://developers.cloudflare.com/durable-objects/platform/pricing/).
-
-Este é um uso temporário associado ao desenvolvimento e teste do projeto. Os [termos do Codespaces](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features#codespaces) restringem uso desproporcional como servidor e hospedagem de aplicações de produção. O funcionamento técnico não demonstra aprovação desta arquitetura pelo GitHub.
+## Licença
 
 Código sob [GPLv3](LICENSE), preservando os avisos dos projetos consumidos. Dados locais e credenciais devem permanecer fora do repositório público. Sanitizar autenticação não anonimiza o conteúdo escolhido pelo operador.

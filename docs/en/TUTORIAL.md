@@ -6,11 +6,11 @@ This tutorial takes you from installation to the first published link, using the
 
 ## Before you start
 
-- Have the [README requirements](README.md#requirements) and your private infrastructure ready: a private [launcher](CONCEPTS.md#launcher) with `wrangler.jsonc`, Worker and catalog, and a private GHCR package. If anything is missing, follow [installation diagnostics](../diagnostics/installation.en.md) first.
+- Have the [README requirements](README.md#requirements) and your private infrastructure ready: a private [launcher](CONCEPTS.md#launcher) with `wrangler.jsonc`, Worker and catalog, and a private [GHCR](CONCEPTS.md#ghcr) package. If anything is missing, follow [installation diagnostics](../diagnostics/installation.en.md) first.
 - Have the full public commit pinned in your launcher's `tool.lock.json` at hand. Below it appears as `<PINNED_PUBLIC_COMMIT>`.
 
 Attention:
-- Use only your local terminal. Do not run commands inside a Codespace to complete a revision's boot.
+- Use only your local terminal. Do not run commands inside a [Codespace](CONCEPTS.md#worker-durable-object-and-codespace) to complete a revision's boot.
 - Never put tokens in arguments, chats or versioned files.
 - Do not change billing plans.
 
@@ -120,7 +120,7 @@ Attention:
 
     The first publication performs the [capture](CONCEPTS.md#frozen-data-and-capture). The example already selects Lia (`example_lia`) and Rui (`example_rui`) with their original permissions. The command succeeds only after validating image contents, boot, JSON readiness, every account, media and public identity. What happens at each stage is in [Flow](FLOW.md#what-happens-during-publish).
 
-17. Open the `url` from the final JSON in a browser, test the PR's specific behavior and paste the link into the PR. Passwords appear on the environment's entry page, never in the CLI report.
+17. Open the `url` from the final JSON in a browser, test the pull request (PR)'s specific behavior and paste the link into the PR. Passwords appear on the environment's entry page, never in the CLI report.
 
     Attention: accounts are shared. Use independent sessions for author and reader. A completed build or push alone never establishes public acceptance; only the final JSON with `status: "validated"` does.
 

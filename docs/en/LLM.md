@@ -10,7 +10,7 @@ This guide describes how an assistant should help the operator; it does not prom
 - For each situation, follow the matching recipe in [Recipes](RECIPES.md) and copy the real CLI error message when looking for the cause.
 - Installation, authentication, preparation, `publish` and `resume` run in the local terminal. The Codespace must boot by itself; needing to open its terminal to copy files or start processes is a boot failure, not a normal step.
 - Only describe a link as validated after exit zero and a report confirming public readiness, accounts, media and revision identity. Report failures and gaps.
-- Tell the operator to update the PR link and test its specific functionality. Immutable links do not promise permanent availability, and visitors share state and accounts.
+- Tell the operator to update the link in the pull request (PR) and test its specific functionality. Immutable links do not promise permanent availability, and visitors share state and accounts.
 - For an incomplete capture, report the restoration state and the retry action. For an interruption, follow the [Ctrl+C and SIGTERM recipe](RECIPES.md#6-ctrlc-sigterm-or-a-killed-process): wait for restoration, preserve `restoration.json` and use `resume` for an already frozen revision.
 
 ## Prohibitions

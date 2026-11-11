@@ -156,6 +156,8 @@ In the fictional example, the backend is controlled by the adapter configured in
 
 **When to use:** you want to publish with your own H2 database and media, not the fictional example.
 
+Attention: all content of the configured database and media is visible to whoever opens the link. Use only your own data or fictional data; the full rule is in [Show in the PR that the problem is fixed](#9-show-in-the-pr-that-the-problem-is-fixed).
+
 **Commands:** edit the private configuration file and repeat setup.
 
 ```json
@@ -188,13 +190,42 @@ enois-preview setup --config /absolute/path/config.json
 
 **If it goes wrong:** `Backend service ownership mismatch; configure its identity and database.` means `identity` did not print `expectedIdentity`. `Configure service.<name> as an argument array.` means a command is missing or malformed.
 
-## 9. Share the link in the PR
+<a id="9-share-the-link-in-the-pr"></a>
+## 9. Show in the PR that the problem is fixed
 
-**When to use:** `publish` or `resume` ended with `status: "validated"`.
+**When to use:** you fixed something and want reviewers to see the fix running, without relying on screenshots or videos. With the link, reviewers open the change in a real environment and explore it however they prefer.
 
-**Commands:** copy the `url` from the JSON and paste it into the PR. Test the PR's specific behavior first.
+**Attention: the link is public.** The Énóis repositories are public, and so is the link pasted into the PR. Before publishing, know what becomes exposed:
+- All content of the local H2 database and of the captured media is visible to whoever opens the link, not only what the PR shows.
+- The selected accounts become shared accounts, with their passwords shown on the link's entry page. Other accounts keep their profiles and content visible, with login disabled.
+- Sanitization removes sessions, tokens and passwords, but does not anonymize content.
 
-**What to expect:** whoever opens the link sees a waiting page while the Codespace boots by itself; nobody needs to open its terminal. Then the page with the accounts and passwords appears; passwords are generated on every boot.
+So choose the data in this order:
+1. **Fictional data shaped like the real case:** reproduce the shape that causes the problem (text length, number of items, emojis, image dimensions, states such as "pinned" or "with badges", screen width), not the real content.
+2. **Your own data**, knowing it is exposed to whoever opens the link.
+3. **Other people's content, including content copied from Énóis: do not use it**, unless they consent or the Énóis team approves.
+
+**Commands:**
+1. Answer: what makes the problem reproducible? Create that fictional data in your local application, through its own interface. Examples: a pinned post in a community with a long name, seen on a narrow screen; a profile with the About, Projects and Posts sections filled in.
+2. Publish with that data: `enois-preview publish <scenario> --refresh-data` ([Publish with new data](#4-publish-with-new-data)). Accounts with login come from `accounts` in the configuration ([Use my own data](#8-use-my-own-data)). With an empty `accounts`, only a scenario's first `publish` asks which accounts to use, and a refresh reuses those from the previous capture. If the fictional accounts are new, put their IDs in `accounts` and repeat `setup`, or publish a new scenario and select the fictional accounts when the terminal asks.
+3. When the command ends with `status: "validated"`, open the `url` from the final JSON and test the PR's behavior yourself.
+4. Paste the block below into the PR, filled in:
+
+```markdown
+## How to verify
+
+Preview: <url from the final JSON>
+Accounts and passwords: on the link's entry page (they change on every boot).
+
+1. Sign in as <account>.
+2. Open <page> and <action>.
+3. Expected: <result>. Check on a phone and on a desktop, or on your own device.
+
+Fictional data, built to reproduce <characteristic of the case>.
+<!-- Optional: a screenshot of the "after" state. The link remains the main evidence. -->
+```
+
+**What to expect:** whoever opens the link sees a waiting page while the Codespace boots by itself; nobody needs to open its terminal. Then the page with the accounts and passwords appears; passwords are generated on every boot. Reviewers can open the link on their own phone, a real device rather than an emulation.
 
 Attention:
 - Accounts, data and upload capacity are shared by all visitors. Use independent sessions for author and reader.
@@ -203,6 +234,7 @@ Attention:
 - Public signup and external write integrations stay disabled.
 - Deletion starts after ten minutes without recognized interaction. The waiting page, including its status polling, and credential reads do not renew the deadline. Platform availability and quotas limit this protection.
 - The link is immutable, but the environment is not permanent. A new revision produces another link, which you update in the PR by hand.
+- The environment boots only while your infrastructure and the free quotas keep existing. An optional screenshot of the "after" state serves as a durable record; it goes with the link and never replaces it.
 
 **If it goes wrong:** a page saying GitHub refused the creation (`O GitHub recusou a criação.`) asks you to wait ten minutes and try again, without changing machine or plan. If the environment does not start, see [diagnostics](../diagnostics/README.md).
 

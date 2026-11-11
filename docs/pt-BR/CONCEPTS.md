@@ -14,15 +14,15 @@ O Énóis ([enois.ia.br](https://enois.ia.br)) é uma rede social gratuita, sem 
 
 ### PR (pull request)
 
-Um pull request (PR) é o pedido de revisão de código no GitHub: você propõe mudanças numa das três aplicações e outras pessoas leem e testam antes de aceitar.
+Um pull request (PR) é o pedido para que outras pessoas avaliem uma mudança de código no GitHub: você propõe mudanças numa das três aplicações e outras pessoas leem e testam antes de aceitar.
 
-**Por que importa para você:** o enois-preview existe para que o PR traga um link onde quem lê vê a mudança rodando, sem montar nada na própria máquina.
+**Por que importa para você:** no PR, você precisa mostrar que a mudança funciona. O enois-preview existe para que o PR traga um link onde quem avalia abre a mudança rodando e a analisa como preferir, sem depender só de prints e vídeos e sem montar nada na própria máquina.
 
 ### Operador e visitante
 
-O **operador** é quem abre o PR e roda o enois-preview no próprio terminal para publicar o link. O **visitante** é quem abre esse link no navegador, por exemplo quem lê o PR.
+O **operador** é quem abre o PR e roda o enois-preview no próprio terminal para publicar o link. O **visitante** é qualquer pessoa que tenha o link e o abra no navegador, por exemplo quem avalia o PR.
 
-**Por que importa para você:** este guia fala com o operador. Os visitantes não instalam nada e compartilham as mesmas contas, os mesmos dados e a mesma capacidade de upload.
+**Por que importa para você:** este guia fala com o operador. Os visitantes não instalam nada e compartilham as mesmas contas, os mesmos dados e a mesma capacidade de upload. Num PR público, quem lê o PR também pode ser visitante; o que isso exige dos dados está em [Mostrar no PR que o problema foi resolvido](RECIPES.md#9-mostrar-no-pr-que-o-problema-foi-resolvido).
 
 ### CLI
 
@@ -56,7 +56,7 @@ Nome curto que você escolhe para um preview, como `meu-cenario`. Aceita só let
 
 ### Revisão
 
-Identificador sha256 de 64 caracteres calculado sobre todas as entradas congeladas: o nome do cenário, os commits das três aplicações, os arquivos exportados desses commits, a versão dos dados, a receita da imagem (`recipe/`), o runtime do Codespace (`runtime/`), o Worker (`src/`), o `dist` compilado e o `toolCommit` (o commit da ferramenta, explicado abaixo). O link público usa `<cenario>-<16 primeiros caracteres da revisão>`. Não confunda com a revisão de código feita no PR.
+Identificador sha256 de 64 caracteres calculado sobre todas as entradas congeladas: o nome do cenário, os commits das três aplicações, os arquivos exportados desses commits, a versão dos dados, a receita da imagem (`recipe/`), o runtime do Codespace (`runtime/`), o Worker (`src/`), o `dist` compilado e o `toolCommit` (o commit da ferramenta, explicado abaixo). O link público usa `<cenario>-<16 primeiros caracteres da revisão>`. Não confunda com a avaliação de código feita no PR.
 
 **Por que importa para você:** se nada mudou, a revisão é a mesma e o link também. Qualquer commit novo gera outra revisão e outro link, que você precisa colar no PR. Para retomar uma publicação, use a revisão **completa**, com 64 caracteres.
 

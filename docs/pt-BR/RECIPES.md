@@ -156,6 +156,8 @@ No exemplo fictício, o backend é controlado pelo adaptador configurado em `ser
 
 **Quando usar:** você quer publicar com o seu banco H2 e as suas mídias, não com o exemplo fictício.
 
+Atenção: todo o conteúdo do banco e das mídias configuradas fica visível para quem abre o link. Use só os seus próprios dados ou dados fictícios; a regra completa está em [Mostrar no PR que o problema foi resolvido](#9-mostrar-no-pr-que-o-problema-foi-resolvido).
+
 **Comandos:** edite o arquivo de configuração privado e repita o setup.
 
 ```json
@@ -188,21 +190,51 @@ enois-preview setup --config /caminho/absoluto/config.json
 
 **Se der errado:** `Backend service ownership mismatch; configure its identity and database.` indica que `identity` não imprimiu `expectedIdentity`. `Configure service.<nome> as an argument array.` indica um comando ausente ou mal formado.
 
-## 9. Compartilhar o link no PR
+<a id="9-compartilhar-o-link-no-pr"></a>
+## 9. Mostrar no PR que o problema foi resolvido
 
-**Quando usar:** o `publish` ou `resume` terminou com `status: "validated"`.
+**Quando usar:** você corrigiu algo e quer que quem avalia o PR veja a correção rodando, sem depender de print ou vídeo. Com o link, quem avalia abre a mudança num ambiente real e a analisa do jeito que preferir.
 
-**Comandos:** copie a `url` do JSON e cole no PR. Teste o comportamento específico do PR antes.
+**Atenção: o link é público.** Os repositórios do Énóis são públicos, e o link colado no PR também. Antes de publicar, saiba o que fica exposto:
+- Todo o conteúdo do H2 local e das mídias capturadas fica visível para quem abre o link, não só o que o PR mostra.
+- As contas selecionadas viram contas compartilhadas, com a senha exibida na página de entrada do link. As outras contas continuam com perfil e conteúdo visíveis, só com o login desativado.
+- A sanitização remove sessões, tokens e senhas, mas não anonimiza conteúdo.
 
-**O que esperar:** quem abre o link vê uma página de espera enquanto o Codespace sobe sozinho; ninguém precisa abrir o terminal dele. Depois, aparece a página com as contas e as senhas, geradas a cada boot.
+Por isso, escolha os dados nesta ordem:
+1. **Dados fictícios moldados no caso real:** reproduza a forma que causa o problema (tamanho dos textos, quantidade de itens, emojis, dimensões das imagens, estados como "fixado" ou "com selos", largura da tela), não o conteúdo real.
+2. **Os seus próprios dados**, sabendo que ficam expostos a quem abrir o link.
+3. **Conteúdo de outras pessoas, inclusive copiado do Énóis: não use**, a não ser com o consentimento delas ou o aval da equipe do Énóis.
+
+**Comandos:**
+1. Responda: o que torna o problema reproduzível? Crie esses dados fictícios na sua aplicação local, pela própria interface. Exemplos: um post fixado numa comunidade de nome longo, visto numa tela estreita; um perfil com as seções Sobre, Projetos e Publicações preenchidas.
+2. Publique com esses dados: `enois-preview publish <cenario> --refresh-data` ([Publicar com dados novos](#4-publicar-com-dados-novos)). As contas com login vêm de `accounts` na configuração ([Usar meus próprios dados](#8-usar-meus-próprios-dados)). Com `accounts` vazio, só o primeiro `publish` de um cenário pergunta quais contas usar, e o refresh reaproveita as da captura anterior. Se as contas fictícias forem novas, coloque os IDs delas em `accounts` e repita o `setup`, ou publique um cenário novo e selecione as contas fictícias quando o terminal perguntar.
+3. Quando o comando terminar com `status: "validated"`, abra a `url` do JSON final e teste você mesmo o comportamento do PR.
+4. Cole no PR o bloco abaixo, preenchido:
+
+```markdown
+## Como verificar
+
+Preview: <url do JSON final>
+Contas e senhas: na página de entrada do link (mudam a cada boot).
+
+1. Entre como <conta>.
+2. Abra <página> e <ação>.
+3. Esperado: <resultado>. Confira no celular e no desktop, ou no seu próprio aparelho.
+
+Dados fictícios, montados para reproduzir <característica do caso>.
+<!-- Opcional: um print do "depois". O link continua sendo a evidência principal. -->
+```
+
+**O que esperar:** quem abre o link vê uma página de espera enquanto o Codespace sobe sozinho; ninguém precisa abrir o terminal dele. Depois, aparece a página com as contas e as senhas, geradas a cada boot. Quem avalia pode abrir o link no próprio celular, um aparelho real e não uma emulação.
 
 Atenção:
-- As contas, os dados e a capacidade de upload são compartilhados entre todos os visitantes. Use sessões independentes para autora e leitor.
+- As contas, os dados e a capacidade de upload são compartilhados entre todos os visitantes. Use sessões independentes para quem escreve e para quem lê.
 - Cada ambiente aceita arquivos novos de até 20 MiB e 256 MiB de uploads no total, compartilhados entre visitantes. As mídias da semente não contam.
 - Um novo boot descarta alterações e uploads, restaura a semente e troca as senhas.
 - Cadastro público e integrações externas de escrita ficam desligados.
 - A exclusão começa após dez minutos sem interação reconhecida. A página de espera, inclusive o polling de status, e a leitura de credenciais não renovam o prazo. Disponibilidade e franquias das plataformas limitam essa proteção.
 - O link é imutável, mas o ambiente não é permanente. Uma revisão nova gera outro link, que você atualiza no PR à mão.
+- O ambiente só sobe enquanto a sua infraestrutura e as cotas gratuitas continuarem existindo. Um print opcional do "depois" serve como registro durável; ele acompanha o link e nunca o substitui.
 
 **Se der errado:** `O GitHub recusou a criação.` na página pede para esperar dez minutos e tentar de novo, sem mudar máquina ou plano. Se o ambiente não iniciar, veja o [diagnóstico](../diagnostics/README.md).
 

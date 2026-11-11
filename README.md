@@ -1,12 +1,14 @@
 # enois-preview
 
-Ferramenta de linha de comando que publica um link de preview para um pull request (PR), o pedido de revisão de código no GitHub, feito numa das aplicações do Énóis ([enois.ia.br](https://enois.ia.br)), uma rede social gratuita, sem anúncios e sem fins lucrativos, construída junto com a comunidade. Quem abre o link recebe o app inteiro rodando, com dados realistas, num ambiente descartável.
+Ferramenta de linha de comando que publica um link de preview para um pull request (PR), o pedido no GitHub para que outras pessoas avaliem uma mudança numa das aplicações do Énóis. O Énóis ([enois.ia.br](https://enois.ia.br)) é uma rede social gratuita, sem anúncios e sem fins lucrativos, construída junto com a comunidade. Quem abre o link recebe o app inteiro rodando, com dados realistas, num ambiente descartável.
 
 [English](docs/en/README.md) · [Conceitos](docs/pt-BR/CONCEPTS.md) · [Fluxo](docs/pt-BR/FLOW.md) · [Receitas](docs/pt-BR/RECIPES.md) · [Tutorial](docs/pt-BR/TUTORIAL.md) · [Histórico](CHANGELOG.md)
 
 ## O problema
 
-Para revisar um PR do Énóis de verdade, é preciso o backend, o frontend e o design system rodando juntos, com dados que pareçam reais. Montar isso na máquina de cada revisor é lento e frágil.
+Num PR do Énóis, quem corrige um problema hoje prova a correção com prints e vídeos, muitas vezes um gravado no celular e outro no desktop. Quem avalia só vê o que foi gravado: não consegue seguir outro caminho, experimentar outro tamanho de tela nem abrir a mudança no próprio aparelho. E montar o backend, o frontend e o design system rodando juntos, com dados que pareçam reais, na máquina de quem avalia é lento e frágil.
+
+Com um link de preview no PR, quem avalia abre a mudança rodando num ambiente real e analisa do jeito que preferir, inclusive no próprio celular. O link passa a ser a evidência principal da correção; um print pode acompanhá-lo, mas não o substitui. O que colar no PR e que dados usar estão em [Mostrar no PR que o problema foi resolvido](docs/pt-BR/RECIPES.md#9-mostrar-no-pr-que-o-problema-foi-resolvido).
 
 O enois-preview resolve isso para quem abre o PR (o operador). Você roda `enois-preview publish <cenario>` no seu terminal, onde o [cenário](docs/pt-BR/CONCEPTS.md#cenário) é um nome curto que você escolhe, e recebe um link HTTPS. Quando alguém abre o link, um GitHub Codespace, uma máquina de desenvolvimento na nuvem do GitHub, sobe sozinho com as três aplicações nos seus commits e com uma cópia dos seus dados [sanitizada](docs/pt-BR/CONCEPTS.md#dados-congelados-e-captura), sem sessões, tokens nem senhas. Depois de dez minutos sem uso, o ambiente é apagado.
 
@@ -91,7 +93,7 @@ A primeira publicação, com dados fictícios, está no [tutorial](docs/pt-BR/TU
 
 - A ferramenta não comita nem altera as três aplicações. Ela recusa fontes com mudanças staged, unstaged ou arquivos não rastreados.
 - O código vem sempre dos commits atuais e os dados ficam congelados desde a última captura do cenário, que só lê o banco local na primeira publicação ou com `--refresh-data`. Os detalhes estão em [Código vs dados](docs/pt-BR/CONCEPTS.md#código-vs-dados).
-- Os visitantes compartilham contas, dados e capacidade de upload, e o ambiente é apagado depois de dez minutos sem interação. Os limites exatos estão em [Compartilhar o link no PR](docs/pt-BR/RECIPES.md#9-compartilhar-o-link-no-pr).
+- Os visitantes compartilham contas, dados e capacidade de upload, e o ambiente é apagado depois de dez minutos sem interação. Num PR público, o link também é público, e todo o conteúdo dos dados capturados fica visível. Os limites exatos e que dados usar estão em [Mostrar no PR que o problema foi resolvido](docs/pt-BR/RECIPES.md#9-mostrar-no-pr-que-o-problema-foi-resolvido).
 - A conferência dos planos gratuitos e do bloqueio de gastos ocorre somente no `setup`. Publicar, retomar e abrir links não exigem renovação. A ferramenta não solicita cartão, não contrata recursos e não ativa planos pagos. A confirmação humana não audita faturamento por API. Consulte [a cobrança do Codespaces](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces) e [os limites gratuitos de Durable Objects](https://developers.cloudflare.com/durable-objects/platform/pricing/).
 - Este é um uso temporário associado ao desenvolvimento e teste do projeto. Os [termos do Codespaces](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features#codespaces) restringem uso desproporcional como servidor e hospedagem de aplicações de produção. O funcionamento técnico não demonstra aprovação desta arquitetura pelo GitHub.
 

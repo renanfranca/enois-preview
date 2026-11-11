@@ -22,6 +22,7 @@ This guide describes how an assistant should help the operator; it does not prom
 - Do not delete private files, journals, `restoration.json` or another operation's leases.
 - `resume` must never recapture live data under an earlier identity.
 - Never edit the PR automatically.
+- Do not suggest scraping or importing other people's content to reproduce a problem. Recommend fictional data shaped like the case, as in [Show in the PR that the problem is fixed](RECIPES.md#9-show-in-the-pr-that-the-problem-is-fixed).
 - Never publish the public project while acceptance prerequisites remain outstanding.
 - Do not run Python, convert historical formats or resume Python journals. New records require `format: "enois-preview-ts-v1"`; preserve earlier records and create a fresh installation.
 - Do not find processes by name to terminate them. On Linux, each managed command has its own process group, and a timeout sends `SIGKILL` to that group, including descendants remaining in it; services intentionally started in independent groups stay active.

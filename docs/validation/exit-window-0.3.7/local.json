@@ -1,0 +1,45 @@
+{
+  "version": "0.3.7",
+  "status": "passed",
+  "node": "24.16.0",
+  "npm": "11.13.0",
+  "baseCommit": "4e81e92a3b5cbccc89ede98d553b61dd6e65e9cc",
+  "recordFormat": "enois-preview-ts-v1",
+  "commands": [
+    { "command": "npm ci --ignore-scripts", "exitCode": 0 },
+    { "command": "npm run build", "exitCode": 0 },
+    { "command": "npm run typecheck", "exitCode": 0 },
+    { "command": "npm test", "exitCode": 0 },
+    { "command": "npm run check", "exitCode": 0 },
+    { "command": "npm run test:capture", "exitCode": 0 },
+    { "command": "npm run test:consumer", "exitCode": 0 },
+    { "command": "npm run test:install", "exitCode": 0 }
+  ],
+  "standardTests": { "passed": 114, "failed": 0, "skipped": 0 },
+  "captureTests": { "passed": 1, "failed": 0, "skipped": 0 },
+  "installedConsumerTests": { "passed": 114, "failed": 0, "skipped": 0 },
+  "installerTests": { "passed": 2, "failed": 0, "skipped": 0 },
+  "productCodeChanged": true,
+  "defect": "during a backend exit, after PF_EXITING is set and the kernel has released cmdline and cwd but before the process becomes a zombie, status and start answered 'Backend ownership mismatch; no process was signalled.'",
+  "rule": "when the cmdline/cwd ownership comparison fails, a pidfile process that is gone, Z or X, has another starttime, or has PF_EXITING (0x4 in /proc/<pid>/stat field 9) counts as stopped; only a live process with the same identity and without PF_EXITING keeps the mismatch; flags that do not parse never count as exiting",
+  "unchanged": [
+    "the identity check used by stop and the meaning of released",
+    "the positive path: an exiting process whose cmdline still matches answers running",
+    "the pidfile format, every message and every exit code"
+  ],
+  "coverage": {
+    "K1": "the J1 75 s timer is cancelled with an AbortController right after the race; the race keeps both branches and the exit code assertion is unchanged; dist/test/service-journey.test.js takes about 9 s instead of about 79 s",
+    "K3": "J3 and J4 stay green as the guard against a fix that is too wide",
+    "K4": "J1 to J4 in npm test; J5 and J6 in test:capture"
+  },
+  "red": {
+    "commit": "4e81e92",
+    "observed": [
+      "K1: node --test dist/test/service-journey.test.js passed 4 of 4 with duration_ms 79353"
+    ]
+  },
+  "closedByConstruction": "the exit window is not reproducible deterministically or frequently through a public path (a held exit prototype was already a zombie; an in-process status loop saw 0 mismatches in 20 cycles); the rule closes it by construction and it is not observed",
+  "limits": [
+    "register-codespace runs for real only inside a Codespace (CODESPACES=true) and no canonical publication evidence shows the registration; the gateway ready route was closed by the v0.3.6 canonical publication."
+  ]
+}

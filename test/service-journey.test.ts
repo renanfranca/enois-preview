@@ -66,7 +66,9 @@ test('an orphaned stop ends with the backend it signalled and leaves a newer bac
   const second = pidOf(home); assert.notEqual(second, first);
   assert.equal(home.run('status').stdout, 'running\n');
   process.kill(stop.pid!, 'SIGCONT');
-  const resumed = Date.now(); const code = await Promise.race([exited, delay(75_000).then(() => 'timeout' as const)]);
+  const guard = new AbortController();
+  const timeout = delay(75_000, undefined, { signal: guard.signal }).then(() => 'timeout' as const, () => 'cancelled' as const);
+  const resumed = Date.now(); const code = await Promise.race([exited, timeout]); guard.abort();
 
   assert.equal(code, 0, stderr); assert.ok(Date.now() - resumed < 10_000, `orphaned stop took ${Date.now() - resumed} ms`);
   assert.doesNotMatch(stderr, /did not stop/);

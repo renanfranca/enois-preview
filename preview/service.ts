@@ -13,8 +13,9 @@ function configRecord(value:unknown):ServiceConfig{
 interface BackendIdentity {pid:number;starttime:number}
 interface PidRecord {pid:number;starttime?:number}
 const missing=(error:unknown)=>typeof error==='object'&&error!==null&&['ENOENT','ESRCH'].includes(String((error as {code?:unknown}).code));
-async function processStat(pid:number):Promise<{state:string;starttime:number}|undefined>{
-  try{const stat=await readFile(`/proc/${pid}/stat`,'utf8');const fields=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {state:fields[0]!,starttime:Number(fields[19])};}
+const PF_EXITING=0x4;
+async function processStat(pid:number):Promise<{state:string;flags:number;starttime:number}|undefined>{
+  try{const stat=await readFile(`/proc/${pid}/stat`,'utf8');const fields=stat.slice(stat.lastIndexOf(')')+2).split(' ');return {state:fields[0]!,flags:Number(fields[6]),starttime:Number(fields[19])};}
   catch(error:unknown){if(missing(error))return;throw error;}
 }
 /** Reads the owned backend pidfile: `{"pid":N,"starttime":T}` (0.3.6+) or the legacy bare PID. */
@@ -30,13 +31,18 @@ async function alive(record:PidRecord):Promise<BackendIdentity|undefined>{
   const stat=await processStat(record.pid);if(!stat||stat.state==='Z'||stat.state==='X'||(record.starttime!==undefined&&stat.starttime!==record.starttime))return;
   return {pid:record.pid,starttime:stat.starttime};
 }
+/** Gone, zombie, reused PID, or already in do_exit (PF_EXITING, set before the kernel releases cmdline and cwd). */
+async function stoppedOrExiting(identity:BackendIdentity):Promise<boolean>{
+  const stat=await processStat(identity.pid);
+  return !stat||stat.state==='Z'||stat.state==='X'||stat.starttime!==identity.starttime||(Number.isFinite(stat.flags)&&(stat.flags&PF_EXITING)!==0);
+}
 async function ownedPid(config:ServiceConfig):Promise<BackendIdentity|undefined>{
   const record=await readPidRecord(config.pidfile);const identity=record&&await alive(record);if(!identity)return;
   const expected=`--spring.datasource.url=jdbc:h2:file:${config.database.replace(/\.mv\.db$/,'')};MODE=MySQL`;
   let owned:boolean;
   try{const command=(await readFile(`/proc/${identity.pid}/cmdline`)).toString().split('\0');owned=command.includes(config.jar)&&command.includes(expected)&&await realpath(`/proc/${identity.pid}/cwd`)===await realpath(config.cwd);}
   catch(error:unknown){if(!missing(error))throw error;owned=false;}
-  if(!owned){if(!await alive(identity))return;throw new PreviewError('Backend ownership mismatch; no process was signalled.');}
+  if(!owned){if(await stoppedOrExiting(identity))return;throw new PreviewError('Backend ownership mismatch; no process was signalled.');}
   return identity;
 }
 async function writePidRecord(pidfile:string,identity:BackendIdentity):Promise<void>{

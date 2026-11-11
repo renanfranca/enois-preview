@@ -1,37 +1,156 @@
 # Publicar uma revisão de teste
 
-Use Node 24.x (`>=24 <25`); o arquivo `.nvmrc` seleciona a família 24 com `nvm install` e `nvm use`. Node 22 não é mais uma versão qualificada. A atualização para 0.3.0 preserva catálogos, links e registros históricos; a retomada de operações anteriores exige seu executor original e não é validada por esta atualização. Novas publicações e retomadas devem usar uma instalação verificada do SHA fixado, criada pelo `install-tool`.
+[English](../en/TUTORIAL.md) · [README](../../README.md) · [Conceitos](CONCEPTS.md) · [Fluxo](FLOW.md) · [Receitas](RECIPES.md)
 
-Na versão 0.3.1, `Ctrl+C` (`SIGINT`) e `SIGTERM` cancelam comandos ativos e impedem novas etapas. O primeiro sinal determina a saída: `130` ou `143`, respectivamente. Aguarde a restauração do backend; sinais adicionais não a interrompem. Se ela falhar dentro dos prazos existentes, preserve `restoration.json`: a próxima execução de publicação ou retomada tenta a recuperação antes de avaliar fontes. Uma captura incompleta mantém os dados completos anteriores. Após congelar uma revisão, use o identificador informado com `enois-preview resume <revisao-completa>`; um push ou deploy aceito pode precisar de reconciliação, pois cancelar a espera local não desfaz o efeito remoto. Não remova leases de outra operação. `SIGKILL` depende da recuperação durável na próxima execução.
+Este tutorial leva você da instalação até o primeiro link publicado, usando o exemplo fictício. As situações do dia a dia (publicar de novo, refresh, retomar, interrupções) estão nas [receitas](RECIPES.md).
 
-Este roteiro usa o terminal local do operador. Não execute comandos em um Codespace para completar o boot de uma revisão. O estado de verificação de cada etapa está em [VALIDATION.md](../../VALIDATION.md); os resultados observados e os limites dos roteiros estão registrados ali.
+## Antes de começar
 
-1. Instale os requisitos do [README](../../README.md). Autentique no GitHub com `gh auth login` e no Docker com seu mecanismo de credenciais para GHCR. Não coloque tokens em argumentos, no chat ou em arquivos versionados. Não altere o plano de cobrança.
-2. Instale a ferramenta no commit público completo fixado no `tool.lock.json` do lançador privado. Em um clone temporário, execute `git checkout --detach <COMMIT_PUBLICO_FIXADO>`, `npm ci --ignore-scripts`, `npm run build` e `node dist/scripts/install-tool.js --commit <COMMIT_PUBLICO_FIXADO>`. O instalador cria a instalação verificada em `~/.local/share/enois-preview/<COMMIT_PUBLICO_FIXADO>`, aponta `~/.local/share/enois-preview/current` para ela e liga o comando `enois-preview`. Depois, em `~/.local/share/enois-preview/current`, execute `npx --no-install playwright install chromium` e autentique no Cloudflare com `npx --no-install wrangler login`. Não execute `npm run` nem edite arquivos dentro da instalação: a publicação a recusaria depois. Para dados fictícios, execute `node ~/.local/share/enois-preview/current/dist/example/prepare.js /caminho/absoluto/novo-workspace`. O destino não deve existir. A preparação busca fontes públicas fixadas, compila o backend e aplica suas migrações a um H2 novo antes de inserir somente dados fictícios.
-3. Edite o arquivo privado `novo-workspace/.preview/config.json`. Substitua `repository`, `branch`, `registry`, `origin` e `cloudflareAccountId` por sua infraestrutura existente. Não use a infraestrutura de outro operador. O lançador precisa ser privado e conter `wrangler.jsonc`, Worker e catálogo; o pacote GHCR também precisa existir e ser privado. Se faltarem, siga o [diagnóstico de instalação](../diagnostics/README.md) antes de continuar. Preencha `toolCommit` com o mesmo commit público completo fixado na dependência do lançador privado.
-4. Execute `enois-preview setup --config /caminho/absoluto/novo-workspace/.preview/config.json`. Confira os planos gratuitos e bloqueios de gasto nas contas configuradas e responda à confirmação inicial no terminal interativo. A ferramenta verifica acessos e identidade do serviço e guarda configuração e registro privados em `~/.config/enois-preview-ts`. Defina `ENOIS_PREVIEW_HOME` para manter outra instalação independente. Repetir setup preserva a confirmação da mesma infraestrutura; não existe renovação a cada 24 horas.
-5. Prepare e teste o cenário localmente. Comite as mudanças de aplicação você mesmo. Resolva alterações staged, unstaged e arquivos de fonte não rastreados nos três projetos. A ferramenta não publica uma árvore suja. Para usar seus próprios dados, ajuste `database`, `h2Jar`, `media`, `accounts` e os comandos do `service` no arquivo privado e repita setup. Cada comando de serviço é um vetor de argumentos, sem shell, com timeout; status deve retornar `running` ou `stopped`, ready deve retornar `ready` e released deve retornar `released`. A identidade deve corresponder a `expectedIdentity`, incluindo propriedade do processo e caminho do H2, nunca apenas uma porta.
-6. Execute `enois-preview publish meu-cenario`. Na primeira captura, informe IDs existentes ou use as contas configuradas. A seleção ocorre após a restauração do backend. O exemplo já seleciona Lia (`example_lia`) e Rui (`example_rui`), com permissões preservadas. O relatório só pode indicar sucesso após validar imagem, boot, saúde JSON, todas as contas, mídias e identidade pública. Senhas aparecem na entrada do ambiente, não no relatório do CLI.
-7. Abra a URL retornada, teste o comportamento específico do PR e cole o link no PR. Os acessos são compartilhados: use sessões independentes para autora e leitor. Para atualizar apenas código, faça novos commits e execute o mesmo `enois-preview publish meu-cenario`. Ele reutiliza os dados congelados mesmo com o H2 local indisponível. Atualize manualmente o link do PR quando houver outra revisão.
-8. Para novos dados ou mídias, execute `enois-preview publish meu-cenario --refresh-data`. As versões anteriores permanecem. Identidade selecionada ausente exige correção explícita, e uma captura inválida não substitui a versão anterior.
-9. Se houver falha após congelar as entradas, copie o identificador completo informado e execute `enois-preview resume <revisao-completa>`. Não altere catálogos nem faça pushes manuais para tentar completar a mesma revisão. Resume usa os dados e commits gravados e reconcilia efeitos remotos. Resultado ambíguo exige o diagnóstico preciso informado; não apague uma lease que possa pertencer a uma operação ainda ativa.
+- Tenha os [requisitos do README](../../README.md#requisitos) e sua infraestrutura privada pronta: [lançador](CONCEPTS.md#lançador) privado com `wrangler.jsonc`, Worker e catálogo, e pacote GHCR privado. Se faltar algo, siga o [diagnóstico de instalação](../diagnostics/installation.pt-BR.md) antes.
+- Tenha em mãos o commit público completo fixado no `tool.lock.json` do seu lançador. Abaixo ele aparece como `<COMMIT_PUBLICO_FIXADO>`.
 
-Cada ambiente aceita novos arquivos de até 20 MiB e compartilha 256 MiB de uploads entre visitantes. Mídias da semente ficam fora dessa conta. Novo boot descarta alterações e uploads, restaura a semente e muda senhas. Links de upload usam outro namespace por boot. Cadastro público e integrações de escrita externas permanecem desligados; distribuição e notificações internas devem funcionar. Imagens e embeds externos já presentes não são dados locais congelados.
+Atenção:
+- Use só o seu terminal local. Não execute comandos dentro de um Codespace para completar o boot de uma revisão.
+- Não coloque tokens em argumentos, no chat ou em arquivos versionados.
+- Não altere o plano de cobrança.
 
-A exclusão começa após dez minutos sem interação reconhecida. Polling e leitura de credenciais não renovam o prazo. A operação depende das franquias e disponibilidade de GitHub e Cloudflare; não é hospedagem permanente. Leia os [termos e limites no README](../../README.md). Nunca interprete um build ou push concluído como aceite público.
+## Passo a passo
 
-Antes de usar um lançador da versão Python, preserve seu catálogo no histórico e prepare um catálogo vazio `{ "format": "enois-preview-ts-v1", "scenarios": {} }`, `tool.lock.json` com o mesmo formato e `launcher.ts`. A dependência pública deve apontar para o SHA imutável da versão TypeScript. Depois de `npm ci --ignore-scripts`, o lançador deve executar `npm run build`, que compila explicitamente `node_modules/enois-preview` e verifica `launcher.ts`. Não reutilize configuração, journals, receitas ou confirmação financeira da versão anterior. Veja o procedimento de instalação no diagnóstico.
+1. Autentique no GitHub:
 
-## Execução observada da versão 0.2.0
+   ```sh
+   gh auth login
+   ```
 
-Em 7 de novembro de 2026, este roteiro foi executado na infraestrutura existente com a ferramenta fixada em `a95d9862bea0b5076b311600d6f0ebec939cfbd5`, sem alterar planos ou segredos. As revisões são temporárias e iniciam outro ambiente automaticamente após a exclusão por inatividade.
+2. Autentique o Docker no GHCR pelo seu mecanismo de credenciais, por exemplo digitando o token na entrada padrão:
 
-| Etapa | Revisão pública verificada | Dados |
-| --- | --- | --- |
-| Primeira publicação e retomada | [34fab05937743573](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-34fab05937743573) | D1 |
-| Código atualizado | [a787a8b14663c307](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-a787a8b14663c307) | Mesma D1, H2 e mídias locais indisponíveis durante o comando |
-| Refresh explícito | [6c1183df4fe6acca](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-6c1183df4fe6acca) | D2, mesmos commits da etapa anterior |
+   ```sh
+   docker login ghcr.io --username SEU_USUARIO --password-stdin
+   ```
 
-A retomada preservou a revisão enquanto os três repositórios fictícios e os dados locais estavam indisponíveis. O caso começou com uma falha local de JVM registrada no aceite; a causa permanece desconhecida. [Recibos e limites](../../VALIDATION.md) incluem verificações públicas independentes dos marcadores de código e dados, imagens em desktop e emulação móvel e restauração após inatividade.
+3. Clone a ferramenta num diretório temporário:
 
-O build do lançador compila a dependência e executa `npm rebuild --ignore-scripts enois-preview` para criar o atalho npm do CLI após a compilação. Os scripts de instalação permanecem desativados.
+   ```sh
+   git clone https://github.com/renanfranca/enois-preview.git /caminho/temporario/enois-preview
+   ```
+
+4. Entre no clone:
+
+   ```sh
+   cd /caminho/temporario/enois-preview
+   ```
+
+5. Vá para o commit fixado:
+
+   ```sh
+   git checkout --detach <COMMIT_PUBLICO_FIXADO>
+   ```
+
+6. Selecione Node 24.x (`>=24 <25`); o `.nvmrc` indica a família 24:
+
+   ```sh
+   nvm install
+   ```
+
+7. Instale as dependências sem scripts de instalação:
+
+   ```sh
+   npm ci --ignore-scripts
+   ```
+
+8. Compile:
+
+   ```sh
+   npm run build
+   ```
+
+9. Crie a instalação verificada desse commit:
+
+   ```sh
+   node dist/scripts/install-tool.js --commit <COMMIT_PUBLICO_FIXADO>
+   ```
+
+   O instalador cria `~/.local/share/enois-preview/<COMMIT_PUBLICO_FIXADO>`, aponta `~/.local/share/enois-preview/current` para ela e liga o comando `enois-preview`. Veja [`toolCommit` e `install.json`](CONCEPTS.md#toolcommit-e-installjson).
+
+   Atenção: não execute `npm run` nem edite arquivos dentro da instalação. O `publish` recusaria a instalação depois.
+
+10. Entre na instalação:
+
+    ```sh
+    cd ~/.local/share/enois-preview/current
+    ```
+
+11. Instale o navegador usado na validação pública:
+
+    ```sh
+    npx --no-install playwright install chromium
+    ```
+
+12. Autentique na Cloudflare:
+
+    ```sh
+    npx --no-install wrangler login
+    ```
+
+13. Prepare o workspace fictício num caminho que ainda não existe:
+
+    ```sh
+    node dist/example/prepare.js /caminho/absoluto/novo-workspace
+    ```
+
+    A preparação busca as fontes públicas fixadas, compila o backend e aplica as migrações dele a um H2 novo antes de inserir só dados fictícios.
+
+14. Edite o arquivo privado `/caminho/absoluto/novo-workspace/.preview/config.json`. Substitua `repository`, `branch`, `registry`, `origin` e `cloudflareAccountId` pela sua infraestrutura existente e preencha `toolCommit` com `<COMMIT_PUBLICO_FIXADO>`.
+
+    Atenção: não use a infraestrutura de outro operador.
+
+15. Rode o setup:
+
+    ```sh
+    enois-preview setup --config /caminho/absoluto/novo-workspace/.preview/config.json
+    ```
+
+    Confira os planos gratuitos e os bloqueios de gasto nas contas configuradas e responda `yes` à confirmação no terminal interativo. O setup verifica acessos e a identidade do serviço e guarda a configuração e a confirmação em `~/.config/enois-preview-ts`. Defina `ENOIS_PREVIEW_HOME` para manter outra instalação independente. Repetir o setup preserva a confirmação da mesma infraestrutura; não existe renovação periódica.
+
+16. Publique:
+
+    ```sh
+    enois-preview publish meu-cenario
+    ```
+
+    Na primeira publicação acontece a [captura](CONCEPTS.md#dados-congelados-e-captura). O exemplo já seleciona Lia (`example_lia`) e Rui (`example_rui`), com as permissões preservadas. O comando só termina com sucesso depois de validar imagem, boot, saúde JSON, todas as contas, mídias e identidade pública. O que acontece em cada etapa está em [Fluxo](FLOW.md#o-que-acontece-no-publish).
+
+17. Abra a `url` do JSON final no navegador, teste o comportamento específico do PR e cole o link no PR. As senhas aparecem na página de entrada do ambiente, nunca no relatório do CLI.
+
+    Atenção: as contas são compartilhadas. Use sessões independentes para autora e leitor. Um build ou push concluído nunca equivale a aceite público; só o JSON final com `status: "validated"` vale.
+
+## O que o exemplo contém
+
+A preparação cria cópias isoladas das três aplicações públicas nos commits de [example/sources.json](../../example/sources.json). Ela não usa o catálogo operacional, um H2 real nem imagens privadas.
+
+- As quatro personagens são fictícias e os retratos são ilustrações vetoriais originais.
+- A semente tem oito posts (três com imagens), seis comentários, duas respostas e oito reações.
+- Lia e Rui são as contas selecionadas; as senhas são criadas no boot e aparecem só na entrada do ambiente.
+- Maya e Davi preservam perfil e conteúdo, com login desabilitado.
+
+## Depois da primeira publicação
+
+| Situação | Receita |
+| --- | --- |
+| Código novo, mesmos dados | [Publicar de novo só com código novo](RECIPES.md#3-publicar-de-novo-só-com-código-novo) |
+| Dados ou mídias novos | [Publicar com dados novos](RECIPES.md#4-publicar-com-dados-novos) |
+| O `publish` falhou | [Retomar uma publicação que falhou](RECIPES.md#5-retomar-uma-publicação-que-falhou) |
+| Você interrompeu o comando | [Ctrl+C, SIGTERM ou processo morto](RECIPES.md#6-ctrlc-sigterm-ou-processo-morto) |
+| Seus próprios dados | [Usar meus próprios dados](RECIPES.md#8-usar-meus-próprios-dados) |
+| Limites para quem abre o link | [Compartilhar o link no PR](RECIPES.md#9-compartilhar-o-link-no-pr) |
+
+## Lançador da versão Python
+
+Antes de usar um lançador da versão Python:
+
+1. Preserve o catálogo dele no histórico do Git.
+2. Prepare um catálogo vazio `{ "format": "enois-preview-ts-v1", "scenarios": {} }`, um `tool.lock.json` com o mesmo formato e `launcher.ts`.
+3. Aponte a dependência pública para o SHA imutável da versão TypeScript.
+4. Depois de `npm ci --ignore-scripts`, rode `npm run build` no lançador. Ele compila explicitamente `node_modules/enois-preview` e verifica `launcher.ts`.
+
+Atenção: não reutilize configuração, journals, receitas ou confirmação financeira da versão anterior. O procedimento completo está no [diagnóstico de instalação](../diagnostics/installation.pt-BR.md).

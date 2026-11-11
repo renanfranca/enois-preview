@@ -64,7 +64,7 @@ enois-preview publish my-scenario
 enois-preview publish my-scenario
 ```
 
-**What to expect:** the CLI neither reads nor stops the local database; it works even with H2 unavailable. The final JSON has `dataReused: true`, a new `revision` and a new `url`. Update the PR link by hand. If no commit changed, the revision is the same and the JSON has `reused: true`.
+**What to expect:** the CLI neither reads nor stops the local database; it works even with H2 unavailable. The final JSON has `dataReused: true`, a new `revision` and a new `url`. Update the link in the pull request (PR) by hand. If no commit changed, the revision is the same and the JSON has `reused: true`.
 
 **If it goes wrong:** dirty tree or refused installation: see [recipe 10](#10-common-errors-and-what-to-do). A remote stage failure: see [recipe 5](#5-resume-a-failed-publication).
 
@@ -197,11 +197,11 @@ enois-preview setup --config /absolute/path/config.json
 **What to expect:** whoever opens the link sees a waiting page while the Codespace boots by itself; nobody needs to open its terminal. Then the page with the accounts and passwords appears; passwords are generated on every boot.
 
 Attention:
-- Accounts are shared by all visitors. Use independent sessions for author and reader.
+- Accounts, data and upload capacity are shared by all visitors. Use independent sessions for author and reader.
 - Each environment accepts new files up to 20 MiB and 256 MiB of uploads in total, shared by visitors. Seed media does not count.
 - A new boot discards changes and uploads, restores the seed and rotates passwords.
 - Public signup and external write integrations stay disabled.
-- Deletion starts after ten minutes without recognized interaction. The waiting page and credential reads do not renew the deadline.
+- Deletion starts after ten minutes without recognized interaction. The waiting page, including its status polling, and credential reads do not renew the deadline. Platform availability and quotas limit this protection.
 - The link is immutable, but the environment is not permanent. A new revision produces another link, which you update in the PR by hand.
 
 **If it goes wrong:** a page saying GitHub refused the creation (`O GitHub recusou a criação.`) asks you to wait ten minutes and try again, without changing machine or plan. If the environment does not start, see [diagnostics](../diagnostics/README.md).

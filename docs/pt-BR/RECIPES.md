@@ -64,7 +64,7 @@ enois-preview publish meu-cenario
 enois-preview publish meu-cenario
 ```
 
-**O que esperar:** o CLI não lê nem para o banco local; funciona até com o H2 indisponível. O JSON final traz `dataReused: true`, uma `revision` nova e uma `url` nova. Atualize o link no PR à mão. Se nenhum commit mudou, a revisão é a mesma e o JSON traz `reused: true`.
+**O que esperar:** o CLI não lê nem para o banco local; funciona até com o H2 indisponível. O JSON final traz `dataReused: true`, uma `revision` nova e uma `url` nova. Atualize à mão o link no pull request (PR). Se nenhum commit mudou, a revisão é a mesma e o JSON traz `reused: true`.
 
 **Se der errado:** árvore suja ou instalação recusada: veja a [receita 10](#10-erros-comuns-e-o-que-fazer). Falha numa etapa remota: veja a [receita 5](#5-retomar-uma-publicação-que-falhou).
 
@@ -197,11 +197,11 @@ enois-preview setup --config /caminho/absoluto/config.json
 **O que esperar:** quem abre o link vê uma página de espera enquanto o Codespace sobe sozinho; ninguém precisa abrir o terminal dele. Depois, aparece a página com as contas e as senhas, geradas a cada boot.
 
 Atenção:
-- As contas são compartilhadas entre todos os visitantes. Use sessões independentes para autora e leitor.
+- As contas, os dados e a capacidade de upload são compartilhados entre todos os visitantes. Use sessões independentes para autora e leitor.
 - Cada ambiente aceita arquivos novos de até 20 MiB e 256 MiB de uploads no total, compartilhados entre visitantes. As mídias da semente não contam.
 - Um novo boot descarta alterações e uploads, restaura a semente e troca as senhas.
 - Cadastro público e integrações externas de escrita ficam desligados.
-- A exclusão começa após dez minutos sem interação reconhecida. A página de espera e a leitura de credenciais não renovam o prazo.
+- A exclusão começa após dez minutos sem interação reconhecida. A página de espera, inclusive o polling de status, e a leitura de credenciais não renovam o prazo. Disponibilidade e franquias das plataformas limitam essa proteção.
 - O link é imutável, mas o ambiente não é permanente. Uma revisão nova gera outro link, que você atualiza no PR à mão.
 
 **Se der errado:** `O GitHub recusou a criação.` na página pede para esperar dez minutos e tentar de novo, sem mudar máquina ou plano. Se o ambiente não iniciar, veja o [diagnóstico](../diagnostics/README.md).

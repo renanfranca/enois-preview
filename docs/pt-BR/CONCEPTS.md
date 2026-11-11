@@ -2,37 +2,69 @@
 
 [English](../en/CONCEPTS.md) · [README](../../README.md) · [Fluxo](FLOW.md) · [Receitas](RECIPES.md)
 
-Leia este guia antes de rodar o primeiro comando. Ele explica as palavras que aparecem nas mensagens do CLI e por que a ferramenta se comporta como se comporta.
-
-## Em uma frase
-
-Você aponta o enois-preview para commits das três aplicações do Énóis e para uma cópia dos seus dados. Ele congela tudo isso numa **revisão** e devolve um link HTTPS. Quem abre o link recebe um Codespace novo com o app inteiro rodando, que é apagado sozinho depois de dez minutos sem uso.
+Leia este guia antes de rodar o primeiro comando. Ele explica as palavras que aparecem nas mensagens da ferramenta e por que ela se comporta como se comporta.
 
 ## Glossário
+
+### As três aplicações
+
+O Énóis ([enois.ia.br](https://enois.ia.br)) é uma rede social gratuita, sem anúncios e sem fins lucrativos, construída junto com a comunidade. Ele é feito de três aplicações, que são as fontes publicadas: `enois-backend` (Spring Boot, Java 25), que guarda os dados num banco **H2**, um banco de dados Java gravado num arquivo local; `enois-frontend` (Nuxt); e `enois-design-system` (pacote npm). O exemplo fictício fixa os commits delas em [example/sources.json](../../example/sources.json).
+
+**Por que importa para você:** as três precisam estar com a árvore limpa e com as mudanças já comitadas por você. A ferramenta exporta os commits e nunca comita nem altera esses repositórios.
+
+### PR (pull request)
+
+Um pull request (PR) é o pedido de revisão de código no GitHub: você propõe mudanças numa das três aplicações e outras pessoas leem e testam antes de aceitar.
+
+**Por que importa para você:** o enois-preview existe para que o PR traga um link onde quem lê vê a mudança rodando, sem montar nada na própria máquina.
+
+### Operador e visitante
+
+O **operador** é quem abre o PR e roda o enois-preview no próprio terminal para publicar o link. O **visitante** é quem abre esse link no navegador, por exemplo quem lê o PR.
+
+**Por que importa para você:** este guia fala com o operador. Os visitantes não instalam nada e compartilham as mesmas contas, os mesmos dados e a mesma capacidade de upload.
+
+### CLI
+
+A interface de linha de comando: o comando `enois-preview` (`setup`, `publish`, `resume` e `source-digest`), que você roda no terminal da sua máquina.
+
+**Por que importa para você:** as mensagens de erro e o JSON final vêm do CLI. Ele roda só na sua máquina; os visitantes nunca o usam.
+
+### Worker, Durable Object e Codespace
+
+O **Codespace** é uma máquina de desenvolvimento na nuvem do GitHub; é nela que o app roda para o visitante. O **Worker** da Cloudflare é o programa que atende o link público. Para cada link publicado existe um **Durable Object**, um pequeno estado guardado pela Cloudflare, que lembra se há um Codespace, em que fase ele está e quando houve a última interação.
+
+**Por que importa para você:** o Codespace sobe sozinho. Se você precisar abrir o terminal dele para iniciar algo, isso é uma falha de boot, não uma etapa normal.
+
+### GHCR
+
+O GitHub Container Registry, onde o GitHub guarda imagens Docker. A ferramenta envia para um pacote **privado** seu no GHCR a imagem com o app que o Codespace usa para subir.
+
+**Por que importa para você:** o `publish` precisa da sua autenticação no GHCR. A imagem é referenciada pelo digest, então um link já publicado nunca passa a usar outra imagem.
+
+### Lançador
+
+Repositório GitHub **privado** do operador. Contém o Worker (`launcher.ts` e `wrangler.jsonc`), o catálogo das publicações, a configuração do Codespace de cada publicação em `.devcontainer/<slug>/` (o **devcontainer**, arquivo do GitHub que diz ao Codespace qual imagem usar e como subir) e o `tool.lock.json`, que fixa o commit público da ferramenta. Os caminhos estão em [Onde ficam os arquivos](#onde-ficam-os-arquivos).
+
+**Por que importa para você:** o `publish` faz commits e pushes nesse repositório por você. Não edite o catálogo à mão para completar uma publicação; use `resume`.
 
 ### Cenário
 
 Nome curto que você escolhe para um preview, como `meu-cenario`. Aceita só letras minúsculas, dígitos e hífens simples entre eles. Você passa o cenário em `enois-preview publish <cenario>`.
 
-**Por que importa para você:** cada cenário guarda os próprios dados congelados. Publicar de novo o mesmo cenário reaproveita esses dados; um cenário novo faz uma captura nova.
+**Por que importa para você:** cada cenário guarda a própria cópia congelada dos seus dados. Publicar de novo o mesmo cenário reaproveita essa cópia; um cenário novo copia os dados de novo.
 
 ### Revisão
 
-Identificador sha256 de 64 caracteres calculado sobre todas as entradas congeladas: o nome do cenário, os commits das três aplicações, os arquivos exportados desses commits, a versão dos dados, a receita da imagem (`recipe/`), o runtime do Codespace (`runtime/`), o Worker (`src/`), o `dist` compilado e o `toolCommit`. O link público usa `<cenario>-<16 primeiros caracteres da revisão>`.
+Identificador sha256 de 64 caracteres calculado sobre todas as entradas congeladas: o nome do cenário, os commits das três aplicações, os arquivos exportados desses commits, a versão dos dados, a receita da imagem (`recipe/`), o runtime do Codespace (`runtime/`), o Worker (`src/`), o `dist` compilado e o `toolCommit` (o commit da ferramenta, explicado abaixo). O link público usa `<cenario>-<16 primeiros caracteres da revisão>`. Não confunda com a revisão de código feita no PR.
 
 **Por que importa para você:** se nada mudou, a revisão é a mesma e o link também. Qualquer commit novo gera outra revisão e outro link, que você precisa colar no PR. Para retomar uma publicação, use a revisão **completa**, com 64 caracteres.
 
 ### Dados congelados e captura
 
-A **captura** para o backend local (só se ele estiver rodando), copia o banco H2 e as pastas de mídia configuradas e devolve o backend ao estado anterior. Depois, ela sanitiza a cópia: só as contas selecionadas continuam com login. O resultado fica em `<state>/data/<id>/`, onde `<state>` é o campo `state` da sua configuração.
+A **captura** para o backend local (só se ele estiver rodando), copia o banco H2 e as pastas de mídia configuradas e devolve o backend ao estado anterior. Depois, ela **sanitiza** a cópia, isto é, remove dela sessões, tokens e senhas: só as contas selecionadas continuam com login. O resultado fica em `<state>/data/<id>/`, onde `<state>` é o campo `state` da sua configuração.
 
 **Por que importa para você:** a captura acontece só no primeiro `publish` de um cenário ou quando você pede `--refresh-data`. Nas outras publicações o banco local nem é lido. Uma captura incompleta nunca substitui os dados completos anteriores.
-
-### Lançador
-
-Repositório GitHub **privado** do operador. Contém o Worker (`launcher.ts` e `wrangler.jsonc`), o catálogo (`catalog/scenarios.json`), a configuração de cada revisão em `.devcontainer/<slug>/` e o `tool.lock.json`, que fixa o commit público da ferramenta.
-
-**Por que importa para você:** o `publish` faz commits e pushes nesse repositório por você. Não edite o catálogo à mão para completar uma publicação; use `resume`.
 
 ### Journal
 
@@ -58,17 +90,9 @@ Arquivo `<state>/restoration.json`, gravado antes da captura parar o backend. Di
 
 **Por que importa para você:** antes de `publish` e `resume`, a ferramenta recalcula os hashes. Se a instalação foi alterada (por exemplo, alguém rodou `npm run` dentro dela) ou pertence a outro commit, ela recusa antes de qualquer efeito.
 
-### As três aplicações
+## Em uma frase
 
-As fontes publicadas são `enois-backend` (Spring Boot, Java 25, banco H2), `enois-frontend` (Nuxt) e `enois-design-system` (pacote npm). O exemplo fictício fixa os commits delas em [example/sources.json](../../example/sources.json).
-
-**Por que importa para você:** as três precisam estar com a árvore limpa e com as mudanças já comitadas por você. A ferramenta exporta os commits e nunca comita nem altera esses repositórios.
-
-### Worker, Durable Object e Codespace
-
-O **Worker** da Cloudflare atende o link público. Para cada cenário publicado existe um **Durable Object**, que lembra se há um Codespace, em que fase ele está e quando houve a última interação. O **Codespace** é a máquina do GitHub onde o app roda.
-
-**Por que importa para você:** o Codespace sobe sozinho. Se você precisar abrir o terminal dele para iniciar algo, isso é uma falha de boot, não uma etapa normal.
+Você aponta o enois-preview para commits das três aplicações do Énóis e para uma cópia dos seus dados. Ele congela tudo isso numa **revisão** e devolve um link HTTPS. Quem abre o link recebe um Codespace novo com o app inteiro rodando, que é apagado sozinho depois de dez minutos sem uso.
 
 ## Código vs dados
 
@@ -79,6 +103,8 @@ O código vem sempre dos **commits atuais** das três aplicações, exportados p
 | Mostrar código novo com os mesmos dados | `enois-preview publish <cenario>` | Não |
 | Mostrar dados ou mídias novos | `enois-preview publish <cenario> --refresh-data` | Sim |
 | Terminar uma publicação que falhou | `enois-preview resume <revisao-completa>` | Nunca |
+
+Na primeira captura, a ferramenta para só o backend identificado na configuração. O pacote do design system é construído de novo a partir do commit dele a cada imagem.
 
 Por isso, depois da primeira captura, você pode publicar código novo mesmo com o H2 local indisponível.
 

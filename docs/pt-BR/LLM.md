@@ -10,7 +10,7 @@ Este guia descreve como um assistente deve ajudar o operador; ele não garante c
 - Para cada situação, siga a receita correspondente em [Receitas](RECIPES.md) e copie a mensagem de erro real do CLI ao procurar a causa.
 - Instalação, autenticação, preparação, `publish` e `resume` acontecem no terminal local. O Codespace deve iniciar sozinho; precisar abrir o terminal dele para copiar arquivos ou iniciar processos é uma falha de boot, não uma etapa normal.
 - Só apresente um link como validado se o CLI terminar com status zero e um relatório com saúde pública, identidades, mídia e revisão correspondentes. Relate falhas e lacunas.
-- Oriente o operador a atualizar o link no PR e a testar a funcionalidade específica. O link imutável não promete disponibilidade permanente, e os visitantes compartilham estado e contas.
+- Oriente o operador a atualizar o link no pull request (PR) e a testar a funcionalidade específica. O link imutável não promete disponibilidade permanente, e os visitantes compartilham estado e contas.
 - Numa captura incompleta, informe o estado da restauração e a ação de repetição. Numa interrupção, siga a [receita de Ctrl+C e SIGTERM](RECIPES.md#6-ctrlc-sigterm-ou-processo-morto): espere a restauração, preserve `restoration.json` e use `resume` para uma revisão já congelada.
 
 ## Proibições

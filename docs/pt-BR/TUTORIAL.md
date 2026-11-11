@@ -6,11 +6,11 @@ Este tutorial leva você da instalação até o primeiro link publicado, usando 
 
 ## Antes de começar
 
-- Tenha os [requisitos do README](../../README.md#requisitos) e sua infraestrutura privada pronta: [lançador](CONCEPTS.md#lançador) privado com `wrangler.jsonc`, Worker e catálogo, e pacote GHCR privado. Se faltar algo, siga o [diagnóstico de instalação](../diagnostics/installation.pt-BR.md) antes.
+- Tenha os [requisitos do README](../../README.md#requisitos) e sua infraestrutura privada pronta: [lançador](CONCEPTS.md#lançador) privado com `wrangler.jsonc`, Worker e catálogo, e pacote [GHCR](CONCEPTS.md#ghcr) privado. Se faltar algo, siga o [diagnóstico de instalação](../diagnostics/installation.pt-BR.md) antes.
 - Tenha em mãos o commit público completo fixado no `tool.lock.json` do seu lançador. Abaixo ele aparece como `<COMMIT_PUBLICO_FIXADO>`.
 
 Atenção:
-- Use só o seu terminal local. Não execute comandos dentro de um Codespace para completar o boot de uma revisão.
+- Use só o seu terminal local. Não execute comandos dentro de um [Codespace](CONCEPTS.md#worker-durable-object-e-codespace) para completar o boot de uma revisão.
 - Não coloque tokens em argumentos, no chat ou em arquivos versionados.
 - Não altere o plano de cobrança.
 
@@ -120,7 +120,7 @@ Atenção:
 
     Na primeira publicação acontece a [captura](CONCEPTS.md#dados-congelados-e-captura). O exemplo já seleciona Lia (`example_lia`) e Rui (`example_rui`), com as permissões preservadas. O comando só termina com sucesso depois de validar imagem, boot, saúde JSON, todas as contas, mídias e identidade pública. O que acontece em cada etapa está em [Fluxo](FLOW.md#o-que-acontece-no-publish).
 
-17. Abra a `url` do JSON final no navegador, teste o comportamento específico do PR e cole o link no PR. As senhas aparecem na página de entrada do ambiente, nunca no relatório do CLI.
+17. Abra a `url` do JSON final no navegador, teste o comportamento específico do pull request (PR) e cole o link no PR. As senhas aparecem na página de entrada do ambiente, nunca no relatório do CLI.
 
     Atenção: as contas são compartilhadas. Use sessões independentes para autora e leitor. Um build ou push concluído nunca equivale a aceite público; só o JSON final com `status: "validated"` vale.
 

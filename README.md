@@ -1,6 +1,6 @@
 # enois-preview
 
-Ferramenta de linha de comando que publica um link de preview do Énóis para um PR: quem abre o link recebe o app inteiro rodando, com dados realistas, num ambiente descartável.
+Ferramenta de linha de comando que publica um link de preview para um pull request (PR), o pedido de revisão de código no GitHub, feito numa das aplicações do Énóis ([enois.ia.br](https://enois.ia.br)), uma rede social gratuita, sem anúncios e sem fins lucrativos, construída junto com a comunidade. Quem abre o link recebe o app inteiro rodando, com dados realistas, num ambiente descartável.
 
 [English](docs/en/README.md) · [Conceitos](docs/pt-BR/CONCEPTS.md) · [Fluxo](docs/pt-BR/FLOW.md) · [Receitas](docs/pt-BR/RECIPES.md) · [Tutorial](docs/pt-BR/TUTORIAL.md) · [Histórico](CHANGELOG.md)
 
@@ -8,45 +8,19 @@ Ferramenta de linha de comando que publica um link de preview do Énóis para um
 
 Para revisar um PR do Énóis de verdade, é preciso o backend, o frontend e o design system rodando juntos, com dados que pareçam reais. Montar isso na máquina de cada revisor é lento e frágil.
 
-O enois-preview resolve isso para quem abre o PR (o operador). Você roda `enois-preview publish <cenario>` no seu terminal e recebe um link HTTPS. Quando alguém abre o link, um GitHub Codespace sobe sozinho com as três aplicações nos seus commits e com uma cópia sanitizada dos seus dados. Depois de dez minutos sem uso, o ambiente é apagado.
+O enois-preview resolve isso para quem abre o PR (o operador). Você roda `enois-preview publish <cenario>` no seu terminal, onde o [cenário](docs/pt-BR/CONCEPTS.md#cenário) é um nome curto que você escolhe, e recebe um link HTTPS. Quando alguém abre o link, um GitHub Codespace, uma máquina de desenvolvimento na nuvem do GitHub, sobe sozinho com as três aplicações nos seus commits e com uma cópia dos seus dados [sanitizada](docs/pt-BR/CONCEPTS.md#dados-congelados-e-captura), sem sessões, tokens nem senhas. Depois de dez minutos sem uso, o ambiente é apagado.
 
 Em resumo:
-- **No `publish`:** a ferramenta confere que as fontes estão comitadas, copia os dados só quando precisa, congela tudo numa revisão imutável, constrói a imagem, grava a configuração no seu lançador privado, publica o Worker e só informa sucesso depois de abrir o link e conferir o resultado.
-- **Na visita:** o Worker da Cloudflare cria o Codespace, mostra as contas e senhas geradas no boot e encaminha a navegação até o app.
+- **No `publish`:** a ferramenta confere que as fontes estão comitadas, copia os dados só quando precisa, congela tudo numa [revisão](docs/pt-BR/CONCEPTS.md#revisão) imutável, constrói a imagem Docker do app, grava a configuração no seu [lançador](docs/pt-BR/CONCEPTS.md#lançador) (um repositório privado seu no GitHub), publica o [Worker](docs/pt-BR/CONCEPTS.md#worker-durable-object-e-codespace) (o programa da Cloudflare que atende o link) e só informa sucesso depois de abrir o link e conferir o resultado.
+- **Na visita:** o Worker cria o Codespace, mostra as contas e senhas geradas no boot e encaminha a navegação até o app.
 
-O passo a passo de cada lado está em [Fluxo](docs/pt-BR/FLOW.md).
+O passo a passo de cada lado está no Fluxo: [o que acontece no `publish`](docs/pt-BR/FLOW.md#o-que-acontece-no-publish) e [o que acontece quando alguém abre o link](docs/pt-BR/FLOW.md#o-que-acontece-quando-alguém-abre-o-link).
 
 ## Onde roda o quê
 
-```mermaid
-flowchart LR
-  subgraph Local["Sua máquina"]
-    CLI["CLI enois-preview (preview/)"]
-    Apps["3 aplicações e H2 local"]
-  end
-  GHCR["GHCR privado: imagem feita de recipe/ e runtime/"]
-  Launcher["Lançador privado no GitHub: catálogo e .devcontainer"]
-  subgraph CF["Cloudflare"]
-    Worker["Worker e Durable Object (src/)"]
-  end
-  subgraph CS["GitHub Codespace"]
-    Gateway["gateway :3000"]
-    Spring["Spring :8081"]
-    Nuxt["Nuxt :3001"]
-  end
-  Visitor["Visitante no navegador"]
-  Apps --> CLI
-  CLI -->|docker push| GHCR
-  CLI -->|git push| Launcher
-  CLI -->|wrangler deploy| Worker
-  Visitor -->|HTTPS| Worker
-  Worker -->|cria pela API do GitHub| CS
-  Launcher -.->|devcontainer| CS
-  GHCR -.->|imagem| CS
-  Worker -->|encaminha| Gateway
-  Gateway --> Spring
-  Gateway --> Nuxt
-```
+O [CLI](docs/pt-BR/CONCEPTS.md#cli), o comando `enois-preview`, roda na sua máquina, onde também ficam as três aplicações e o [banco H2](docs/pt-BR/CONCEPTS.md#as-três-aplicações) local. No `publish`, ele envia a imagem a um pacote privado seu no GHCR (o registro de imagens Docker do GitHub), grava a configuração no lançador e publica o Worker na Cloudflare. Quem abre o link, o [visitante](docs/pt-BR/CONCEPTS.md#operador-e-visitante), fala só com o Worker, que cria o Codespace a partir dessa imagem e dessa configuração. Dentro do Codespace, um gateway encaminha a navegação para o backend e o frontend.
+
+**[Veja o diagrama e o que cada parte faz em Fluxo](docs/pt-BR/FLOW.md#onde-roda-o-quê)**
 
 ## Comandos
 
@@ -67,8 +41,9 @@ flowchart LR
 - Autenticação no GitHub, no GHCR e na Cloudflare.
 - Sua própria infraestrutura privada: um repositório lançador privado, um pacote GHCR privado e um Worker da Cloudflare. Para criá-la, siga o [diagnóstico de instalação](docs/diagnostics/installation.pt-BR.md).
 - O driver H2 deve corresponder ao banco configurado. A receita da imagem já traz `ffmpeg` e o modelo local de classificação de imagens; uploads novos não usam serviço externo de escrita de mídia.
+- Python não é requisito.
 
-A ferramenta usa TypeScript estrito e ESM, compilado explicitamente; Python não é requisito. Para desenvolvimento, use `npm ci --ignore-scripts`, `npm run build`, `npm run typecheck`, `npm test` e `npm run check`. O teste recompila antes de executar.
+Para alterar a própria ferramenta, veja [Desenvolver a ferramenta](#desenvolver-a-ferramenta).
 
 ## Instalação
 
@@ -92,11 +67,11 @@ enois-preview source-digest
 ```
 
 Atenção:
-- `publish` e `resume` recalculam os hashes e recusam, antes de qualquer efeito, uma instalação que difira do registro ou do `toolCommit`.
+- `publish` e `resume` recalculam os hashes e recusam, antes de qualquer efeito, uma instalação que difira do registro ou do [`toolCommit`](docs/pt-BR/CONCEPTS.md#toolcommit-e-installjson).
 - A instalação é imutável: para outra versão, instale outro commit. Não execute `npm run` dentro dela, porque isso recompila o `dist`.
 - Um checkout de desenvolvimento não publica, nem limpo no mesmo commit.
 - Revisões congeladas pela 0.3.1 ou anteriores só são retomadas pelo executor original: um checkout limpo no commit delas, com `npm run build`.
-- Configuração, dados, journals, proveniência e catálogo usam `format: "enois-preview-ts-v1"`. A instalação privada padrão fica em `~/.config/enois-preview-ts`. Registros antigos com `schema` ou sem esse `format` são recusados antes de alterações: crie uma instalação e um catálogo novos, sem copiar a confirmação nem converter journals Python. Arquivos antigos e histórico são preservados, sem promessa de retomada ou de funcionamento dos links anteriores.
+- Configuração, dados, [journals](docs/pt-BR/CONCEPTS.md#journal), proveniência e catálogo usam `format: "enois-preview-ts-v1"`. A instalação privada padrão fica em `~/.config/enois-preview-ts`. Registros antigos com `schema` ou sem esse `format` são recusados antes de alterações: crie uma instalação e um catálogo novos, sem copiar a confirmação nem converter journals Python. Arquivos antigos e histórico são preservados, sem promessa de retomada ou de funcionamento dos links anteriores.
 
 A primeira publicação, com dados fictícios, está no [tutorial](docs/pt-BR/TUTORIAL.md).
 
@@ -115,15 +90,18 @@ A primeira publicação, com dados fictícios, está no [tutorial](docs/pt-BR/TU
 ## Limites e custos
 
 - A ferramenta não comita nem altera as três aplicações. Ela recusa fontes com mudanças staged, unstaged ou arquivos não rastreados.
-- O primeiro `publish` de um cenário captura dados e para somente o backend identificado. As publicações seguintes usam os commits atuais e os dados congelados, sem ler ou parar o banco local. `--refresh-data` faz outra captura; uma falha preserva a versão completa anterior. As fontes são exportadas por commit e o pacote do design system é construído novamente.
-- Os visitantes compartilham contas, dados e capacidade: 20 MiB por arquivo novo e 256 MiB por ambiente. As mídias da semente não gastam essa capacidade. O boot restaura a semente e gera senhas novas; alterações e uploads são descartáveis.
-- Dez minutos sem interação reconhecida iniciam a exclusão. Polling não renova o prazo. Disponibilidade e franquias das plataformas limitam essa proteção; um link imutável não garante um ambiente permanentemente ativo.
+- O código vem sempre dos commits atuais e os dados ficam congelados desde a última captura do cenário, que só lê o banco local na primeira publicação ou com `--refresh-data`. Os detalhes estão em [Código vs dados](docs/pt-BR/CONCEPTS.md#código-vs-dados).
+- Os visitantes compartilham contas, dados e capacidade de upload, e o ambiente é apagado depois de dez minutos sem interação. Os limites exatos estão em [Compartilhar o link no PR](docs/pt-BR/RECIPES.md#9-compartilhar-o-link-no-pr).
 - A conferência dos planos gratuitos e do bloqueio de gastos ocorre somente no `setup`. Publicar, retomar e abrir links não exigem renovação. A ferramenta não solicita cartão, não contrata recursos e não ativa planos pagos. A confirmação humana não audita faturamento por API. Consulte [a cobrança do Codespaces](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces) e [os limites gratuitos de Durable Objects](https://developers.cloudflare.com/durable-objects/platform/pricing/).
 - Este é um uso temporário associado ao desenvolvimento e teste do projeto. Os [termos do Codespaces](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features#codespaces) restringem uso desproporcional como servidor e hospedagem de aplicações de produção. O funcionamento técnico não demonstra aprovação desta arquitetura pelo GitHub.
 
 ## Para auditar
 
 A publicação só informa sucesso após as verificações públicas. O resultado individual de cada critério de aceite, com as evidências por versão, está em [VALIDATION.md](VALIDATION.md); consulte esse arquivo antes de considerar uma revisão pronta para compartilhar. Para falhas e recuperação, veja o [diagnóstico](docs/diagnostics/README.md).
+
+## Desenvolver a ferramenta
+
+A ferramenta usa TypeScript estrito e ESM, compilado explicitamente. Para desenvolvimento, use `npm ci --ignore-scripts`, `npm run build`, `npm run typecheck`, `npm test` e `npm run check`. O teste recompila antes de executar.
 
 ## Licença
 

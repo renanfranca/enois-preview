@@ -83,6 +83,54 @@ test('capture restores running backend and sanitizes a real H2 copy while preser
   } finally { f.cleanup(); }
 });
 
+test('capture empties private calendar subscriptions so their link tokens never reach the sanitized copy', async () => {
+  const marker = 'calendar-subscription-marker-7f3c9a1e52d4b860';
+  const f = fixture(`CREATE TABLE CALENDAR_SUBSCRIPTIONS(ID VARCHAR PRIMARY KEY, USER_ID VARCHAR, SCOPE VARCHAR, TOKEN_HASH VARCHAR(64) NOT NULL UNIQUE, CREATED_AT TIMESTAMP, REVOKED_AT TIMESTAMP);
+INSERT INTO CALENDAR_SUBSCRIPTIONS VALUES('subscription','author','PERSONAL','${marker}',CURRENT_TIMESTAMP,NULL);`);
+  try {
+    const before = createHash('sha256').update(readFileSync(f.config.database)).digest('hex');
+
+    const data = await captures.capture(f.config as never) as { id: string };
+
+    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'running');
+    assert.equal(createHash('sha256').update(readFileSync(f.config.database)).digest('hex'), before);
+    const packageRoot = join(f.config.state, 'data', data.id, 'package');
+    const answer = command('java', '-cp', f.config.h2Jar, 'org.h2.tools.Shell', '-url', `jdbc:h2:file:${packageRoot}/seed/rede;IFEXISTS=TRUE`, '-user', 'sa', '-sql', 'SELECT COUNT(*) AS SUBSCRIPTIONS FROM CALENDAR_SUBSCRIPTIONS');
+    assert.match(answer, /SUBSCRIPTIONS\s+0\b/);
+    assert.equal(readFileSync(join(packageRoot, 'seed/rede.mv.db')).includes(Buffer.from(marker)), false);
+  } finally { f.cleanup(); }
+});
+
+test('capture keeps messages readable while clearing their per-message encrypted keys', async () => {
+  const marker = 'per-message-keys-marker-b41d6e2093ca57f8';
+  const f = fixture(`CREATE TABLE MESSAGES(ID VARCHAR PRIMARY KEY, SENDER_ID VARCHAR, CONTENT VARCHAR, ENCRYPTED_KEYS VARCHAR);
+INSERT INTO MESSAGES VALUES('keyed','author','fictional keyed message','${marker}'),('legacy','reader','fictional legacy message',NULL);`);
+  try {
+    const data = await captures.capture(f.config as never) as { id: string };
+
+    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'running');
+    const packageRoot = join(f.config.state, 'data', data.id, 'package');
+    const answer = command('java', '-cp', f.config.h2Jar, 'org.h2.tools.Shell', '-url', `jdbc:h2:file:${packageRoot}/seed/rede;IFEXISTS=TRUE`, '-user', 'sa', '-sql', "SELECT ID, CONTENT FROM MESSAGES ORDER BY ID; SELECT COUNT(*) AS KEYED FROM MESSAGES WHERE ENCRYPTED_KEYS IS NOT NULL");
+    assert.match(answer, /keyed\s*\|\s*fictional keyed message/);
+    assert.match(answer, /legacy\s*\|\s*fictional legacy message/);
+    assert.match(answer, /KEYED\s+0\b/);
+    assert.equal(readFileSync(join(packageRoot, 'seed/rede.mv.db')).includes(Buffer.from(marker)), false);
+  } finally { f.cleanup(); }
+});
+
+test('capture still refuses an unreviewed credential column without promoting data', async () => {
+  const f = fixture(`CREATE TABLE CALENDAR_FEEDS(ID VARCHAR PRIMARY KEY, FEED_TOKEN VARCHAR);
+INSERT INTO CALENDAR_FEEDS VALUES('feed','calendar-feed-marker-0d8e61b4a7f2');`);
+  try {
+    await assert.rejects(captures.capture(f.config as never), /Capture incomplete; backend restored to its prior state/);
+
+    assert.match(readFileSync(join(f.config.state, 'tools', 'sanitize.log'), 'utf8'), /Unrecognized authentication or integration column: CALENDAR_FEEDS\.FEED_TOKEN; extend the reviewed sanitizer before capture/);
+    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'running');
+    assert.equal(existsSync(join(f.config.state, 'data')), false);
+    assert.equal(existsSync(join(f.config.state, 'restoration.json')), false);
+  } finally { f.cleanup(); }
+});
+
 test('a new CLI invocation restores a backend after SIGKILL before inspecting dirty sources', async () => {
   const f = fixture(); let helper: number | undefined;
   const base = workspace(f.root);

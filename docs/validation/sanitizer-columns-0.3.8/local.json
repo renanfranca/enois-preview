@@ -1,0 +1,48 @@
+{
+  "version": "0.3.8",
+  "status": "passed",
+  "node": "24.16.0",
+  "npm": "11.13.0",
+  "baseCommit": "610839340c86a96ec07ac1e5a02c33a8577940b8",
+  "recordFormat": "enois-preview-ts-v1",
+  "commands": [
+    { "command": "npm ci --ignore-scripts", "exitCode": 0 },
+    { "command": "npm run build", "exitCode": 0 },
+    { "command": "npm run typecheck", "exitCode": 0 },
+    { "command": "npm test", "exitCode": 0 },
+    { "command": "npm run check", "exitCode": 0 },
+    { "command": "npm run test:capture", "exitCode": 0 },
+    { "command": "npm run test:consumer", "exitCode": 0 },
+    { "command": "npm run test:install", "exitCode": 0 }
+  ],
+  "standardTests": { "passed": 117, "failed": 0, "skipped": 0 },
+  "captureTests": { "passed": 1, "failed": 0, "skipped": 0 },
+  "installedConsumerTests": { "passed": 117, "failed": 0, "skipped": 0 },
+  "installerTests": { "passed": 2, "failed": 0, "skipped": 0 },
+  "productCodeChanged": true,
+  "defect": "capture of an H2 database from a current backend stopped in the sanitizer with 'Unrecognized authentication or integration column: CALENDAR_SUBSCRIPTIONS.TOKEN_HASH'; alphabetical schema order also hid MESSAGES.ENCRYPTED_KEYS",
+  "rule": "CALENDAR_SUBSCRIPTIONS joins the dropped tables; MESSAGES.ENCRYPTED_KEYS is a named exception set to NULL in the sanitizing transaction when MESSAGES has that column",
+  "unchanged": [
+    "the refusal pattern, its message and the other named exceptions",
+    "the list, metadata and digest actions and the order of the sanitizing steps",
+    "message content, which stays in the sanitized copy"
+  ],
+  "coverage": {
+    "K1": "capture-journey: CALENDAR_SUBSCRIPTIONS is empty in the copy and its marker is absent from the seed bytes",
+    "K2": "capture-journey: both messages keep their content, no ENCRYPTED_KEYS remains and its marker is absent from the seed bytes",
+    "K3": "capture-journey: an unreviewed CALENDAR_FEEDS.FEED_TOKEN column is still refused in sanitize.log without promoted data or restoration record",
+    "K4": "the existing sanitize test and npm test unchanged; test:capture on the example workspace"
+  },
+  "red": {
+    "commit": "6108393",
+    "observed": [
+      "K1: refused with Unrecognized authentication or integration column: CALENDAR_SUBSCRIPTIONS.TOKEN_HASH",
+      "K2: refused with Unrecognized authentication or integration column: MESSAGES.ENCRYPTED_KEYS",
+      "K3: passed before the change"
+    ]
+  },
+  "limits": [
+    "the example workspace H2 used by test:capture has neither CALENDAR_SUBSCRIPTIONS nor MESSAGES.ENCRYPTED_KEYS, so test:capture proves non-regression only; the new columns are proven by K1 and K2",
+    "register-codespace runs for real only inside a Codespace (CODESPACES=true) and no canonical publication evidence shows the registration"
+  ]
+}

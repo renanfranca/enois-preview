@@ -431,3 +431,27 @@ Open: `register-codespace` runs for real only inside a Codespace (`CODESPACES=tr
 **J1 timer.** The J1 race against a 75 s timeout did not cancel the timer, so the file took about 79 s while its four tests took about 9 s. The timer now receives an `AbortController` signal and is aborted right after the race. The race keeps both branches and the exit code assertion is unchanged, so a `stop` that does not end within 75 s still fails J1.
 
 [Reviewed local results](docs/validation/exit-window-0.3.7/local.json) record the eight commands.
+
+## Sanitizer coverage for calendar subscriptions and per-message keys (0.3.8)
+
+**Defect.** On 11 November 2026 the first capture of an H2 database from a current backend stopped in the sanitizer, before any publication, with `Unrecognized authentication or integration column: CALENDAR_SUBSCRIPTIONS.TOKEN_HASH; extend the reviewed sanitizer before capture`. The sanitizer reads the schema in alphabetical order, so that failure also hid a second unknown column, `MESSAGES.ENCRYPTED_KEYS`. The refusal itself was correct: the reviewed decision for the two new columns was missing.
+
+**Decisions.**
+
+- `CALENDAR_SUBSCRIPTIONS` (one row per private calendar `.ics` link; `TOKEN_HASH` is the SHA-256 of the only credential of a route that answers without a session) joins the dropped tables. Every row exists only to authenticate that link, and `TOKEN_HASH` is `NOT NULL` and unique, so clearing the column the way `PARENTAL_LINKS.TOKEN_HASH` is cleared would break the constraint. The table stays in the schema and is empty in the preview.
+- `MESSAGES.ENCRYPTED_KEYS` (a JSON with one encrypted copy of the message AES key per participant; `NULL` in older messages) is a named exception that the sanitizing transaction sets to `NULL`, only when the `MESSAGES` table has that column. Dropping `MESSAGES` would remove the conversation content the preview shows, and keeping the column would take key material out of the machine. Per-message encrypted messages were already unreadable in the preview, because `USER_E2E_KEYPAIRS` is dropped; they stay unreadable. Older messages are unchanged.
+
+**Unchanged.** The refusal pattern (`PASSWORD|SECRET|TOKEN|PRIVATE_KEY|WEBHOOK|MFA|OAUTH_GRANT|CIPHER|ENCRYPTED`), the message, the other exceptions (`PARENTAL_LINKS.TOKEN_HASH`, `CONTENT_FINGERPRINTS.TOKEN_COUNT`), the `list`, `metadata` and `digest` actions and the order of the sanitizing steps. Both new exceptions name the exact table and column; nothing generic was added. The sanitizer source changed, so `sanitizerSha256` changed: a later capture with `--refresh-data` does not reuse data frozen by an earlier version.
+
+**Where the refusal is visible.** The capture error printed by the CLI is the generic `Capture incomplete; backend restored to its prior state. java failed (exit 1); …`. The specific message is written to the private log `<state>/tools/sanitize.log`. This is not new in 0.3.8, and the tests assert the message in that log.
+
+**Journey (`test/capture-journey.test.ts`, real H2 2.5.252 fixture).**
+
+- K1: a fixture with `CALENDAR_SUBSCRIPTIONS(…, TOKEN_HASH VARCHAR(64) NOT NULL UNIQUE, …)` and one row holding a unique marker. Capture completes, the copy has 0 rows in that table, the marker is absent from the bytes of `seed/rede.mv.db`, the backend is `running` again and the original database keeps its sha256.
+- K2: a fixture with `MESSAGES(ID, SENDER_ID, CONTENT, ENCRYPTED_KEYS)`, one message whose `ENCRYPTED_KEYS` is a unique marker and one with `NULL`. Capture completes, both messages keep their content, no row has `ENCRYPTED_KEYS` set, and the marker is absent from the seed bytes.
+- K3: a fictional `CALENDAR_FEEDS(ID, FEED_TOKEN)` column is still refused with `Unrecognized authentication or integration column: CALENDAR_FEEDS.FEED_TOKEN; extend the reviewed sanitizer before capture` in `sanitize.log`, the backend is `running` again, no data is promoted under `<state>/data/` and no `restoration.json` remains. It is the guard against an exception that is too wide.
+- Red on `6108393` (`v0.3.7` plus documentation commits only, with the same sanitizer): K1 was refused with `… CALENDAR_SUBSCRIPTIONS.TOKEN_HASH`, K2 with `… MESSAGES.ENCRYPTED_KEYS`, and K3 already passed.
+
+**Coverage limit.** The fictional H2 of the example workspace used by `npm run test:capture` has neither new table nor column (a read-only query of a copy returned 0 rows), so `test:capture` proves non-regression only. The new columns are proven by K1 and K2.
+
+[Reviewed local results](docs/validation/sanitizer-columns-0.3.8/local.json) record the eight commands.

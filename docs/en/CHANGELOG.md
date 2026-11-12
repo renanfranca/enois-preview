@@ -4,6 +4,12 @@
 
 This file records what changed in each release, newest first. The guides ([README](README.md), [tutorial](TUTORIAL.md), [recipes](RECIPES.md)) describe current behavior only. Each release's evidence is in [VALIDATION.md](../../VALIDATION.md).
 
+## 0.3.8 (2026-11-12)
+
+- Capture accepts databases with the private calendar and with per-message end-to-end encryption. The `CALENDAR_SUBSCRIPTIONS` table (calendar `.ics` links) is empty in the sanitized copy, and `MESSAGES.ENCRYPTED_KEYS` is `NULL` in every message, which keeps its content. Up to 0.3.7, these columns stopped capture with `Unrecognized authentication or integration column`.
+- An unknown column that looks like a credential still stops capture without promoting data.
+- `sanitizerSha256` changed. The next capture with `--refresh-data` therefore does not reuse data frozen by earlier versions.
+
 ## 0.3.7 (2026-11-11)
 
 - The example service adapter (`service.js`) no longer answers `Backend ownership mismatch` for a backend that is exiting. `status` and `start` now treat that process as stopped, so capture no longer fails in that window.

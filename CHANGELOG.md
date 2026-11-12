@@ -4,6 +4,12 @@
 
 Este arquivo registra o que mudou em cada versão, da mais nova para a mais antiga. Os guias ([README](README.md), [tutorial](docs/pt-BR/TUTORIAL.md), [receitas](docs/pt-BR/RECIPES.md)) descrevem só o comportamento atual. As evidências de cada versão estão em [VALIDATION.md](VALIDATION.md).
 
+## 0.3.8 (2026-11-12)
+
+- A captura aceita bancos com a agenda privada e com criptografia de ponta a ponta por mensagem. A tabela `CALENDAR_SUBSCRIPTIONS` (links `.ics` da agenda) fica vazia na cópia sanitizada, e `MESSAGES.ENCRYPTED_KEYS` fica `NULL` em todas as mensagens, que continuam com o conteúdo. Até a 0.3.7, essas colunas paravam a captura com `Unrecognized authentication or integration column`.
+- Uma coluna desconhecida com cara de credencial continua parando a captura, sem promover dados.
+- O `sanitizerSha256` mudou. Por isso, a próxima captura com `--refresh-data` não reaproveita dados congelados por versões anteriores.
+
 ## 0.3.7 (2026-11-11)
 
 - O adaptador de serviço do exemplo (`service.js`) não responde mais `Backend ownership mismatch` para um backend que está terminando. `status` e `start` passam a tratar esse processo como parado, e a captura deixa de falhar nesse intervalo.

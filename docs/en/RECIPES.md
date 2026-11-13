@@ -10,6 +10,25 @@ Every recipe has the same shape: **When to use**, **Commands**, **What to expect
 
 **Commands:**
 
+On the first installation, with Node 24.x, npm, `curl` and `tar`:
+
+```sh
+COMMIT=<PINNED_PUBLIC_COMMIT>
+curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
+```
+
+With the tool already installed, to switch to another pinned commit:
+
+```sh
+enois-preview install <PINNED_PUBLIC_COMMIT>
+```
+
+Both paths create the same verified installation and install the Chromium used by public validation. `install.sh` comes from the pinned commit itself and only prepares the installer in a temporary directory, removed at the end.
+
+After switching commits, put the same SHA in `toolCommit` in your private configuration file and repeat `enois-preview setup --config <file>`. The launcher must also pin that commit in `tool.lock.json` and in the `enois-preview` dependency of its `package.json`; see [installation diagnostics](../diagnostics/installation.en.md).
+
+Manual path, for a commit earlier than 0.3.9 (which has no `install.sh` and does not install Chromium by itself) or if you prefer not to run a downloaded script:
+
 ```sh
 git clone https://github.com/renanfranca/enois-preview.git /absolute/temporary/enois-preview
 cd /absolute/temporary/enois-preview
@@ -17,22 +36,23 @@ git checkout --detach <PINNED_PUBLIC_COMMIT>
 npm ci --ignore-scripts
 npm run build
 node dist/scripts/install-tool.js --commit <PINNED_PUBLIC_COMMIT>
-cd ~/.local/share/enois-preview/current
-npx --no-install playwright install chromium
+(cd ~/.local/share/enois-preview/current && npx --no-install playwright install chromium)
 ```
 
-To switch commits, install the new commit the same way, put the same SHA in `toolCommit` in your private configuration file and repeat `enois-preview setup --config <file>`. The launcher must also pin that commit in `tool.lock.json` and in the `enois-preview` dependency of its `package.json`; see [installation diagnostics](../diagnostics/installation.en.md).
-
-**What to expect:** the installer prints JSON with `commit`, `installation` (`~/.local/share/enois-preview/<COMMIT>`), `current`, `stamp` (the `install.json`) and `linked: true`. The `enois-preview` command now points at that installation.
+**What to expect:** the installer prints JSON with `commit`, `installation` (`~/.local/share/enois-preview/<COMMIT>`), `current`, `stamp` (the `install.json`), `linked: true` and `browser: true`. The `enois-preview` command now points at that installation.
 
 Attention:
 - Installations are immutable. Do not run `npm run` or edit files inside one: it rebuilds `dist` and `publish` then refuses the installation.
 - A development checkout cannot publish, even when clean at the same commit.
 - Authenticate with `gh auth login` and your Docker credential mechanism. Never put tokens in arguments, chats or versioned files.
+- Interrupting with Ctrl+C before the installation exists leaves nothing behind, and the command can be repeated. Interrupting while Chromium downloads leaves the installation complete; run the command the message shows.
 
 **If it goes wrong:**
 - `is already installed at ...; installations are immutable.`: that commit is already installed. The installer does not overwrite it or switch `current` in this case.
-- `Download of ... failed (HTTP ...)`: check that the full SHA exists in the public repository.
+- `Download of ... failed (HTTP ...)` or `Download of commit ... failed`: check that the full SHA exists in the public repository. If the `install.sh` `curl` answers 404, the commit is earlier than 0.3.9: use the manual path.
+- `Download of ... failed; check the network connection and retry.`: the machine did not reach `codeload.github.com`. Check the network or the proxy and repeat. Nothing was installed.
+- `Chromium, used by the public validation, was not installed`: the installation is complete, only the browser is missing. Run the command the message shows.
+- `Node 24.x is required`: select Node 24, for example with `nvm install 24`, and repeat.
 - `Build changed source files outside dist`: the commit cannot be installed; tell whoever pinned it.
 - Anything else: [diagnostics](../diagnostics/README.md).
 

@@ -4,6 +4,14 @@
 
 Este arquivo registra o que mudou em cada versão, da mais nova para a mais antiga. Os guias ([README](README.md), [tutorial](docs/pt-BR/TUTORIAL.md), [receitas](docs/pt-BR/RECIPES.md)) descrevem só o comportamento atual. As evidências de cada versão estão em [VALIDATION.md](VALIDATION.md).
 
+## 0.3.9 (não publicada)
+
+- Instalação com um comando: `COMMIT=<SHA>; curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"`. O `install.sh` do próprio commit prepara o instalador num diretório temporário, apagado no fim, e não substitui a verificação: o instalador continua baixando o commit só de `codeload.github.com` e gravando os hashes em `install.json`.
+- Novo comando `enois-preview install <SHA>`. Com a ferramenta já instalada, ele instala outro commit público verificado e aponta `current` e o comando para ele, sem clone nem build manual.
+- O instalador passa a instalar o Chromium usado na validação pública e informa `browser: true` no JSON final. Se o navegador falhar, a instalação continua completa, o JSON traz `browser: false` e a mensagem mostra o comando para repetir só esse passo.
+- O caminho manual (clone, `npm ci`, `npm run build`, `install-tool`) continua funcionando e é o único para commits anteriores a esta versão. Veja [a receita](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado).
+- `publish` e `resume` antes do `setup` passam a responder `Configuration missing. Run enois-preview setup --config PRIVATE_JSON first.`, em vez da lista de comandos.
+
 ## 0.3.8 (2026-11-12)
 
 - A captura aceita bancos com a agenda privada e com criptografia de ponta a ponta por mensagem. A tabela `CALENDAR_SUBSCRIPTIONS` (links `.ics` da agenda) fica vazia na cópia sanitizada, e `MESSAGES.ENCRYPTED_KEYS` fica `NULL` em todas as mensagens, que continuam com o conteúdo. Até a 0.3.7, essas colunas paravam a captura com `Unrecognized authentication or integration column`.

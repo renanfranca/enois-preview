@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo, Socket } from 'node:net';
 
 async function initialSetup(home:string,file:string,answer:string,env:NodeJS.ProcessEnv=process.env):Promise<{code:number|null;output:string}>{
   const command=[process.execPath,resolve('dist/preview/cli.js'),'--home',home,'setup','--config',file].map(value=>"'"+value.replaceAll("'","'\\''")+"'").join(' ');
@@ -164,12 +166,36 @@ test('setup refuses private state reached through an application directory alias
   }finally{rmSync(directory,{recursive:true,force:true});}
 });
 
+test('install refuses anything but a full public commit before downloading or reading private configuration',()=>{
+  const directory=mkdtempSync(join(tmpdir(),'enois-install-command-'));
+  try{
+    for(const commit of ['main','v0.3.8','a'.repeat(39),'A'.repeat(40)]){
+      const result=spawnSync(process.execPath,['dist/preview/cli.js','install',commit],{encoding:'utf8',env:{...process.env,HOME:directory,ENOIS_PREVIEW_HOME:join(directory,'absent')}});
+
+      assert.equal(result.status,1,commit);assert.equal(result.stderr,'Installation incomplete: Install requires the full 40 character public tool commit.\n');assert.equal(result.stdout,'');
+      assert.deepEqual(readdirSync(directory),[]);
+    }
+  }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('publish and resume before setup name the missing configuration and create nothing',()=>{
+  const directory=mkdtempSync(join(tmpdir(),'enois-before-setup-'));
+  try{
+    for(const args of [['publish','fixture'],['publish','fixture','--refresh-data'],['resume','a'.repeat(64)]]){
+      const result=spawnSync(process.execPath,['dist/preview/cli.js','--home',join(directory,'home'),...args],{encoding:'utf8'});
+
+      assert.equal(result.status,1,args.join(' '));assert.equal(result.stderr,'Publication incomplete: Configuration missing. Run enois-preview setup --config PRIVATE_JSON first.\n');assert.equal(result.stdout,'');
+      assert.deepEqual(readdirSync(directory),[]);
+    }
+  }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
 test('invalid command arguments are refused before service recovery or publication writes',()=>{
   const directory=mkdtempSync(join(tmpdir(),'enois-arguments-'));
   try{
     const config=workspace(directory);const home=join(directory,'home');mkdirSync(home);
     const file=join(home,'config.json');const before=JSON.stringify(config);writeFileSync(file,before);
-    for(const args of [['setup','extra'],['setup','--refresh-data'],['publish'],['publish','fixture','extra'],['publish','fixture','--config',file],['resume'],['resume','a'.repeat(64),'extra'],['resume','a'.repeat(64),'--refresh-data']]){
+    for(const args of [['setup','extra'],['setup','--refresh-data'],['publish'],['publish','fixture','extra'],['publish','fixture','--config',file],['resume'],['resume','a'.repeat(64),'extra'],['resume','a'.repeat(64),'--refresh-data'],['install'],['install','a'.repeat(40),'extra'],['install','a'.repeat(40),'--refresh-data'],['install','a'.repeat(40),'--config',file]]){
       const result=spawnSync(process.execPath,['dist/preview/cli.js','--home',home,...args],{encoding:'utf8'});
 
       assert.equal(result.status,1);assert.match(result.stderr,/Invalid command arguments.*--help/,args.join(' '));
@@ -315,4 +341,71 @@ test('a cancelled main invocation preserves unrelated signal handlers and does n
 
     assert.equal(process.listenerCount('SIGTERM'),handlers);assert.equal(process.listenerCount('SIGINT'),interrupts);assert.ok(process.listeners('SIGTERM').includes(outsider));
   }finally{process.removeListener('SIGTERM',outsider);if(oldPath===undefined)delete process.env.PATH;else process.env.PATH=oldPath;if(existsSync(join(directory,'independent.json'))){try{process.kill(JSON.parse(readFileSync(join(directory,'independent.json'),'utf8')).pid,'SIGKILL');}catch{}}rmSync(directory,{recursive:true,force:true});}
+});
+
+
+type InstallProxy={address:string;tunnels:string[];tunnelled:Promise<void>;close:()=>Promise<void>};
+async function installProxy(answer:'refuse'|'hold'):Promise<InstallProxy>{
+  const tunnels:string[]=[],held:Socket[]=[];let tunnelled=()=>{};const first=new Promise<void>(done=>{tunnelled=done;});
+  const proxy=createServer((_request,response)=>{response.writeHead(405).end();});
+  proxy.on('connect',(request,socket:Socket)=>{tunnels.push(request.url??'');if(answer==='refuse')socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');else{held.push(socket);socket.on('error',()=>{});}tunnelled();});
+  proxy.listen(0,'127.0.0.1');await new Promise(done=>proxy.once('listening',done));
+  return {address:`http://127.0.0.1:${(proxy.address() as AddressInfo).port}`,tunnels,tunnelled:first,close:async()=>{for(const socket of held)socket.destroy();await new Promise(done=>proxy.close(done));}};
+}
+function proxied(home:string,proxy:string):NodeJS.ProcessEnv{return {...process.env,HOME:home,NODE_USE_ENV_PROXY:'1',HTTPS_PROXY:proxy,https_proxy:proxy,NO_PROXY:'',no_proxy:''};}
+type Finished={code:number|null;stdout:string;stderr:string};
+function installing(commit:string,env:NodeJS.ProcessEnv):{child:ReturnType<typeof spawn>;finished:Promise<Finished>}{
+  const child=spawn(process.execPath,[resolve('dist/preview/cli.js'),'install',commit],{env,stdio:['ignore','pipe','pipe']});let stdout='',stderr='';
+  child.stdout.on('data',chunk=>{stdout+=String(chunk);});child.stderr.on('data',chunk=>{stderr+=String(chunk);});
+  return {child,finished:new Promise((done,reject)=>{child.on('error',reject);child.on('close',code=>done({code,stdout,stderr}));})};
+}
+function leftovers(home:string,commit:string):string[]{
+  const prefix=join(home,'.local/share/enois-preview');
+  return existsSync(prefix)?readdirSync(prefix).filter(name=>name===commit||name==='current'||name.startsWith('.staging-')):[];
+}
+
+test('enois-preview install without network explains that the download failed and installs nothing',async()=>{
+  const home=mkdtempSync(join(tmpdir(),'enois-install-offline-'));const commit='b'.repeat(40);const proxy=await installProxy('refuse');
+  try{
+    const result=await installing(commit,proxied(home,proxy.address)).finished;
+
+    assert.equal(result.code,1,result.stderr);
+    assert.equal(result.stdout,'');
+    assert.equal(result.stderr,`Installation incomplete: Download of https://codeload.github.com/renanfranca/enois-preview/tar.gz/${commit} failed; check the network connection and retry.\n`);
+    assert.deepEqual(proxy.tunnels,['codeload.github.com:443']);
+    assert.deepEqual(leftovers(home,commit),[]);
+  }finally{await proxy.close();rmSync(home,{recursive:true,force:true});}
+});
+
+test('interrupting enois-preview install while the download is pending returns promptly with the signal code and leaves no partial installation',async()=>{
+  const commit='b'.repeat(40);
+  for(const signal of ['SIGINT','SIGTERM'] as const){
+    const home=mkdtempSync(join(tmpdir(),'enois-install-interrupted-'));const proxy=await installProxy('hold');
+    const {child,finished}=installing(commit,proxied(home,proxy.address));const timer=setTimeout(()=>child.kill('SIGKILL'),15_000);
+    try{
+      await proxy.tunnelled;
+      child.kill(signal);
+
+      const result=await Promise.race([finished,delay(10_000).then(()=>{child.kill('SIGKILL');return undefined;})]);
+
+      assert.ok(result,`${signal} did not end the installation within 10 s`);
+      assert.equal(result.code,signal==='SIGINT'?130:143,result.stderr);
+      assert.equal(result.stdout,'');
+      assert.equal(result.stderr,`Interrupted by ${signal}; cancelling active work and completing required restoration.\nInstallation incomplete: Interrupted by ${signal}.\n`);
+      assert.deepEqual(leftovers(home,commit),[]);
+    }finally{clearTimeout(timer);child.kill('SIGKILL');await proxy.close();rmSync(home,{recursive:true,force:true});}
+  }
+});
+
+test('an unexpected installation failure points at the installation logs instead of private input',async()=>{
+  const home=mkdtempSync(join(tmpdir(),'enois-install-unexpected-'));
+  try{
+    writeFileSync(join(home,'.local'),'not a directory');
+
+    const result=await installing('b'.repeat(40),{...process.env,HOME:home}).finished;
+
+    assert.equal(result.code,1,result.stderr);
+    assert.equal(result.stdout,'');
+    assert.equal(result.stderr,'Installation incomplete: Installation failed; inspect the logs under the installation prefix.\n');
+  }finally{rmSync(home,{recursive:true,force:true});}
 });

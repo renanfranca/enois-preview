@@ -7,20 +7,15 @@ This one time infrastructure procedure complements the [canonical tutorial](../e
 Start from a published public tool commit. Substitute your actual full SHA and names before running commands:
 
 ```sh
-git clone https://github.com/renanfranca/enois-preview.git
-cd enois-preview
-git checkout --detach PUBLIC_TOOL_COMMIT
-npm ci --ignore-scripts
-npm run build
-node dist/scripts/install-tool.js --commit PUBLIC_TOOL_COMMIT
-(cd ~/.local/share/enois-preview/current && npx --no-install playwright install chromium)
+COMMIT=PUBLIC_TOOL_COMMIT
+curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
 gh auth login
 gh auth setup-git
-npx wrangler login
-node dist/scripts/prepare-launcher.js /absolute/new/private-launcher --repository YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --tool-commit PUBLIC_TOOL_COMMIT --worker-name YOUR_WORKER_NAME
+(cd ~/.local/share/enois-preview/current && npx --no-install wrangler login)
+node ~/.local/share/enois-preview/current/dist/scripts/prepare-launcher.js /absolute/new/private-launcher --repository YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --tool-commit PUBLIC_TOOL_COMMIT --worker-name YOUR_WORKER_NAME
 ```
 
-The generator creates an empty private catalog and a Worker importing the pinned public package. It does not create accounts, repositories, secrets, images or Workers. The installer builds the commit in `~/.local/share/enois-preview/PUBLIC_TOOL_COMMIT`, records hashes of its source and `dist` in `install.json` and links `enois-preview` from `~/.local/share/enois-preview/current`; publication and resume refuse an installation that no longer matches that record. The clone above only bootstraps the installer and generator. Set `toolCommit` in your private example configuration to the same SHA.
+The generator creates an empty private catalog and a Worker importing the pinned public package. It does not create accounts, repositories, secrets, images or Workers. The installer builds the commit in `~/.local/share/enois-preview/PUBLIC_TOOL_COMMIT`, records hashes of its source and `dist` in `install.json` and links `enois-preview` from `~/.local/share/enois-preview/current`; publication and resume refuse an installation that no longer matches that record. `install.sh` comes from the commit itself and only prepares the installer in a temporary directory; the installer also installs the Chromium used by public validation. For a commit earlier than 0.3.9, use the [manual path](../en/RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit). The generator and `wrangler` run from the installation. Set `toolCommit` in your private example configuration to the same SHA.
 
 In the generated launcher directory, run `npm install --package-lock-only --ignore-scripts`, `npm ci --ignore-scripts`, `npm run build`, `npm test`, and `npm run check`. Review `package.json`, `package-lock.json`, `tool.lock.json`, `launcher.ts` and `wrangler.jsonc`. Create your private GitHub repository with `gh repo create YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --private`. Initialize a local Git repository, commit these reviewed files on your chosen publication branch and push that branch. Confirm `gh repo view YOUR_OWNER/YOUR_PRIVATE_LAUNCHER --json isPrivate` reports true. Never add work captures or database files.
 

@@ -27,6 +27,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<numb
   const interruption = listenForInterruption();
   const signal = interruption.signal;
   let failure = 'Publication incomplete';
+  let unexpected = 'Invalid or unavailable private input. Run enois-preview --help.';
   try {
   const { values, positionals } = parseArgs({ args, allowPositionals: true, options: { help: { type: 'boolean', short: 'h' }, home: { type: 'string' }, config: { type: 'string' }, 'refresh-data': { type: 'boolean' } } });
   if (values.help) {
@@ -44,7 +45,7 @@ Commands:
   }
   const command=positionals[0];
   if (command==='source-digest') failure='Source digest incomplete';
-  if (command==='install') failure='Installation incomplete';
+  if (command==='install') { failure='Installation incomplete'; unexpected='Installation failed; inspect the logs under the installation prefix.'; }
   if ((command==='setup' && (positionals.length!==1 || values['refresh-data'])) ||
       (command==='publish' && (positionals.length!==2 || values.config!==undefined)) ||
       (command==='resume' && (positionals.length!==2 || values.config!==undefined || values['refresh-data'])) ||
@@ -53,10 +54,10 @@ Commands:
     throw new PreviewError('Invalid command arguments. Run enois-preview --help.');
   }
   if (command==='install') {
-    // Needs no configuration and touches no private state: it only adds an installation beside the running one.
+    // Needs no configuration and touches no private state: it adds an installation under the default prefix ~/.local/share/enois-preview, beside the running one.
     const { installTool } = await import('../scripts/install-tool.js');
     signal.throwIfAborted();
-    console.log(JSON.stringify(await installTool(positionals[1] ?? ''),null,2));
+    console.log(JSON.stringify(await installTool(positionals[1] ?? '', undefined, undefined, signal),null,2));
     return 0;
   }
   const home = values.home ?? process.env.ENOIS_PREVIEW_HOME ?? join(homedir(), '.config/enois-preview-ts');
@@ -120,9 +121,13 @@ Commands:
   console.error('Choose setup, publish, resume, source-digest or install. Run enois-preview --help.');
   return 1;
   } catch (error: unknown) {
-    console.error(`${failure}: ${error instanceof PreviewError ? error.message : 'Invalid or unavailable private input. Run enois-preview --help.'}`);
+    console.error(`${failure}: ${error instanceof PreviewError ? error.message : unexpected}`);
     return interruption.exitCode ?? 1;
   } finally { interruption.dispose(); }
 }
 
-if (await invokedDirectly(import.meta.url)) process.exitCode = await main();
+if (await invokedDirectly(import.meta.url)) {
+  process.exitCode = await main();
+  // main has already awaited every restoration; a socket abandoned by a cancelled download must not keep an interrupted process alive.
+  if (process.exitCode === 130 || process.exitCode === 143) process.exit();
+}

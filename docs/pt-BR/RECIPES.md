@@ -45,10 +45,12 @@ Atenção:
 - A instalação é imutável. Não rode `npm run` nem edite arquivos dentro dela: isso recompila o `dist` e o `publish` passa a recusar a instalação.
 - Um checkout de desenvolvimento não publica, nem limpo no mesmo commit.
 - Autentique com `gh auth login` e o mecanismo de credenciais do Docker. Nunca coloque tokens em argumentos, no chat ou em arquivos versionados.
+- Interromper com Ctrl+C antes de a instalação ser criada não deixa nada para trás, e o comando pode ser repetido. Interromper durante o download do Chromium deixa a instalação completa; basta rodar o comando que a mensagem mostra.
 
 **Se der errado:**
 - `is already installed at ...; installations are immutable.`: esse commit já está instalado. O instalador não sobrescreve nem troca o `current` nesse caso.
 - `Download of ... failed (HTTP ...)` ou `Download of commit ... failed`: confira se o SHA completo existe no repositório público. Se o `curl` do `install.sh` responder 404, o commit é anterior à 0.3.9: use o caminho manual.
+- `Download of ... failed; check the network connection and retry.`: a máquina não alcançou `codeload.github.com`. Confira a rede ou o proxy e repita. Nada foi instalado.
 - `Chromium, used by the public validation, was not installed`: a instalação está completa, só faltou o navegador. Rode o comando que a mensagem mostra.
 - `Node 24.x is required`: selecione o Node 24, por exemplo com `nvm install 24`, e repita.
 - `Build changed source files outside dist`: o commit não é instalável; avise quem fixou o commit.

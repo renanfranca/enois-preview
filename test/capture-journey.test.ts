@@ -236,6 +236,20 @@ test('an explicit refresh reuses the recorded account selection when configurati
   }finally{f.cleanup();}
 });
 
+test('operator configuration refuses a login outside the reserved @enois.invalid domain',()=>{
+  const f=fixture();
+  try{
+    const withLogin=(email:string)=>({...f.config,accounts:[{id:'author',email,label:'Author'}]});
+    const refused=(error:unknown)=>error instanceof PreviewError&&error.message==='Accounts require stable id, label and disposable @enois.invalid email.';
+
+    assert.throws(()=>captureConfig(withLogin('author@example.com')),refused);
+    assert.throws(()=>captureConfig(withLogin('Author@enois.invalid')),refused);
+
+    const accepted=captureConfig(withLogin('author@enois.invalid'));
+    assert.equal(accepted.accounts[0]?.email,'author@enois.invalid');
+  }finally{f.cleanup();}
+});
+
 test('a service answer arriving after its timeout cannot promote a capture',async()=>{
   const f=fixture();
   try{

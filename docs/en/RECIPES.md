@@ -186,9 +186,10 @@ enois-preview setup --config /absolute/path/config.json
 - Each `service` command is an argument array, without shell, with a timeout (60 seconds when `timeout` is missing). `status` prints `running` or `stopped`, `ready` prints `ready` and `released` prints `released`.
 - The output of `identity` must equal `expectedIdentity`, which must prove process ownership and the H2 location, never a port alone.
 - `media` prefixes start and end with `/` and do not overlap.
-- If `accounts` is empty, the first `publish` lists the identities in the captured database and asks in the terminal which IDs to use.
+- The `email` of each account in `accounts` must have the form `<local part>@enois.invalid`, and the local part accepts only lowercase letters, digits, `.`, `_` and `-`. Use an invented email, never the person's real email: it becomes the login shown on the link's login page. The tool checks this rule when it reads the configuration (during `setup` and in every command that reads the config) and again when it sanitizes the H2 copy, where it writes the email into the `USER_CREDENTIALS` and `USERS` tables. Accounts that are not selected get `<id>@disabled.enois.invalid` and no login. The reason: `.invalid` is a reserved domain (RFC 2606 and RFC 6761) that never resolves, so no email sent by the demo reaches a person, and the login shown on the public link does not expose anyone's real email.
+- If `accounts` is empty, the first `publish` lists the identities in the captured database and asks in the terminal which IDs to use. In that case, the tool generates the logins `account1@enois.invalid`, `account2@enois.invalid` and so on.
 
-**If it goes wrong:** `Backend service ownership mismatch; configure its identity and database.` means `identity` did not print `expectedIdentity`. `Configure service.<name> as an argument array.` means a command is missing or malformed.
+**If it goes wrong:** `Backend service ownership mismatch; configure its identity and database.` means `identity` did not print `expectedIdentity`. `Configure service.<name> as an argument array.` means a command is missing or malformed. `Accounts require stable id, label and disposable @enois.invalid email.` means an account email has the wrong form: change the account email to `<something>@enois.invalid`.
 
 <a id="9-share-the-link-in-the-pr"></a>
 ## 9. Show in the PR that the problem is fixed

@@ -186,9 +186,10 @@ enois-preview setup --config /caminho/absoluto/config.json
 - Cada comando de `service` é um vetor de argumentos, sem shell, com timeout (60 segundos se `timeout` faltar). `status` imprime `running` ou `stopped`, `ready` imprime `ready` e `released` imprime `released`.
 - A saída de `identity` deve ser igual a `expectedIdentity`, que deve provar o dono do processo e o caminho do H2, nunca só uma porta.
 - Os prefixos de `media` começam e terminam com `/` e não se sobrepõem.
-- Se `accounts` ficar vazio, o primeiro `publish` lista as identidades do banco capturado e pergunta no terminal quais IDs usar.
+- O `email` de cada conta em `accounts` é obrigatório no formato `<parte local>@enois.invalid`, e a parte local aceita só letras minúsculas, números, `.`, `_` e `-`. Use um email inventado, nunca o email real da pessoa: ele vira o login mostrado na página de entrada do link. A ferramenta confere essa regra ao ler a configuração (no `setup` e em todo comando que lê a config) e de novo ao sanitizar a cópia do H2, quando grava o email nas tabelas `USER_CREDENTIALS` e `USERS`. As contas não selecionadas ficam com `<id>@disabled.enois.invalid` e sem login. O motivo: `.invalid` é um domínio reservado (RFC 2606 e RFC 6761) que nunca resolve, então nenhum email enviado pela demo chega a uma pessoa, e o login exibido no link público não expõe o email verdadeiro de ninguém.
+- Se `accounts` ficar vazio, o primeiro `publish` lista as identidades do banco capturado e pergunta no terminal quais IDs usar. Nesse caso, a ferramenta gera os logins `account1@enois.invalid`, `account2@enois.invalid` e assim por diante.
 
-**Se der errado:** `Backend service ownership mismatch; configure its identity and database.` indica que `identity` não imprimiu `expectedIdentity`. `Configure service.<nome> as an argument array.` indica um comando ausente ou mal formado.
+**Se der errado:** `Backend service ownership mismatch; configure its identity and database.` indica que `identity` não imprimiu `expectedIdentity`. `Configure service.<nome> as an argument array.` indica um comando ausente ou mal formado. `Accounts require stable id, label and disposable @enois.invalid email.` indica uma conta com email fora do formato: troque o email da conta para `<algo>@enois.invalid`.
 
 <a id="9-compartilhar-o-link-no-pr"></a>
 ## 9. Mostrar no PR que o problema foi resolvido

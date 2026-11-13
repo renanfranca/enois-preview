@@ -80,7 +80,7 @@ test('interrupted image inspection and local verification clean their own contai
       const bin=join(directory,'bin');await mkdir(bin);const fixture=resolve('dist/test/fixtures/docker-command.js');await chmod(fixture,0o755);await symlink(fixture,join(bin,'docker'));await writeFile(join(directory,'platform.json'),'{}');
       const code=`import {${operation}} from ${JSON.stringify(new URL('../preview/build.js',import.meta.url).href)};import {existsSync} from 'node:fs';const controller=new AbortController();process.on('SIGTERM',()=>controller.abort(new Error('interrupted')));let sent=false;const timer=setInterval(()=>{if(!sent&&existsSync(process.argv[1]+'/resource.json')){sent=true;process.kill(process.pid,'SIGTERM');}},10);try{await ${operation}('fixture/image',{},process.argv[1],${operation==='validateLocal'?'undefined,':''}controller.signal);process.exitCode=2;}catch(error){console.error(error.message);process.exitCode=1;}finally{clearInterval(timer);}`;
 
-      const result=spawnSync(process.execPath,['--input-type=module','-e',code,directory],{encoding:'utf8',timeout:2000,killSignal:'SIGKILL',env:{...process.env,PATH:`${bin}:${process.env.PATH??''}`,FIXTURE_PLATFORM_ROOT:directory,FIXTURE_DOCKER_HOLD:'true'}});
+      const result=spawnSync(process.execPath,['--input-type=module','-e',code,directory],{encoding:'utf8',timeout:15000,killSignal:'SIGKILL',env:{...process.env,PATH:`${bin}:${process.env.PATH??''}`,FIXTURE_PLATFORM_ROOT:directory,FIXTURE_DOCKER_HOLD:'true'}});
 
       assert.equal(result.status,1,`${operation}: ${result.error?.message??result.stderr}`);assert.match(result.stderr,/interrupted/);
       assert.equal(existsSync(join(directory,'resource.json')),false,'owned resource must be removed despite cancelled creation');

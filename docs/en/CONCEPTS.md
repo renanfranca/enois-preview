@@ -62,7 +62,7 @@ A 64 character sha256 identifier computed over every frozen input: the scenario 
 
 ### Frozen data and capture
 
-**Capture** stops the local backend (only if it is running), copies the H2 database and the configured media folders, and returns the backend to its previous state. Then it **sanitizes** the copy, that is, removes sessions, tokens and passwords from it: only the selected accounts keep a login. The result lives in `<state>/data/<id>/`, where `<state>` is the `state` field of your configuration.
+**Capture** stops the local backend (only if it is running), copies the H2 database and the configured media folders, and returns the backend to its previous state. Then it **sanitizes** the copy, that is, removes sessions, tokens and passwords from it: only the selected accounts keep a login. Those logins use invented `@enois.invalid` emails, as [Use my own data](RECIPES.md#8-use-my-own-data) explains. The result lives in `<state>/data/<id>/`, where `<state>` is the `state` field of your configuration.
 
 **Why it matters to you:** capture happens only on a scenario's first `publish` or when you ask for `--refresh-data`. Other publications do not even read the local database. An incomplete capture never replaces the previous complete data.
 

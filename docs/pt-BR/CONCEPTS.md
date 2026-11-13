@@ -62,7 +62,7 @@ Identificador sha256 de 64 caracteres calculado sobre todas as entradas congelad
 
 ### Dados congelados e captura
 
-A **captura** para o backend local (só se ele estiver rodando), copia o banco H2 e as pastas de mídia configuradas e devolve o backend ao estado anterior. Depois, ela **sanitiza** a cópia, isto é, remove dela sessões, tokens e senhas: só as contas selecionadas continuam com login. O resultado fica em `<state>/data/<id>/`, onde `<state>` é o campo `state` da sua configuração.
+A **captura** para o backend local (só se ele estiver rodando), copia o banco H2 e as pastas de mídia configuradas e devolve o backend ao estado anterior. Depois, ela **sanitiza** a cópia, isto é, remove dela sessões, tokens e senhas: só as contas selecionadas continuam com login. Esses logins usam emails inventados em `@enois.invalid`, como explica [Usar meus próprios dados](RECIPES.md#8-usar-meus-próprios-dados). O resultado fica em `<state>/data/<id>/`, onde `<state>` é o campo `state` da sua configuração.
 
 **Por que importa para você:** a captura acontece só no primeiro `publish` de um cenário ou quando você pede `--refresh-data`. Nas outras publicações o banco local nem é lido. Uma captura incompleta nunca substitui os dados completos anteriores.
 

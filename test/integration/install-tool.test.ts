@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import type { AddressInfo, Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -27,7 +27,10 @@ function program(executable: string, args: string[], env: NodeJS.ProcessEnv): Pr
   });
 }
 function installing(archives: string, env: NodeJS.ProcessEnv, ...args: string[]): { child: ChildProcess; finished: Promise<Result> } {
-  const child = spawn(process.execPath, [resolve('dist/test/fixtures/install-driver.js'), archives, ...args], { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+  return running(resolve('dist/test/fixtures/install-driver.js'), env, archives, ...args);
+}
+function running(script: string, env: NodeJS.ProcessEnv, ...args: string[]): { child: ChildProcess; finished: Promise<Result> } {
+  const child = spawn(process.execPath, [script, ...args], { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = ''; let stderr = '';
   child.stdout?.on('data', chunk => { stdout += String(chunk); }); child.stderr?.on('data', chunk => { stderr += String(chunk); });
   return { child, finished: new Promise((done, reject) => { child.on('error', reject); child.on('close', code => done({ code, stdout, stderr })); }) };
@@ -60,6 +63,36 @@ async function archive(work: string, name: string, root: string, change?: (sourc
   const file = join(work, `${name}.tar.gz`); await create({ cwd: parent, file, gzip: true, portable: true }, [root]);
   return { file, source };
 }
+
+test('the installer command interrupted while its download is pending ends promptly and leaves no partial installation', async () => {
+  const work = await mkdtemp(join(process.env.ENOIS_PREVIEW_EVIDENCE ?? tmpdir(), 'enois-install-download-interrupted-'));
+  const commit = 'b'.repeat(40);
+  try {
+    for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]] as const) {
+      const tunnels: string[] = []; const held: Socket[] = []; let tunnelled = (): void => {}; const first = new Promise<void>(done => { tunnelled = done; });
+      const proxy = createServer((_request, response) => { response.writeHead(405).end(); });
+      proxy.on('connect', (request, socket: Socket) => { tunnels.push(request.url ?? ''); held.push(socket); socket.on('error', () => {}); tunnelled(); });
+      await listening(proxy); const address = `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`;
+      const home = join(work, `home-${signal}`); await mkdir(home); const prefix = join(work, `prefix-${signal}`);
+      const { child, finished } = running(resolve('dist/scripts/install-tool.js'), { HOME: home, NODE_USE_ENV_PROXY: '1', HTTPS_PROXY: address, https_proxy: address, NO_PROXY: '', no_proxy: '' }, '--commit', commit, '--prefix', prefix);
+      try {
+        await first;
+        child.kill(signal);
+
+        const result = await within(finished, child);
+
+        assert.equal(result.code, code, result.stderr);
+        assert.equal(result.stdout, '');
+        assert.equal(result.stderr, `Interrupted by ${signal}; cancelling active work and completing required restoration.\nInterrupted by ${signal}.\n`);
+        assert.deepEqual(tunnels, ['codeload.github.com:443']);
+        assert.deepEqual(existsSync(prefix) ? readdirSync(prefix).filter(name => name === commit || name === 'current' || name.startsWith('.staging-')) : [], []);
+      } finally {
+        child.kill('SIGKILL'); for (const socket of held) socket.destroy();
+        await new Promise(done => proxy.close(done));
+      }
+    }
+  } finally { await rm(work, { recursive: true, force: true }); }
+});
 
 test('the installer command downloads only from the public codeload origin, even when ENOIS_PREVIEW_TEST_ARCHIVES names another origin', async () => {
   const work = await mkdtemp(join(process.env.ENOIS_PREVIEW_EVIDENCE ?? tmpdir(), 'enois-install-origin-'));
@@ -251,6 +284,37 @@ test('interrupting the installer while it fetches Chromium keeps the complete in
     ended(pid);
   } finally {
     child.kill('SIGKILL'); if (pid) { try { process.kill(pid, 'SIGKILL'); } catch {} }
+    server.close(); await rm(work, { recursive: true, force: true });
+  }
+});
+
+test('interrupting the installer after the installation is created and before Chromium keeps the installation, skips Chromium and names no missing log', async () => {
+  const work = await mkdtemp(join(process.env.ENOIS_PREVIEW_EVIDENCE ?? tmpdir(), 'enois-install-before-browser-interrupted-'));
+  const commit = 'c'.repeat(40); const good = await archive(work, 'good', `enois-preview-${commit}`); const server = served(good.file);
+  const realNpm = execFileSync('sh', ['-c', 'command -v npm'], { encoding: 'utf8' }).trim();
+  const tools = join(work, 'tools'); await mkdir(tools); const linkPid = join(work, 'link.pid'); const go = join(work, 'go'); const npxPid = join(work, 'npx.pid');
+  await writeFile(join(tools, 'npm'), `#!/bin/sh\nif [ "$1" = link ]; then\n  echo $$ > '${linkPid}'\n  i=0; while [ ! -f '${go}' ] && [ $i -lt 600 ]; do sleep 0.1; i=$((i+1)); done\n  exit 0\nfi\nexec '${realNpm}' "$@"\n`, { mode: 0o755 });
+  await writeFile(join(tools, 'npx'), `#!/bin/sh\necho $$ > '${npxPid}'\n`, { mode: 0o755 });
+  const prefix = join(work, 'prefix');
+  const { child, finished } = installing(await listening(server), { NPM_CONFIG_PREFIX: join(work, 'global'), PATH: `${tools}:${process.env.PATH}` }, '--commit', commit, '--prefix', prefix);
+  try {
+    await appeared(linkPid);
+    child.kill('SIGINT');
+    await writeFile(go, '');
+
+    const result = await within(finished, child);
+
+    assert.equal(result.code, 130, result.stderr);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /Interrupted by SIGINT; cancelling active work and completing required restoration\.\n/);
+    assert.ok(result.stderr.includes(`Chromium, used by the public validation, was not installed. The installation is complete; retry with: (cd ${join(prefix, commit)} && npx --no-install playwright install chromium)\n`), result.stderr);
+    assert.equal(result.stderr.includes('(see '), false, result.stderr);
+    assert.equal(existsSync(join(prefix, 'logs', `${commit}-browser.log`)), false);
+    assert.equal(existsSync(npxPid), false, 'npx must not run after the interruption');
+    assert.equal(JSON.parse(readFileSync(join(prefix, commit, 'install.json'), 'utf8')).commit, commit);
+    assert.equal(readlinkSync(join(prefix, 'current')), commit);
+  } finally {
+    child.kill('SIGKILL'); await writeFile(go, '');
     server.close(); await rm(work, { recursive: true, force: true });
   }
 });

@@ -42,10 +42,11 @@ export async function check(value:unknown,local=false):Promise<Record<string,unk
     const asset=await allocate(raw);await denied(()=>session.request(string(asset.uploadUrl),{method:'PUT',raw:body,contentType:type}),400);await denied(()=>session.request(string(asset.cdnUrl)),404);
   }
   await denied(()=>session.json('/api/media/uploads',{body:{fileName:'active.svg',mimeType:'image/svg+xml',size:100,purpose:'POST'}}),400);
+  await denied(()=>session.json('/api/media/uploads',{body:{fileName:'large.png',mimeType:'image/png',size:20*1024*1024+1,purpose:'POST'}}),400);
   for(const path of ['/api/storage/uploads/%2e%2e/private','/api/storage/%2e%2e/%2e%2e/etc/passwd']){
     let refused=false;try{const response=await session.request(path);await response.body?.cancel();}catch(error:unknown){require(error instanceof PreviewError&&/HTTP (400|403|404)\b/.test(error.message),'Unexpected traversal response.');refused=true;}require(refused,'Traversal returned a readable object.');
   }
-  const proof={localOnly:local,publicWorker:!local,revision,formats:results,declaredAndActualSizeMismatchRejected400:true,typeMismatchRejected400:true,activeSvgUploadRejected400:true,traversalRefused:true,failedUploadsUnreadable404:true};await writeRecord(join(evidence,'validation.json'),proof);return proof;
+  const proof={localOnly:local,publicWorker:!local,revision,formats:results,declaredAndActualSizeMismatchRejected400:true,typeMismatchRejected400:true,activeSvgUploadRejected400:true,demoMediaCapRejected400:true,traversalRefused:true,failedUploadsUnreadable404:true};await writeRecord(join(evidence,'validation.json'),proof);return proof;
 }
 if(await invokedDirectly(import.meta.url)){try{
   if(process.argv.length===3&&process.argv[2]==='--local'){const value:unknown=JSON.parse(readFileSync(0,'utf8'));console.log(JSON.stringify(await check(value,true)));}

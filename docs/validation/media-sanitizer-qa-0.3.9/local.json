@@ -1,0 +1,60 @@
+{
+  "version": "0.3.9",
+  "status": "passed",
+  "node": "24.16.0",
+  "npm": "11.13.0",
+  "baseCommit": "d2c2bbb005bdec1b98d970b64df6638696b7a720",
+  "recordFormat": "enois-preview-ts-v1",
+  "exampleSources": {
+    "enois-backend": "3fe25eaf50139cb049d3d72e67e109ba4f037f85",
+    "enois-frontend": "35e498b3ab11c2b3e07328a7ec971b9d23b9d222",
+    "enois-design-system": "ecb8545543a03921ff5bc67ef42fd1c9c613b652"
+  },
+  "commands": [
+    { "command": "npm ci --ignore-scripts", "exitCode": 0 },
+    { "command": "npm run build", "exitCode": 0 },
+    { "command": "npm run typecheck", "exitCode": 0 },
+    { "command": "npm test", "exitCode": 0 },
+    { "command": "npm run check", "exitCode": 0 },
+    { "command": "npm run test:install", "exitCode": 0 },
+    { "command": "npm run test:example", "exitCode": 0 },
+    { "command": "npm run test:image", "exitCode": 0 },
+    { "command": "npm run test:media", "exitCode": 0 },
+    { "command": "npm run test:capture", "exitCode": 0 },
+    { "command": "npm run test:consumer", "exitCode": 0 }
+  ],
+  "standardTests": { "passed": 123, "failed": 0, "skipped": 0 },
+  "installerTests": { "passed": 8, "failed": 0, "skipped": 0 },
+  "exampleTests": { "passed": 1, "failed": 0, "skipped": 0 },
+  "imageTests": { "passed": 1, "failed": 0, "skipped": 0 },
+  "mediaContractTests": { "passed": 1, "failed": 0, "skipped": 0 },
+  "captureTests": { "passed": 1, "failed": 0, "skipped": 0 },
+  "installedConsumerTests": { "passed": 123, "failed": 0, "skipped": 0 },
+  "backendSuiteInImageBuild": { "classes": 519, "tests": 2555, "failed": 0, "errors": 0, "skippedByBackend": 1 },
+  "localImageValidation": { "readiness": "UP", "accounts": 2, "mediaFiles": 9 },
+  "productCodeChanged": true,
+  "defect": "image build against a backend containing 1a3f9964 (#492) failed with 'constructor MediaMetadataSanitizer ... cannot be applied to given types' because recipe/StrictMediaSanitizer.java called super(\"ffmpeg\")",
+  "rule": "StrictMediaSanitizer receives MediaFfmpegRunner and MediaTemporaryFiles and calls super(ffmpeg, temporaryFiles); the image build runs the full backend suite; the 20 MiB MediaService cap, MEDIA_SIZE_MISMATCH and the no-op email sender apply only with -Denois.preview.demo=true, passed by runtime/start.ts",
+  "unchanged": [
+    "StrictMediaSanitizer sanitize, signature, temporary, streamTypes, execute and invalid",
+    "the visitor limits: 20 MiB per file and 256 MiB per environment",
+    "the substitutions that already depended on the demo profile"
+  ],
+  "coverage": {
+    "K1": "test:image: image build compiles the backend at 3fe25eaf and runs 2555 backend tests with 0 failures, including StrictMediaSanitizerTests (2) and MediaMetadataSanitizerTests (7); local validation readiness UP, 2 accounts, 9 media",
+    "K2": "StrictMediaSanitizerTests inside the build plus test:media, including demoMediaCapRejected400",
+    "K3": "npm test, test:install, test:consumer, test:capture and check"
+  },
+  "red": {
+    "commit": "d2c2bbb",
+    "observed": [
+      "image build: StrictMediaSanitizer.java:[17,37] constructor MediaMetadataSanitizer cannot be applied to given types",
+      "full backend suite with the demo restrictions always on: 6 failures in 2555 tests (MediaControllerTests, MediaStorageProxySemTemporarioTests, MediaStorageProxyTests, MediaUploadAuthTests, EmailServiceListUnsubscribeTests, SupportCategoriesTests)"
+    ]
+  },
+  "limits": [
+    "demoMediaCapRejected400 was not observed failing on an image without the runtime flag; its discrimination rests on the backend cap for image/png with purpose POST being 500 MiB without the flag",
+    "backends earlier than 1a3f9964 no longer compile with this version",
+    "two frontend tests timed out once at 5 s while Maven ran in parallel; the repetition passed"
+  ]
+}

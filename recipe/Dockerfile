@@ -16,7 +16,9 @@ FROM eclipse-temurin:25-jdk-noble AS backend
 WORKDIR /build/backend
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl && rm -rf /var/lib/apt/lists/*
 COPY sources/enois-backend/ ./
-RUN ./mvnw -B -Dtest=DemoLocalStorageTests,StrictMediaSanitizerTests,MediaStorageProxyTests,MediaMetadataSanitizerTests,BlogFlowTests test && ./mvnw -B -DskipTests package
+RUN ./mvnw -B test > /build/backend-tests.log 2>&1; status=$?; grep -E 'Tests run: [0-9]+, Failures' /build/backend-tests.log; \
+    if [ "$status" -ne 0 ]; then sed -n '/Results:/,$p' /build/backend-tests.log | head -400; exit "$status"; fi; \
+    ./mvnw -B -DskipTests package
 RUN java -Djarmode=tools -jar target/rede-0.0.1-SNAPSHOT.jar extract --destination /build/extracted --application-filename rede.jar
 COPY runtime/DemoCredentials.java /build/tools/DemoCredentials.java
 RUN javac -d /build/tools /build/tools/DemoCredentials.java

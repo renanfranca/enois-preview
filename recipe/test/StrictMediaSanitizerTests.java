@@ -13,7 +13,7 @@ class StrictMediaSanitizerTests {
             var ffmpeg=new ProcessBuilder("ffmpeg","-nostdin","-hide_banner","-loglevel","error","-y","-f","lavfi","-i","sine=frequency=440:duration=0.2","-c:a","libopus","-metadata","comment=private-control-marker",file.toString())
                 .redirectError(ProcessBuilder.Redirect.DISCARD).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
             assertThat(ffmpeg.waitFor(30,TimeUnit.SECONDS)).isTrue();assertThat(ffmpeg.exitValue()).isZero();
-            byte[] clean=new StrictMediaSanitizer().sanitize(Files.readAllBytes(file),"audio/webm","file.weba");
+            byte[] clean=sanitizer().sanitize(Files.readAllBytes(file),"audio/webm","file.weba");
             assertThat(clean).startsWith((byte)0x1a,(byte)0x45,(byte)0xdf,(byte)0xa3);
             assertThat(new String(clean,java.nio.charset.StandardCharsets.ISO_8859_1)).doesNotContain("private-control-marker");
             Files.write(file,clean);
@@ -25,11 +25,15 @@ class StrictMediaSanitizerTests {
     @Test void validImageRemainsDecodableWhileMismatchedAndMalformedBodiesAreRejected() throws Exception {
         var image = new BufferedImage(16,16,BufferedImage.TYPE_INT_RGB);
         var bytes = new ByteArrayOutputStream(); ImageIO.write(image,"png",bytes);
-        var sanitizer = new StrictMediaSanitizer();
+        var sanitizer = sanitizer();
         byte[] clean = sanitizer.sanitize(bytes.toByteArray(),"image/png","file.png");
         assertThat(ImageIO.read(new ByteArrayInputStream(clean)).getWidth()).isEqualTo(16);
         assertThatThrownBy(() -> sanitizer.sanitize(bytes.toByteArray(),"image/jpeg","file.jpg")).hasMessageContaining("invalido");
         assertThatThrownBy(() -> sanitizer.sanitize("not an image".getBytes(),"image/png","file.png")).hasMessageContaining("invalido");
         assertThatThrownBy(() -> sanitizer.sanitize("%PDF-corrupt".getBytes(),"application/pdf","file.pdf")).hasMessageContaining("invalido");
+    }
+    private static StrictMediaSanitizer sanitizer() {
+        return new StrictMediaSanitizer(new MediaFfmpegRunner("ffmpeg", 2), new MediaTemporaryFiles("", MediaTemporaryFiles.DEFAULT_DATA_DIR,
+            System.getProperty("java.io.tmpdir"), System.getProperty("user.dir")));
     }
 }

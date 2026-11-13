@@ -14,7 +14,7 @@ import com.socialcoisa.rede.shared.web.ApiException;
 @Primary
 @Profile("demo")
 public final class StrictMediaSanitizer extends MediaMetadataSanitizer {
-    public StrictMediaSanitizer() { super("ffmpeg"); javax.imageio.ImageIO.setUseCache(false); }
+    public StrictMediaSanitizer(MediaFfmpegRunner ffmpeg, MediaTemporaryFiles temporaryFiles) { super(ffmpeg, temporaryFiles); javax.imageio.ImageIO.setUseCache(false); }
     static final Map<String,String> EXTENSIONS = Map.ofEntries(
         Map.entry("image/jpeg","jpg"), Map.entry("image/png","png"), Map.entry("image/gif","gif"),
         Map.entry("image/webp","webp"), Map.entry("image/avif","avif"), Map.entry("video/mp4","mp4"),

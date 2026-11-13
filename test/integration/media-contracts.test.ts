@@ -19,6 +19,6 @@ test('the actual application accepts its supported media formats after metadata 
   const proof=object(result.functionalEvidence);assert.ok(Array.isArray(proof.formats));assert.equal(proof.formats.length,13);
   assert.deepEqual(proof.formats.map(item=>object(item).mime).sort(),['image/jpeg','image/png','image/gif','image/webp','image/avif','video/mp4','video/quicktime','video/webm','audio/mpeg','audio/ogg','audio/wav','audio/webm','application/pdf'].sort());
   for(const value of proof.formats){const format=object(value);assert.equal(format.readable,true);assert.equal(format.metadataMarkerRemoved,true);assert.equal(format.decoded,format.mime!=='application/pdf');}
-  for(const key of ['declaredAndActualSizeMismatchRejected400','typeMismatchRejected400','activeSvgUploadRejected400','traversalRefused','failedUploadsUnreadable404'])assert.equal(proof[key],true,key);
+  for(const key of ['declaredAndActualSizeMismatchRejected400','typeMismatchRejected400','activeSvgUploadRejected400','demoMediaCapRejected400','traversalRefused','failedUploadsUnreadable404'])assert.equal(proof[key],true,key);
   assert.equal(proof.localOnly,true);assert.equal(proof.publicWorker,false);
 });

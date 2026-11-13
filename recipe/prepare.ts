@@ -16,16 +16,16 @@ export async function prepare(rootInput:string):Promise<void>{
   await copyFile(join(recipe,'application-demo.properties'),join(backend,'src/main/resources/application-demo.properties'));
   for(const name of await readdir(join(recipe,'java')))if(name.endsWith('.java'))await copyFile(join(recipe,'java',name),join(java,'media/adapters/out/storage',name));
   for(const name of ['DevMediaStorageGateway.java','DevStorageUrlFactory.java'])await replace(join(java,'media/adapters/out/storage',name),'@Component\n','@Component\n@org.springframework.context.annotation.Profile("!demo")\n');
-  await replace(join(java,'media/application/MediaService.java'),'500L * 1024L * 1024L','20L * 1024L * 1024L');
+  await replace(join(java,'media/application/MediaService.java'),'500L * 1024L * 1024L','(Boolean.getBoolean("enois.preview.demo") ? 20L : 500L) * 1024L * 1024L');
   const controller=join(java,'media/adapters/in/web/MediaStorageProxyController.java');
   await replace(controller,'\t\ttry {\n\t\t\tif (length >',`\t\ttry (var reservation = (store() instanceof com.socialcoisa.rede.media.adapters.out.storage.DemoLocalStore local ? local.reserve(objectKey, length) : (com.socialcoisa.rede.media.adapters.out.storage.DemoLocalStore.Reservation) () -> {})) {
             if (store() instanceof com.socialcoisa.rede.media.adapters.out.storage.DemoLocalStore && (contentType == null || !contentType.split(";", 2)[0].strip().equalsIgnoreCase(mime)))
                 throw new ApiException(400, "MEDIA_TYPE_MISMATCH", "Tipo enviado difere do declarado.");
 \t\t\tif (length >`);
-  await replace(controller,'byte[] raw = request.getInputStream().readAllBytes();',`byte[] raw = request.getInputStream().readNBytes(Math.toIntExact(length + 1));
-                if (raw.length != length) throw new ApiException(400, "MEDIA_SIZE_MISMATCH", "Corpo enviado difere do tamanho declarado.");`);
+  await replace(controller,'byte[] raw = request.getInputStream().readAllBytes();',`byte[] raw = Boolean.getBoolean("enois.preview.demo") ? request.getInputStream().readNBytes(Math.toIntExact(length + 1)) : request.getInputStream().readAllBytes();
+                if (Boolean.getBoolean("enois.preview.demo") && raw.length != length) throw new ApiException(400, "MEDIA_SIZE_MISMATCH", "Corpo enviado difere do tamanho declarado.");`);
   await copyFile(join(recipe,'StrictMediaSanitizer.java'),join(java,'media/application/StrictMediaSanitizer.java'));
-  await replace(join(java,'identity/application/EmailService.java'),'this.mailSender = mailSender;',`this.mailSender = new org.springframework.mail.javamail.JavaMailSenderImpl() {
+  await replace(join(java,'identity/application/EmailService.java'),'this.mailSender = mailSender;',`this.mailSender = !Boolean.getBoolean("enois.preview.demo") ? mailSender : new org.springframework.mail.javamail.JavaMailSenderImpl() {
             @Override public void send(jakarta.mail.internet.MimeMessage... messages) { /* demo: local effects only */ }
             @Override public void send(org.springframework.mail.SimpleMailMessage... messages) { /* demo */ }
         };`);

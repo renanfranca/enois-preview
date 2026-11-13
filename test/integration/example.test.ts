@@ -20,7 +20,7 @@ test('Node prepares the pinned fictional workspace with versioned configuration 
   const manifest=JSON.parse(readFileSync(join(destination,'example-manifest.json'),'utf8'));
   assert.equal(manifest.format,'enois-preview-ts-v1');
   assert.deepEqual(manifest.observed,{users:4,posts:8,comments:6,replies:2,reactions:8,postsWithImages:3});
-  assert.equal(manifest.canonicalDataSha256,'0fd5764b41b67082f18ce42059bded059afc49a91917223f2e0680c5816f5d56');
+  assert.equal(manifest.canonicalDataSha256,'8e66e081f49ac81fb86d341c060bf1de641bd13f540b105b2d6ca84c51425b66');
   assert.equal(Object.keys(manifest.media).length,9);
   const config=JSON.parse(readFileSync(join(destination,'.preview/config.json'),'utf8'));
   assert.equal(config.format,'enois-preview-ts-v1');assert.equal(config.accounts.length,2);

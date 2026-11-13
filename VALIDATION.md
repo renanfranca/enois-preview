@@ -455,3 +455,24 @@ Open: `register-codespace` runs for real only inside a Codespace (`CODESPACES=tr
 **Coverage limit.** The fictional H2 of the example workspace used by `npm run test:capture` has neither new table nor column (a read-only query of a copy returned 0 rows), so `test:capture` proves non-regression only. The new columns are proven by K1 and K2.
 
 [Reviewed local results](docs/validation/sanitizer-columns-0.3.8/local.json) record the eight commands.
+
+## Media sanitizer constructor and full backend suite for the current backend (0.3.9)
+
+**Defect.** On 13 November 2026 the publication of a scenario pinned to a current `qa` backend stopped at `localImage`, before any remote effect. The recipe copies `recipe/StrictMediaSanitizer.java` into the backend, and its constructor called `super("ffmpeg")`. Backend commit `1a3f9964` (#492) replaced that constructor with `MediaMetadataSanitizer(MediaFfmpegRunner, MediaTemporaryFiles)`, so the image build failed with `StrictMediaSanitizer.java:[17,37] constructor MediaMetadataSanitizer … cannot be applied to given types`.
+
+**Decisions.**
+
+- `StrictMediaSanitizer` stays. The backend sanitizer returns the original bytes for types without a defined cleanup and for empty files, does not check the signature against the declared MIME, does not decode the whole content and has no 20 MiB cap. The demo is a public boundary where anonymous visitors share accounts, so those refusals remain. Its constructor now receives `MediaFfmpegRunner` and `MediaTemporaryFiles` and calls `super(ffmpeg, temporaryFiles)`; the Spring context injects both. The rest of the class is unchanged. Only backends that contain `1a3f9964` are supported; an earlier backend fails at `localImage` with no remote effect.
+- The image build runs the full backend suite (`./mvnw -B test`) instead of five selected classes. Its output goes to `/build/backend-tests.log` in the `backend` stage, and the console keeps only the `Tests run:` lines and, on failure, the `Results:` section, because BuildKit clips a step's output at 2 MiB.
+- Three demo restrictions that the recipe writes into backend sources now apply only when the JVM runs with `-Denois.preview.demo=true`, which `runtime/start.ts` passes when the Codespace starts the backend: the 20 MiB cap in `MediaService`, the `MEDIA_SIZE_MISMATCH` refusal in `MediaStorageProxyController` and the email sender with no effect in `EmailService`. With them always on, the full suite on backend `3fe25eaf` had 6 failures in 2555 tests, all caused by them: `MediaControllerTests`, `MediaStorageProxySemTemporarioTests`, `MediaStorageProxyTests` (a 41 MiB upload) and `MediaUploadAuthTests` by the cap, `EmailServiceListUnsubscribeTests` and `SupportCategoriesTests` by the email sender. Skipping those tests was rejected. The other substitutions already depended on the `demo` profile. `DemoLocalStore`, active only in that profile, keeps its own 20 MiB file limit.
+- The fictional example pins the public `qa` heads read on 13 November 2026: backend `3fe25eaf`, frontend `35e498b3` and design system `ecb8545`. The example's `canonicalDataSha256` changed from `0fd5764b…` to `8e66e081…` because migrations `V236__media_dimensions` and `V238__profile_appearance` add columns to tables the canonical dump lists; the observed counts are unchanged.
+
+**Guard.** `scripts/validate-media-contracts.ts` now requires HTTP 400 for an upload declared at 20 MiB + 1 byte (`demoMediaCapRejected400`). Without the runtime flag the backend would accept up to 500 MiB, so this check fails if `runtime/start.ts` stops passing it.
+
+**Red and green.**
+
+- Red on `d2c2bbb` with the new example pins: the image build failed with the constructor message above.
+- Green: the image build ran 2555 backend tests in 519 classes with 0 failures and 1 test skipped by the backend itself; `StrictMediaSanitizerTests` (2) and `MediaMetadataSanitizerTests` (7) ran with 0 failures, and the six tests above passed. The frontend stage, whose sources did not change between attempts and was reused from the Docker cache in the last ones, ran 1380 tests in 238 files when it last executed. Local validation reported readiness `UP`, two accounts and nine media files.
+- One attempt had two frontend tests time out at 5 s while Maven ran in parallel; the repetition passed. This is recorded as an intermittent risk, not a recipe change.
+
+[Reviewed local results](docs/validation/media-sanitizer-qa-0.3.9/local.json) record the commands.

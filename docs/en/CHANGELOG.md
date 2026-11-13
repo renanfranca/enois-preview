@@ -4,8 +4,13 @@
 
 This file records what changed in each release, newest first. The guides ([README](README.md), [tutorial](TUTORIAL.md), [recipes](RECIPES.md)) describe current behavior only. Each release's evidence is in [VALIDATION.md](../../VALIDATION.md).
 
-## 0.3.9 (unreleased)
+## 0.3.9 (2026-11-13)
 
+- The image recipe follows the backend media constructor introduced in commit `1a3f9964` (#492): the demo `StrictMediaSanitizer` now receives `MediaFfmpegRunner` and `MediaTemporaryFiles` by injection. The demo refusals (type that differs from the content, malformed body, corrupted PDF, empty file or above 20 MiB) are unchanged.
+- The image build runs the full backend test suite (`./mvnw -B test`) instead of five classes. This makes the image build, on the publisher's machine, about 15 minutes slower. Codespace startup does not change.
+- Three demo restrictions now apply only when the backend starts with `-Denois.preview.demo=true`, which `runtime/start.ts` passes in the Codespace: the 20 MiB cap when an upload is created, the refusal of a body whose size differs from the declared one (`MEDIA_SIZE_MISMATCH`) and disabled email sending. In the build tests, the backend runs without them, as in Énóis. `test:media` checks on the image that an upload declared at 20 MiB + 1 byte is refused.
+- Backends earlier than `1a3f9964` no longer compile with this version. Publication stops at `localImage`, before any remote effect, with `cannot be applied to given types` in the operation's `build.log`. For those backends, use 0.3.8.
+- The fictional example now pins the public `qa` heads of 2026-11-13: backend `3fe25eaf`, frontend `35e498b3` and design system `ecb8545`. The example's `canonicalDataSha256` changed because the new schema has extra columns; the counts are unchanged.
 - One command installation: `COMMIT=<SHA>; curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"`. The commit's own `install.sh` prepares the installer in a temporary directory, removed at the end, and does not replace verification: the installer still downloads the commit only from `codeload.github.com` and records the hashes in `install.json`.
 - New command `enois-preview install <SHA>`. With the tool already installed, it installs another verified public commit and points `current` and the command at it, with no manual clone or build.
 - The installer now installs the Chromium used by public validation and reports `browser: true` in its final JSON. If the browser fails, the installation remains complete, the JSON carries `browser: false` and the message shows the command to repeat only that step.

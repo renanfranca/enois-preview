@@ -44,7 +44,14 @@ export async function installTool(commit: string, prefixInput = join(homedir(), 
     const current = join(prefix, 'current'); const pending = join(prefix, `.current-${randomUUID()}`);
     await symlink(commit, pending); await rename(pending, current);
     await run(['npm', 'link', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: current, timeout: 600, logPath: join(logs, `${commit}-link.log`) });
-    return { commit, archive, installation: destination, current, stamp: join(destination, 'install.json'), linked: true };
+    // The browser lives in Playwright's own cache, outside the stamped installation, so a failure here leaves a complete installation.
+    const browserLog = join(logs, `${commit}-browser.log`);
+    const browser = await run(['npx', '--no-install', 'playwright', 'install', 'chromium'], { cwd: destination, timeout: 1800, logPath: browserLog }).then(() => true, (error: unknown) => {
+      if (!(error instanceof PreviewError)) throw error;
+      console.error(`Chromium, used by the public validation, was not installed (see ${browserLog}). The installation is complete; retry with: (cd ${destination} && npx --no-install playwright install chromium)`);
+      return false;
+    });
+    return { commit, archive, installation: destination, current, stamp: join(destination, 'install.json'), linked: true, browser };
   } finally { await rm(staging, { recursive: true, force: true }); }
 }
 

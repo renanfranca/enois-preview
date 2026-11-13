@@ -32,6 +32,7 @@ O [CLI](docs/pt-BR/CONCEPTS.md#cli), o comando `enois-preview`, roda na sua máq
 | `enois-preview publish <cenario>` | Publica os commits atuais com os dados congelados do cenário | [Código novo](docs/pt-BR/RECIPES.md#3-publicar-de-novo-só-com-código-novo) |
 | `enois-preview publish <cenario> --refresh-data` | Captura dados novos e publica | [Dados novos](docs/pt-BR/RECIPES.md#4-publicar-com-dados-novos) |
 | `enois-preview resume <revisao-completa>` | Continua uma publicação que falhou, sem recapturar dados | [Retomar](docs/pt-BR/RECIPES.md#5-retomar-uma-publicação-que-falhou) |
+| `enois-preview install <commit-completo>` | Instala outro commit público verificado e aponta o comando para ele | [Instalar](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado) |
 | `enois-preview source-digest` | Só lê: informa o digest lógico do banco de origem parado | [Conferir o banco](docs/pt-BR/RECIPES.md#7-conferir-se-o-banco-mudou) |
 
 `enois-preview --help` mostra o resumo. Todos aceitam `--home <diretorio>` para usar outra instalação privada.
@@ -49,27 +50,32 @@ Para alterar a própria ferramenta, veja [Desenvolver a ferramenta](#desenvolver
 
 ## Instalação
 
-Instale pelo instalador, no commit público completo fixado em `tool.lock.json` no lançador privado. O instalador baixa esse commit do GitHub, compila fora dos seus checkouts em `~/.local/share/enois-preview/<COMMIT>`, grava em `install.json` os hashes da fonte e do `dist`, aponta `current` para essa instalação e liga o comando `enois-preview`.
+Instale com um comando, no commit público completo fixado em `tool.lock.json` no lançador privado:
 
 ```sh
-git clone https://github.com/renanfranca/enois-preview.git /caminho/temporario/enois-preview
-cd /caminho/temporario/enois-preview
-git checkout --detach <COMMIT_PUBLICO_FIXADO>
-npm ci --ignore-scripts
-npm run build
-node dist/scripts/install-tool.js --commit <COMMIT_PUBLICO_FIXADO>
-cd ~/.local/share/enois-preview/current
-npx --no-install playwright install chromium
-node dist/example/prepare.js /caminho/novo/workspace-ficticio
+COMMIT=<COMMIT_PUBLICO_FIXADO>
+curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
+```
+
+O `install.sh` vem do próprio commit fixado e só prepara o instalador num diretório temporário, apagado no fim. O instalador baixa esse commit do GitHub, compila fora dos seus checkouts em `~/.local/share/enois-preview/<COMMIT>`, grava em `install.json` os hashes da fonte e do `dist`, aponta `current` para essa instalação, liga o comando `enois-preview` e instala o Chromium usado na validação pública. Ele precisa de Node 24.x, npm, `curl` e `tar`.
+
+Para trocar depois para outro commit fixado, a própria ferramenta instala:
+
+```sh
+enois-preview install <OUTRO_COMMIT_PUBLICO_FIXADO>
+```
+
+Com a ferramenta instalada, a primeira publicação com o exemplo fictício é:
+
+```sh
+node ~/.local/share/enois-preview/current/dist/example/prepare.js /caminho/novo/workspace-ficticio
 enois-preview setup --config /caminho/novo/workspace-ficticio/.preview/config.json
 enois-preview publish meu-cenario
-enois-preview publish meu-cenario --refresh-data
-enois-preview resume <revisao-completa>
-enois-preview source-digest
 ```
 
 Atenção:
 - `publish` e `resume` recalculam os hashes e recusam, antes de qualquer efeito, uma instalação que difira do registro ou do [`toolCommit`](docs/pt-BR/CONCEPTS.md#toolcommit-e-installjson).
+- O `install.sh` existe a partir da 0.3.9. Para instalar um commit anterior, siga o [caminho manual](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado).
 - A instalação é imutável: para outra versão, instale outro commit. Não execute `npm run` dentro dela, porque isso recompila o `dist`.
 - Um checkout de desenvolvimento não publica, nem limpo no mesmo commit.
 - Revisões congeladas pela 0.3.1 ou anteriores só são retomadas pelo executor original: um checkout limpo no commit delas, com `npm run build`.

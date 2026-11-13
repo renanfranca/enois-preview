@@ -164,12 +164,36 @@ test('setup refuses private state reached through an application directory alias
   }finally{rmSync(directory,{recursive:true,force:true});}
 });
 
+test('install refuses anything but a full public commit before downloading or reading private configuration',()=>{
+  const directory=mkdtempSync(join(tmpdir(),'enois-install-command-'));
+  try{
+    for(const commit of ['main','v0.3.8','a'.repeat(39),'A'.repeat(40)]){
+      const result=spawnSync(process.execPath,['dist/preview/cli.js','install',commit],{encoding:'utf8',env:{...process.env,HOME:directory,ENOIS_PREVIEW_HOME:join(directory,'absent')}});
+
+      assert.equal(result.status,1,commit);assert.equal(result.stderr,'Installation incomplete: Install requires the full 40 character public tool commit.\n');assert.equal(result.stdout,'');
+      assert.deepEqual(readdirSync(directory),[]);
+    }
+  }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('publish and resume before setup name the missing configuration and create nothing',()=>{
+  const directory=mkdtempSync(join(tmpdir(),'enois-before-setup-'));
+  try{
+    for(const args of [['publish','fixture'],['publish','fixture','--refresh-data'],['resume','a'.repeat(64)]]){
+      const result=spawnSync(process.execPath,['dist/preview/cli.js','--home',join(directory,'home'),...args],{encoding:'utf8'});
+
+      assert.equal(result.status,1,args.join(' '));assert.equal(result.stderr,'Publication incomplete: Configuration missing. Run enois-preview setup --config PRIVATE_JSON first.\n');assert.equal(result.stdout,'');
+      assert.deepEqual(readdirSync(directory),[]);
+    }
+  }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
 test('invalid command arguments are refused before service recovery or publication writes',()=>{
   const directory=mkdtempSync(join(tmpdir(),'enois-arguments-'));
   try{
     const config=workspace(directory);const home=join(directory,'home');mkdirSync(home);
     const file=join(home,'config.json');const before=JSON.stringify(config);writeFileSync(file,before);
-    for(const args of [['setup','extra'],['setup','--refresh-data'],['publish'],['publish','fixture','extra'],['publish','fixture','--config',file],['resume'],['resume','a'.repeat(64),'extra'],['resume','a'.repeat(64),'--refresh-data']]){
+    for(const args of [['setup','extra'],['setup','--refresh-data'],['publish'],['publish','fixture','extra'],['publish','fixture','--config',file],['resume'],['resume','a'.repeat(64),'extra'],['resume','a'.repeat(64),'--refresh-data'],['install'],['install','a'.repeat(40),'extra'],['install','a'.repeat(40),'--refresh-data'],['install','a'.repeat(40),'--config',file]]){
       const result=spawnSync(process.execPath,['dist/preview/cli.js','--home',home,...args],{encoding:'utf8'});
 
       assert.equal(result.status,1);assert.match(result.stderr,/Invalid command arguments.*--help/,args.join(' '));

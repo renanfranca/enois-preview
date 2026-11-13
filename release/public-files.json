@@ -76,6 +76,7 @@
     "example/prepare.ts",
     "example/seed.sql",
     "example/sources.json",
+    "install.sh",
     "package-lock.json",
     "package.json",
     "preview/build.ts",

@@ -4,6 +4,14 @@
 
 This file records what changed in each release, newest first. The guides ([README](README.md), [tutorial](TUTORIAL.md), [recipes](RECIPES.md)) describe current behavior only. Each release's evidence is in [VALIDATION.md](../../VALIDATION.md).
 
+## 0.3.9 (unreleased)
+
+- One command installation: `COMMIT=<SHA>; curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"`. The commit's own `install.sh` prepares the installer in a temporary directory, removed at the end, and does not replace verification: the installer still downloads the commit only from `codeload.github.com` and records the hashes in `install.json`.
+- New command `enois-preview install <SHA>`. With the tool already installed, it installs another verified public commit and points `current` and the command at it, with no manual clone or build.
+- The installer now installs the Chromium used by public validation and reports `browser: true` in its final JSON. If the browser fails, the installation remains complete, the JSON carries `browser: false` and the message shows the command to repeat only that step.
+- The manual path (clone, `npm ci`, `npm run build`, `install-tool`) still works and is the only one for commits earlier than this version. See [the recipe](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit).
+- `publish` and `resume` before `setup` now answer `Configuration missing. Run enois-preview setup --config PRIVATE_JSON first.` instead of the command list.
+
 ## 0.3.8 (2026-11-12)
 
 - Capture accepts databases with the private calendar and with per-message end-to-end encryption. The `CALENDAR_SUBSCRIPTIONS` table (calendar `.ics` links) is empty in the sanitized copy, and `MESSAGES.ENCRYPTED_KEYS` is `NULL` in every message, which keeps its content. Up to 0.3.7, these columns stopped capture with `Unrecognized authentication or integration column`.

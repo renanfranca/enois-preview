@@ -38,16 +38,26 @@ Commands:
   setup --config PRIVATE_JSON    Verify existing infrastructure and initial Free plans
   publish SCENARIO [--refresh-data]    Publish commits with frozen scenario data
   resume REVISION    Continue the recorded immutable revision
-  source-digest    Report the logical digest of the stopped source database from a private copy (read only)`);
+  source-digest    Report the logical digest of the stopped source database from a private copy (read only)
+  install PUBLIC_TOOL_COMMIT    Install another verified public commit and point the command at it`);
     return 0;
   }
   const command=positionals[0];
   if (command==='source-digest') failure='Source digest incomplete';
+  if (command==='install') failure='Installation incomplete';
   if ((command==='setup' && (positionals.length!==1 || values['refresh-data'])) ||
       (command==='publish' && (positionals.length!==2 || values.config!==undefined)) ||
       (command==='resume' && (positionals.length!==2 || values.config!==undefined || values['refresh-data'])) ||
-      (command==='source-digest' && (positionals.length!==1 || values.config!==undefined || values['refresh-data']))) {
+      (command==='source-digest' && (positionals.length!==1 || values.config!==undefined || values['refresh-data'])) ||
+      (command==='install' && (positionals.length!==2 || values.config!==undefined || values['refresh-data']))) {
     throw new PreviewError('Invalid command arguments. Run enois-preview --help.');
+  }
+  if (command==='install') {
+    // Needs no configuration and touches no private state: it only adds an installation beside the running one.
+    const { installTool } = await import('../scripts/install-tool.js');
+    signal.throwIfAborted();
+    console.log(JSON.stringify(await installTool(positionals[1] ?? ''),null,2));
+    return 0;
   }
   const home = values.home ?? process.env.ENOIS_PREVIEW_HOME ?? join(homedir(), '.config/enois-preview-ts');
   const file = join(home, 'config.json');
@@ -61,7 +71,8 @@ Commands:
     console.log(JSON.stringify(report,null,2));
     return 0;
   }
-  if (['publish', 'resume'].includes(positionals[0] ?? '') && config) {
+  if (['publish', 'resume'].includes(command ?? '')) {
+    if (!config) throw new PreviewError('Configuration missing. Run enois-preview setup --config PRIVATE_JSON first.');
     installed(config);
     const restoration = join(string(config.state), 'restoration.json');
     if (await exists(restoration)) {
@@ -106,7 +117,7 @@ Commands:
     console.log('Installation verified. Configuration preserved privately. Publish and resume require no financial renewal.');
     return 0;
   }
-  console.error('Choose setup, publish, resume or source-digest. Run enois-preview --help.');
+  console.error('Choose setup, publish, resume, source-digest or install. Run enois-preview --help.');
   return 1;
   } catch (error: unknown) {
     console.error(`${failure}: ${error instanceof PreviewError ? error.message : 'Invalid or unavailable private input. Run enois-preview --help.'}`);

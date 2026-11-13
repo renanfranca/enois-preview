@@ -7,20 +7,15 @@ Este procedimento único de infraestrutura complementa o [tutorial canônico](..
 Comece por um commit público publicado da ferramenta. Substitua os nomes e o SHA completo antes de executar:
 
 ```sh
-git clone https://github.com/renanfranca/enois-preview.git
-cd enois-preview
-git checkout --detach COMMIT_PUBLICO_DA_FERRAMENTA
-npm ci --ignore-scripts
-npm run build
-node dist/scripts/install-tool.js --commit COMMIT_PUBLICO_DA_FERRAMENTA
-(cd ~/.local/share/enois-preview/current && npx --no-install playwright install chromium)
+COMMIT=COMMIT_PUBLICO_DA_FERRAMENTA
+curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
 gh auth login
 gh auth setup-git
-npx wrangler login
-node dist/scripts/prepare-launcher.js /caminho/novo/lancador-privado --repository SEU_USUARIO/SEU_LANCADOR_PRIVADO --tool-commit COMMIT_PUBLICO_DA_FERRAMENTA --worker-name NOME_DO_SEU_WORKER
+(cd ~/.local/share/enois-preview/current && npx --no-install wrangler login)
+node ~/.local/share/enois-preview/current/dist/scripts/prepare-launcher.js /caminho/novo/lancador-privado --repository SEU_USUARIO/SEU_LANCADOR_PRIVADO --tool-commit COMMIT_PUBLICO_DA_FERRAMENTA --worker-name NOME_DO_SEU_WORKER
 ```
 
-O gerador cria um catálogo privado vazio e um Worker que importa o pacote público fixado. Ele não cria contas, repositórios, segredos, imagens ou Workers. O instalador compila o commit em `~/.local/share/enois-preview/COMMIT_PUBLICO_DA_FERRAMENTA`, grava em `install.json` os hashes da fonte e do `dist` e liga `enois-preview` a partir de `~/.local/share/enois-preview/current`; publicação e retomada recusam uma instalação que não corresponda mais a esse registro. O clone acima serve só para executar o instalador e o gerador. Preencha `toolCommit` na configuração privada do exemplo com o mesmo SHA.
+O gerador cria um catálogo privado vazio e um Worker que importa o pacote público fixado. Ele não cria contas, repositórios, segredos, imagens ou Workers. O instalador compila o commit em `~/.local/share/enois-preview/COMMIT_PUBLICO_DA_FERRAMENTA`, grava em `install.json` os hashes da fonte e do `dist` e liga `enois-preview` a partir de `~/.local/share/enois-preview/current`; publicação e retomada recusam uma instalação que não corresponda mais a esse registro. O `install.sh` vem do próprio commit e só prepara o instalador num diretório temporário; o instalador também instala o Chromium da validação pública. Para um commit anterior à 0.3.9, use o [caminho manual](../pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado). O gerador e o `wrangler` rodam a partir da instalação. Preencha `toolCommit` na configuração privada do exemplo com o mesmo SHA.
 
 No diretório do lançador gerado, execute `npm install --package-lock-only --ignore-scripts`, `npm ci --ignore-scripts`, `npm run build`, `npm test` e `npm run check`. Revise `package.json`, `package-lock.json`, `tool.lock.json`, `launcher.ts` e `wrangler.jsonc`. Crie seu repositório privado com `gh repo create SEU_USUARIO/SEU_LANCADOR_PRIVADO --private`. Inicialize o Git local, comite os arquivos revisados na branch de publicação escolhida e envie essa branch. Confirme que `gh repo view SEU_USUARIO/SEU_LANCADOR_PRIVADO --json isPrivate` informa true. Não adicione capturas de trabalho nem bancos.
 

@@ -10,6 +10,25 @@ Cada receita tem o mesmo formato: **Quando usar**, **Comandos**, **O que esperar
 
 **Comandos:**
 
+Na primeira instalação, com Node 24.x, npm, `curl` e `tar`:
+
+```sh
+COMMIT=<COMMIT_PUBLICO_FIXADO>
+curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
+```
+
+Com a ferramenta já instalada, para trocar para outro commit fixado:
+
+```sh
+enois-preview install <COMMIT_PUBLICO_FIXADO>
+```
+
+Os dois caminhos fazem a mesma instalação verificada e instalam o Chromium usado na validação pública. O `install.sh` vem do próprio commit fixado e só prepara o instalador num diretório temporário, apagado no fim.
+
+Depois de trocar de commit, coloque o mesmo SHA em `toolCommit` no seu arquivo de configuração privado e repita `enois-preview setup --config <arquivo>`. O lançador também precisa fixar esse commit em `tool.lock.json` e na dependência `enois-preview` do `package.json`; veja o [diagnóstico de instalação](../diagnostics/installation.pt-BR.md).
+
+Caminho manual, para um commit anterior à 0.3.9 (que não tem `install.sh` nem instala o Chromium sozinho) ou para quem prefere não executar um script baixado:
+
 ```sh
 git clone https://github.com/renanfranca/enois-preview.git /caminho/temporario/enois-preview
 cd /caminho/temporario/enois-preview
@@ -17,13 +36,10 @@ git checkout --detach <COMMIT_PUBLICO_FIXADO>
 npm ci --ignore-scripts
 npm run build
 node dist/scripts/install-tool.js --commit <COMMIT_PUBLICO_FIXADO>
-cd ~/.local/share/enois-preview/current
-npx --no-install playwright install chromium
+(cd ~/.local/share/enois-preview/current && npx --no-install playwright install chromium)
 ```
 
-Para trocar de commit, instale o novo commit do mesmo jeito, coloque o mesmo SHA em `toolCommit` no seu arquivo de configuração privado e repita `enois-preview setup --config <arquivo>`. O lançador também precisa fixar esse commit em `tool.lock.json` e na dependência `enois-preview` do `package.json`; veja o [diagnóstico de instalação](../diagnostics/installation.pt-BR.md).
-
-**O que esperar:** o instalador imprime um JSON com `commit`, `installation` (`~/.local/share/enois-preview/<COMMIT>`), `current`, `stamp` (o `install.json`) e `linked: true`. O comando `enois-preview` passa a apontar para essa instalação.
+**O que esperar:** o instalador imprime um JSON com `commit`, `installation` (`~/.local/share/enois-preview/<COMMIT>`), `current`, `stamp` (o `install.json`), `linked: true` e `browser: true`. O comando `enois-preview` passa a apontar para essa instalação.
 
 Atenção:
 - A instalação é imutável. Não rode `npm run` nem edite arquivos dentro dela: isso recompila o `dist` e o `publish` passa a recusar a instalação.
@@ -32,7 +48,9 @@ Atenção:
 
 **Se der errado:**
 - `is already installed at ...; installations are immutable.`: esse commit já está instalado. O instalador não sobrescreve nem troca o `current` nesse caso.
-- `Download of ... failed (HTTP ...)`: confira se o SHA completo existe no repositório público.
+- `Download of ... failed (HTTP ...)` ou `Download of commit ... failed`: confira se o SHA completo existe no repositório público. Se o `curl` do `install.sh` responder 404, o commit é anterior à 0.3.9: use o caminho manual.
+- `Chromium, used by the public validation, was not installed`: a instalação está completa, só faltou o navegador. Rode o comando que a mensagem mostra.
+- `Node 24.x is required`: selecione o Node 24, por exemplo com `nvm install 24`, e repita.
 - `Build changed source files outside dist`: o commit não é instalável; avise quem fixou o commit.
 - Outros casos: [diagnóstico](../diagnostics/README.md).
 

@@ -16,9 +16,10 @@ type Result = { code: number | null; stdout: string; stderr: string };
 function install(archives: string, env: NodeJS.ProcessEnv, ...args: string[]): Promise<Result> {
   return command(resolve('dist/test/fixtures/install-driver.js'), env, archives, ...args);
 }
-function command(script: string, env: NodeJS.ProcessEnv, ...args: string[]): Promise<Result> {
+function command(script: string, env: NodeJS.ProcessEnv, ...args: string[]): Promise<Result> { return program(process.execPath, [script, ...args], env); }
+function program(executable: string, args: string[], env: NodeJS.ProcessEnv): Promise<Result> {
   return new Promise((done, reject) => {
-    const child = spawn(process.execPath, [script, ...args], { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(executable, args, { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = ''; let stderr = '';
     child.stdout.on('data', chunk => { stdout += String(chunk); }); child.stderr.on('data', chunk => { stderr += String(chunk); });
     child.on('error', reject); child.on('close', code => done({ code, stdout, stderr }));
@@ -77,13 +78,17 @@ test('installing a public commit creates a stamped installation outside the deve
   server.listen(0, '127.0.0.1'); await new Promise(done => server.once('listening', done));
   try {
     const global = join(work, 'global'); await mkdir(global);
-    const archives = `http://127.0.0.1:${(server.address() as AddressInfo).port}/tar.gz`; const env = { NPM_CONFIG_PREFIX: global };
+    const tools = join(work, 'tools'); await mkdir(tools); const browserCalls = join(work, 'browser-calls.txt');
+    await writeFile(join(tools, 'npx'), `#!/bin/sh\nprintf '%s %s\\n' "$PWD" "$*" >> '${browserCalls}'\n`, { mode: 0o755 });
+    const archives = `http://127.0.0.1:${(server.address() as AddressInfo).port}/tar.gz`; const env = { NPM_CONFIG_PREFIX: global, PATH: `${tools}:${process.env.PATH}` };
     const prefix = join(work, 'prefix'); const installation = join(prefix, commit);
 
     const installed = await install(archives, env, '--commit', commit, '--prefix', prefix);
 
     assert.equal(installed.code, 0, installed.stderr);
     assert.equal(JSON.parse(installed.stdout).installation, installation);
+    assert.equal(JSON.parse(installed.stdout).browser, true);
+    assert.equal(readFileSync(browserCalls, 'utf8'), `${realpathSync(installation)} --no-install playwright install chromium\n`);
     const stamp = JSON.parse(readFileSync(join(installation, 'install.json'), 'utf8'));
     assert.equal(stamp.commit, commit);
     assert.deepEqual(stamp.source, await inventory(good.source));
@@ -117,6 +122,7 @@ test('installing a public commit creates a stamped installation outside the deve
 
     assert.notEqual(changed.code, 0); assert.match(changed.stderr, /Build changed source files outside dist: build-side-effect\.txt/);
     assert.equal(existsSync(join(unstable, sideEffect)), false); assert.equal(existsSync(join(unstable, 'current')), false);
+    assert.equal(readFileSync(browserCalls, 'utf8').split('\n').length, 2, 'Only the completed installation fetches the browser');
 
     const installedFiles = await inventory(installation, ['node_modules']);
     await writeFile(join(good.source, 'preview/cli.ts'), '// development change after installation\n');
@@ -128,6 +134,42 @@ test('installing a public commit creates a stamped installation outside the deve
     assert.deepEqual(await inventory(installation, ['node_modules']), installedFiles);
   } finally {
     server.close();
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+test('the bootstrap script refuses a branch, tag or short commit before any download and without leaving temporary files', async () => {
+  const work = await mkdtemp(join(tmpdir(), 'enois-bootstrap-arguments-'));
+  try {
+    for (const args of [[], ['main'], ['v0.3.8'], ['a'.repeat(39)], ['A'.repeat(40)]]) {
+      const refused = await program('bash', [resolve('install.sh'), ...args], { TMPDIR: work, HTTPS_PROXY: 'http://127.0.0.1:9', https_proxy: 'http://127.0.0.1:9' });
+
+      assert.equal(refused.code, 1, args.join(' '));
+      assert.match(refused.stderr, /^Usage: install\.sh PUBLIC_TOOL_COMMIT \[--prefix DIRECTORY\]\nUse the full 40 character public tool commit, never a branch or tag\.\n$/);
+      assert.deepEqual(readdirSync(work), []);
+    }
+  } finally { await rm(work, { recursive: true, force: true }); }
+});
+
+test('the bootstrap script downloads only from the public codeload origin and removes its temporary directory when the download fails', async () => {
+  const work = await mkdtemp(join(tmpdir(), 'enois-bootstrap-origin-'));
+  const commit = 'b'.repeat(40); const prefix = join(work, 'prefix'); const temporary = join(work, 'tmp'); await mkdir(temporary);
+  const tunnels: string[] = [];
+  const proxy = createServer((_request, response) => { response.writeHead(405).end(); });
+  proxy.on('connect', (request, socket) => { tunnels.push(request.url ?? ''); socket.end('HTTP/1.1 403 Forbidden\r\n\r\n'); });
+  proxy.listen(0, '127.0.0.1'); await new Promise(done => proxy.once('listening', done));
+  try {
+    const address = `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`;
+
+    const attempted = await program('bash', [resolve('install.sh'), commit, '--prefix', prefix], { TMPDIR: temporary, HTTPS_PROXY: address, https_proxy: address, NO_PROXY: '', no_proxy: '' });
+
+    assert.equal(attempted.code, 1);
+    assert.match(attempted.stderr, /Download of commit b{40} failed\. Confirm that it is a published public commit\.\n$/);
+    assert.deepEqual(tunnels, ['codeload.github.com:443']);
+    assert.deepEqual(readdirSync(temporary), []);
+    assert.equal(existsSync(prefix), false);
+  } finally {
+    proxy.close();
     await rm(work, { recursive: true, force: true });
   }
 });

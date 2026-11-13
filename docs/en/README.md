@@ -32,6 +32,7 @@ The [CLI](CONCEPTS.md#cli), the `enois-preview` command, runs on your machine, w
 | `enois-preview publish <scenario>` | Publishes current commits with the scenario's frozen data | [New code](RECIPES.md#3-publish-again-with-new-code-only) |
 | `enois-preview publish <scenario> --refresh-data` | Captures new data and publishes | [New data](RECIPES.md#4-publish-with-new-data) |
 | `enois-preview resume <full-revision>` | Continues a failed publication, without recapturing data | [Resume](RECIPES.md#5-resume-a-failed-publication) |
+| `enois-preview install <full-commit>` | Installs another verified public commit and points the command at it | [Install](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit) |
 | `enois-preview source-digest` | Read only: reports the logical digest of the stopped source database | [Check the database](RECIPES.md#7-check-whether-the-database-changed) |
 
 `enois-preview --help` prints the summary. Every command accepts `--home <directory>` to use another private installation.
@@ -49,27 +50,32 @@ To change the tool itself, see [Developing the tool](#developing-the-tool).
 
 ## Installation
 
-Install with the installer, at the full public commit pinned by the private launcher's `tool.lock.json`. The installer downloads that commit from GitHub, builds it outside your checkouts in `~/.local/share/enois-preview/<COMMIT>`, records the hashes of its source and `dist` in `install.json`, points `current` at it and links the `enois-preview` command.
+Install with one command, at the full public commit pinned by the private launcher's `tool.lock.json`:
 
 ```sh
-git clone https://github.com/renanfranca/enois-preview.git /absolute/temporary/enois-preview
-cd /absolute/temporary/enois-preview
-git checkout --detach <PINNED_PUBLIC_COMMIT>
-npm ci --ignore-scripts
-npm run build
-node dist/scripts/install-tool.js --commit <PINNED_PUBLIC_COMMIT>
-cd ~/.local/share/enois-preview/current
-npx --no-install playwright install chromium
-node dist/example/prepare.js /absolute/new/fictional-workspace
+COMMIT=<PINNED_PUBLIC_COMMIT>
+curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
+```
+
+`install.sh` comes from the pinned commit itself and only prepares the installer in a temporary directory, removed at the end. The installer downloads that commit from GitHub, builds it outside your checkouts in `~/.local/share/enois-preview/<COMMIT>`, records the hashes of its source and `dist` in `install.json`, points `current` at it, links the `enois-preview` command and installs the Chromium used by public validation. It needs Node 24.x, npm, `curl` and `tar`.
+
+To switch later to another pinned commit, the tool installs it itself:
+
+```sh
+enois-preview install <ANOTHER_PINNED_PUBLIC_COMMIT>
+```
+
+With the tool installed, the first publication with the fictional example is:
+
+```sh
+node ~/.local/share/enois-preview/current/dist/example/prepare.js /absolute/new/fictional-workspace
 enois-preview setup --config /absolute/new/fictional-workspace/.preview/config.json
 enois-preview publish my-scenario
-enois-preview publish my-scenario --refresh-data
-enois-preview resume <full-revision>
-enois-preview source-digest
 ```
 
 Attention:
 - `publish` and `resume` recompute the hashes and refuse, before any effect, an installation that differs from its record or from [`toolCommit`](CONCEPTS.md#toolcommit-and-installjson).
+- `install.sh` exists from 0.3.9 on. To install an earlier commit, follow the [manual path](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit).
 - Installations are immutable: install another commit for another version. Do not run `npm run` inside one, because it rebuilds `dist`.
 - A development checkout cannot publish, even when clean at the same commit.
 - Revisions frozen by 0.3.1 or earlier resume only with their original executor: a clean checkout at their commit, built with `npm run build`.

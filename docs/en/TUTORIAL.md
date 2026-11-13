@@ -28,99 +28,58 @@ Attention:
    docker login ghcr.io --username YOUR_OWNER --password-stdin
    ```
 
-3. Clone the tool into a temporary directory:
+3. Select Node 24.x (`>=24 <25`):
 
    ```sh
-   git clone https://github.com/renanfranca/enois-preview.git /absolute/temporary/enois-preview
+   nvm install 24
    ```
 
-4. Enter the clone:
+4. Install the tool at the pinned commit:
 
    ```sh
-   cd /absolute/temporary/enois-preview
+   COMMIT=<PINNED_PUBLIC_COMMIT>
+   curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
    ```
 
-5. Switch to the pinned commit:
-
-   ```sh
-   git checkout --detach <PINNED_PUBLIC_COMMIT>
-   ```
-
-6. Select Node 24.x (`>=24 <25`); `.nvmrc` names the 24 family:
-
-   ```sh
-   nvm install
-   ```
-
-7. Install dependencies without installation scripts:
-
-   ```sh
-   npm ci --ignore-scripts
-   ```
-
-8. Build:
-
-   ```sh
-   npm run build
-   ```
-
-9. Create the verified installation of that commit:
-
-   ```sh
-   node dist/scripts/install-tool.js --commit <PINNED_PUBLIC_COMMIT>
-   ```
-
-   The installer creates `~/.local/share/enois-preview/<PINNED_PUBLIC_COMMIT>`, points `~/.local/share/enois-preview/current` at it and links the `enois-preview` command. See [`toolCommit` and `install.json`](CONCEPTS.md#toolcommit-and-installjson).
+   That commit's `install.sh` prepares the installer in a temporary directory and removes it at the end. The installer creates `~/.local/share/enois-preview/<PINNED_PUBLIC_COMMIT>`, points `~/.local/share/enois-preview/current` at it, links the `enois-preview` command and installs the Chromium used by public validation. The final JSON carries `linked: true` and `browser: true`. See [`toolCommit` and `install.json`](CONCEPTS.md#toolcommit-and-installjson).
 
    Attention: never run `npm run` or edit files inside the installation. `publish` would refuse it afterwards.
 
-10. Enter the installation:
+5. Authenticate with Cloudflare using the installation's `wrangler`:
 
-    ```sh
-    cd ~/.local/share/enois-preview/current
-    ```
+   ```sh
+   (cd ~/.local/share/enois-preview/current && npx --no-install wrangler login)
+   ```
 
-11. Install the browser used by public validation:
+6. Prepare the fictional workspace at a path that does not exist yet:
 
-    ```sh
-    npx --no-install playwright install chromium
-    ```
+   ```sh
+   node ~/.local/share/enois-preview/current/dist/example/prepare.js /absolute/new-workspace
+   ```
 
-12. Authenticate with Cloudflare:
+   Preparation fetches the pinned public sources, builds the backend and applies its migrations to a new H2 before inserting fictional rows only.
 
-    ```sh
-    npx --no-install wrangler login
-    ```
+7. Edit the private file `/absolute/new-workspace/.preview/config.json`. Replace `repository`, `branch`, `registry`, `origin` and `cloudflareAccountId` with your existing infrastructure, and set `toolCommit` to `<PINNED_PUBLIC_COMMIT>`.
 
-13. Prepare the fictional workspace at a path that does not exist yet:
+   Attention: do not use another operator's infrastructure.
 
-    ```sh
-    node dist/example/prepare.js /absolute/new-workspace
-    ```
+8. Run setup:
 
-    Preparation fetches the pinned public sources, builds the backend and applies its migrations to a new H2 before inserting fictional rows only.
+   ```sh
+   enois-preview setup --config /absolute/new-workspace/.preview/config.json
+   ```
 
-14. Edit the private file `/absolute/new-workspace/.preview/config.json`. Replace `repository`, `branch`, `registry`, `origin` and `cloudflareAccountId` with your existing infrastructure, and set `toolCommit` to `<PINNED_PUBLIC_COMMIT>`.
+   Verify Free plans and spending blocks for the configured accounts and answer `yes` to the confirmation in the interactive terminal. Setup verifies access and service identity and stores the configuration and confirmation in `~/.config/enois-preview-ts`. Set `ENOIS_PREVIEW_HOME` for a separate installation. Repeating setup preserves confirmation for the same infrastructure; there is no periodic renewal.
 
-    Attention: do not use another operator's infrastructure.
+9. Publish:
 
-15. Run setup:
+   ```sh
+   enois-preview publish my-scenario
+   ```
 
-    ```sh
-    enois-preview setup --config /absolute/new-workspace/.preview/config.json
-    ```
+   The first publication performs the [capture](CONCEPTS.md#frozen-data-and-capture). The example already selects Lia (`example_lia`) and Rui (`example_rui`) with their original permissions. The command succeeds only after validating image contents, boot, JSON readiness, every account, media and public identity. What happens at each stage is in [Flow](FLOW.md#what-happens-during-publish).
 
-    Verify Free plans and spending blocks for the configured accounts and answer `yes` to the confirmation in the interactive terminal. Setup verifies access and service identity and stores the configuration and confirmation in `~/.config/enois-preview-ts`. Set `ENOIS_PREVIEW_HOME` for a separate installation. Repeating setup preserves confirmation for the same infrastructure; there is no periodic renewal.
-
-16. Publish:
-
-    ```sh
-    enois-preview publish my-scenario
-    ```
-
-    The first publication performs the [capture](CONCEPTS.md#frozen-data-and-capture). The example already selects Lia (`example_lia`) and Rui (`example_rui`) with their original permissions. The command succeeds only after validating image contents, boot, JSON readiness, every account, media and public identity. What happens at each stage is in [Flow](FLOW.md#what-happens-during-publish).
-
-17. Open the `url` from the final JSON in a browser, test the pull request (PR)'s specific behavior and paste the link into the PR. Passwords appear on the environment's entry page, never in the CLI report.
+10. Open the `url` from the final JSON in a browser, test the pull request (PR)'s specific behavior and paste the link into the PR. Passwords appear on the environment's entry page, never in the CLI report.
 
     Attention: accounts are shared. Use independent sessions for author and reader. A completed build or push alone never establishes public acceptance; only the final JSON with `status: "validated"` does.
 

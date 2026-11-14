@@ -41,9 +41,9 @@ Attention:
    curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
    ```
 
-   That commit's `install.sh` prepares the installer in a temporary directory and removes it at the end. The installer creates `~/.local/share/enois-preview/<PINNED_PUBLIC_COMMIT>`, points `~/.local/share/enois-preview/current` at it, links the `enois-preview` command and installs the Chromium used by public validation. The final JSON carries `linked: true` and `browser: true`. See [`toolCommit` and `install.json`](CONCEPTS.md#toolcommit-and-installjson).
+   That commit's `install.sh` prepares the installer in a temporary directory and removes it at the end. The installer creates `~/.local/share/enois-preview/<PINNED_PUBLIC_COMMIT>`, points `~/.local/share/enois-preview/current` at it, links the `enois-preview` command and installs the Chromium used by public validation. The final JSON carries `linked: true` and `browser: true`. See [tool commit and `install.json`](CONCEPTS.md#tool-commit-and-installjson).
 
-   Attention: never run `npm run` or edit files inside the installation. `publish` would refuse it afterwards.
+   Attention: never run `npm run` or edit files inside the installation. `publish` would then report the `unverified-tool` warning.
 
 5. Authenticate with Cloudflare using the installation's `wrangler`:
 
@@ -59,7 +59,7 @@ Attention:
 
    Preparation fetches the pinned public sources, builds the backend and applies its migrations to a new H2 before inserting fictional rows only.
 
-7. Edit the private file `/absolute/new-workspace/.preview/config.json`. Replace `repository`, `branch`, `registry`, `origin` and `cloudflareAccountId` with your existing infrastructure, and set `toolCommit` to `<PINNED_PUBLIC_COMMIT>`.
+7. Edit the private file `/absolute/new-workspace/.preview/config.json`. Replace `repository`, `branch`, `registry`, `origin` and `cloudflareAccountId` with your existing infrastructure.
 
    Attention: do not use another operator's infrastructure.
 
@@ -69,7 +69,7 @@ Attention:
    enois-preview setup --config /absolute/new-workspace/.preview/config.json
    ```
 
-   Verify Free plans and spending blocks for the configured accounts and answer `yes` to the confirmation in the interactive terminal. Setup verifies access and service identity and stores the configuration and confirmation in `~/.config/enois-preview-ts`. Set `ENOIS_PREVIEW_HOME` for a separate installation. Repeating setup preserves confirmation for the same infrastructure; there is no periodic renewal.
+   Setup verifies access and stores the configuration in `~/.config/enois-preview-ts`, with no prompt. Its JSON ends with `warnings`, including `free-plan`: keep Free plans with spending blocked for the configured accounts. Set `ENOIS_PREVIEW_HOME` for a separate installation.
 
 9. Publish:
 
@@ -77,7 +77,7 @@ Attention:
    enois-preview publish my-scenario
    ```
 
-   The first publication performs the [capture](CONCEPTS.md#frozen-data-and-capture). The example already selects Lia (`example_lia`) and Rui (`example_rui`) with their original permissions. The command succeeds only after validating image contents, boot, JSON readiness, every account, media and public identity. What happens at each stage is in [Flow](FLOW.md#what-happens-during-publish).
+   The first publication performs the [capture](CONCEPTS.md#frozen-data-and-capture). The example already selects Lia (`example_lia`) and Rui (`example_rui`) with their original permissions. The command succeeds only after the public link reports readiness, the expected revision and a login for every selected account. Image contents, media and decoding are still checked and reported as `warnings`. What happens at each stage is in [Flow](FLOW.md#what-happens-during-publish).
 
 10. Open the `url` from the final JSON in a browser, test the pull request (PR)'s specific behavior and paste the link into the PR. Passwords appear on the environment's entry page, never in the CLI report.
 
@@ -112,4 +112,4 @@ Before using a launcher from the Python version:
 3. Pin the public dependency to the immutable TypeScript release SHA.
 4. After `npm ci --ignore-scripts`, run the launcher's `npm run build`. It explicitly compiles `node_modules/enois-preview` and checks `launcher.ts`.
 
-Attention: do not reuse earlier configuration, journals, recipes or financial confirmation. The full procedure is in [installation diagnostics](../diagnostics/installation.en.md).
+Attention: do not reuse earlier journals or recipes. An earlier configuration loads, and its unused fields are ignored with a warning. The full procedure is in [installation diagnostics](../diagnostics/installation.en.md).

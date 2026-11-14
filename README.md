@@ -13,7 +13,7 @@ Com um link de preview no PR, quem avalia abre a mudança rodando num ambiente r
 O enois-preview resolve isso para quem abre o PR (o operador). Você roda `enois-preview publish <cenario>` no seu terminal, onde o [cenário](docs/pt-BR/CONCEPTS.md#cenário) é um nome curto que você escolhe, e recebe um link HTTPS. Quando alguém abre o link, um GitHub Codespace, uma máquina de desenvolvimento na nuvem do GitHub, sobe sozinho com as três aplicações nos seus commits e com uma cópia dos seus dados [sanitizada](docs/pt-BR/CONCEPTS.md#dados-congelados-e-captura), sem sessões, tokens nem senhas. Depois de dez minutos sem uso, o ambiente é apagado.
 
 Em resumo:
-- **No `publish`:** a ferramenta confere que as fontes estão comitadas, copia os dados só quando precisa, congela tudo numa [revisão](docs/pt-BR/CONCEPTS.md#revisão) imutável, constrói a imagem Docker do app, grava a configuração no seu [lançador](docs/pt-BR/CONCEPTS.md#lançador) (um repositório privado seu no GitHub), publica o [Worker](docs/pt-BR/CONCEPTS.md#worker-durable-object-e-codespace) (o programa da Cloudflare que atende o link) e só informa sucesso depois de abrir o link e conferir o resultado.
+- **No `publish`:** a ferramenta usa o `HEAD` comitado de cada aplicação, copia os dados só quando precisa, congela tudo numa [revisão](docs/pt-BR/CONCEPTS.md#revisão) imutável, constrói a imagem Docker do app, grava a configuração no seu [lançador](docs/pt-BR/CONCEPTS.md#lançador) (um repositório privado seu no GitHub), publica o [Worker](docs/pt-BR/CONCEPTS.md#worker-durable-object-e-codespace) (o programa da Cloudflare que atende o link) e só informa sucesso depois de abrir o link e conferir que o app está no ar, roda a revisão esperada e deixa as contas selecionadas entrarem.
 - **Na visita:** o Worker cria o Codespace, mostra as contas e senhas geradas no boot e encaminha a navegação até o app.
 
 O passo a passo de cada lado está no Fluxo: [o que acontece no `publish`](docs/pt-BR/FLOW.md#o-que-acontece-no-publish) e [o que acontece quando alguém abre o link](docs/pt-BR/FLOW.md#o-que-acontece-quando-alguém-abre-o-link).
@@ -28,19 +28,23 @@ O [CLI](docs/pt-BR/CONCEPTS.md#cli), o comando `enois-preview`, roda na sua máq
 
 | Comando | Para que serve | Receita |
 | --- | --- | --- |
-| `enois-preview setup --config <arquivo>` | Confere a infraestrutura existente e registra a confirmação inicial dos planos gratuitos | [Instalar](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado) · [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados) |
+| `enois-preview setup --config <arquivo>` | Confere a infraestrutura existente e mostra o aviso dos planos gratuitos | [Instalar](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado) · [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados) |
 | `enois-preview publish <cenario>` | Publica os commits atuais com os dados congelados do cenário | [Código novo](docs/pt-BR/RECIPES.md#3-publicar-de-novo-só-com-código-novo) |
 | `enois-preview publish <cenario> --refresh-data` | Captura dados novos e publica | [Dados novos](docs/pt-BR/RECIPES.md#4-publicar-com-dados-novos) |
+| `enois-preview publish <cenario> --accounts ID[,ID...]` | Escolhe as contas dos visitantes sem pergunta no terminal | [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados) |
+| `... --force-lease` (no `publish` ou no `resume`) | Remove o lease remoto de outra operação e continua | [Lease](docs/pt-BR/CONCEPTS.md#lease) |
 | `enois-preview resume <revisao-completa>` | Continua uma publicação que falhou, sem recapturar dados | [Retomar](docs/pt-BR/RECIPES.md#5-retomar-uma-publicação-que-falhou) |
 | `enois-preview install <commit-completo>` | Instala outro commit público verificado e aponta o comando para ele | [Instalar](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado) |
-| `enois-preview source-digest` | Só lê: informa o digest lógico do banco de origem parado | [Conferir o banco](docs/pt-BR/RECIPES.md#7-conferir-se-o-banco-mudou) |
+| `enois-preview source-digest` | Só lê: informa o digest lógico do banco de origem, mesmo com o backend rodando | [Conferir o banco](docs/pt-BR/RECIPES.md#7-conferir-se-o-banco-mudou) |
 
 `enois-preview --help` mostra o resumo. Todos aceitam `--home <diretorio>` para usar outra instalação privada.
+
+`setup`, `publish`, `resume` e `source-digest` terminam com um JSON que sempre traz `warnings: [{code, message}]`. Um aviso nunca para a operação; quando observado, também sai no stderr como `warning: <mensagem>`. Só três coisas param uma operação: a aplicação não compila ou não roda, a ferramenta não consegue identificar a revisão que construiu e publicou, ou uma conta selecionada não consegue entrar.
 
 ## Requisitos
 
 - Linux com Node 24.x (`>=24 <25`); o `.nvmrc` seleciona a família 24.
-- Git, Java 25 e Javac, Docker, `fuser`, `flock` e GitHub CLI.
+- Git, Java 25 e Javac, Docker, `flock` e GitHub CLI. O `fuser` é opcional: quando existe, ajuda a avisar que o banco está em uso.
 - Autenticação no GitHub, no GHCR e na Cloudflare.
 - Sua própria infraestrutura privada: um repositório lançador privado, um pacote GHCR privado e um Worker da Cloudflare. Para criá-la, siga o [diagnóstico de instalação](docs/diagnostics/installation.pt-BR.md).
 - O driver H2 deve corresponder ao banco configurado. A receita da imagem já traz `ffmpeg` e o modelo local de classificação de imagens; uploads novos não usam serviço externo de escrita de mídia.
@@ -74,12 +78,11 @@ enois-preview publish meu-cenario
 ```
 
 Atenção:
-- `publish` e `resume` recalculam os hashes e recusam, antes de qualquer efeito, uma instalação que difira do registro ou do [`toolCommit`](docs/pt-BR/CONCEPTS.md#toolcommit-e-installjson).
+- `publish` e `resume` recalculam os hashes e registram o commit da ferramenta em execução no journal e no resultado. Uma ferramenta que não é instalação verificada, como um checkout de desenvolvimento ou uma instalação diferente do registro, publica mesmo assim, com o aviso `unverified-tool`. Veja [commit da ferramenta e install.json](docs/pt-BR/CONCEPTS.md#commit-da-ferramenta-e-installjson).
 - O `install.sh` existe a partir da 0.3.9. Para instalar um commit anterior, siga o [caminho manual](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado).
 - A instalação é imutável: para outra versão, instale outro commit. Não execute `npm run` dentro dela, porque isso recompila o `dist`.
-- Um checkout de desenvolvimento não publica, nem limpo no mesmo commit.
 - Revisões congeladas pela 0.3.1 ou anteriores só são retomadas pelo executor original: um checkout limpo no commit delas, com `npm run build`.
-- Configuração, dados, [journals](docs/pt-BR/CONCEPTS.md#journal), proveniência e catálogo usam `format: "enois-preview-ts-v1"`. A instalação privada padrão fica em `~/.config/enois-preview-ts`. Registros antigos com `schema` ou sem esse `format` são recusados antes de alterações: crie uma instalação e um catálogo novos, sem copiar a confirmação nem converter journals Python. Arquivos antigos e histórico são preservados, sem promessa de retomada ou de funcionamento dos links anteriores.
+- Configuração, dados, [journals](docs/pt-BR/CONCEPTS.md#journal), proveniência e catálogo usam `format: "enois-preview-ts-v1"`. A instalação privada padrão fica em `~/.config/enois-preview-ts`. Uma configuração da 0.3.x continua carregando: `service`, `toolCommit`, `installation` e outros campos que não são mais usados são ignorados e preservados, com um único aviso `ignored-config-fields`. Registros antigos com `schema` ou sem esse `format` são recusados antes de alterações: crie uma instalação e um catálogo novos, sem copiar a confirmação nem converter journals Python. Arquivos antigos e histórico são preservados, sem promessa de retomada ou de funcionamento dos links anteriores.
 
 A primeira publicação, com dados fictícios, está no [tutorial](docs/pt-BR/TUTORIAL.md).
 
@@ -97,15 +100,15 @@ A primeira publicação, com dados fictícios, está no [tutorial](docs/pt-BR/TU
 
 ## Limites e custos
 
-- A ferramenta não comita nem altera as três aplicações. Ela recusa fontes com mudanças staged, unstaged ou arquivos não rastreados.
+- A ferramenta não comita nem altera as três aplicações. Ela publica só o `HEAD` comitado; mudanças staged, unstaged ou arquivos não rastreados geram o aviso `source-dirty` e ficam de fora.
 - O código vem sempre dos commits atuais e os dados ficam congelados desde a última captura do cenário, que só lê o banco local na primeira publicação ou com `--refresh-data`. Os detalhes estão em [Código vs dados](docs/pt-BR/CONCEPTS.md#código-vs-dados).
-- Os visitantes compartilham contas, dados e capacidade de upload, e o ambiente é apagado depois de dez minutos sem interação. Num PR público, o link também é público, e todo o conteúdo dos dados capturados fica visível. Os limites exatos e que dados usar estão em [Mostrar no PR que o problema foi resolvido](docs/pt-BR/RECIPES.md#9-mostrar-no-pr-que-o-problema-foi-resolvido).
-- A conferência dos planos gratuitos e do bloqueio de gastos ocorre somente no `setup`. Publicar, retomar e abrir links não exigem renovação. A ferramenta não solicita cartão, não contrata recursos e não ativa planos pagos. A confirmação humana não audita faturamento por API. Consulte [a cobrança do Codespaces](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces) e [os limites gratuitos de Durable Objects](https://developers.cloudflare.com/durable-objects/platform/pricing/).
+- Os visitantes compartilham contas, dados e o disco do Codespace, e um visitante pode trocar a senha de uma conta compartilhada até o ambiente ser reciclado. Cada arquivo enviado tem limite de 100 MB. O ambiente é apagado depois de dez minutos sem interação. Num PR público, o link também é público, e todo o conteúdo dos dados capturados fica visível. Os limites exatos e que dados usar estão em [Mostrar no PR que o problema foi resolvido](docs/pt-BR/RECIPES.md#9-mostrar-no-pr-que-o-problema-foi-resolvido).
+- O `setup` mostra o aviso `free-plan` sobre os planos gratuitos e o bloqueio de gastos; ele não pede confirmação e não audita faturamento por API. A ferramenta não solicita cartão, não contrata recursos e não ativa planos pagos. Consulte [a cobrança do Codespaces](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces) e [os limites gratuitos de Durable Objects](https://developers.cloudflare.com/durable-objects/platform/pricing/).
 - Este é um uso temporário associado ao desenvolvimento e teste do projeto. Os [termos do Codespaces](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features#codespaces) restringem uso desproporcional como servidor e hospedagem de aplicações de produção. O funcionamento técnico não demonstra aprovação desta arquitetura pelo GitHub.
 
 ## Para auditar
 
-A publicação só informa sucesso após as verificações públicas. O resultado individual de cada critério de aceite, com as evidências por versão, está em [VALIDATION.md](VALIDATION.md); consulte esse arquivo antes de considerar uma revisão pronta para compartilhar. Para falhas e recuperação, veja o [diagnóstico](docs/diagnostics/README.md).
+A publicação só informa sucesso depois que passam os portões públicos: prontidão, identidade da revisão e login de cada conta selecionada. As conferências de mídia, decodificação, permissões, cookies e inventário da imagem continuam rodando e aparecem como avisos. O resultado individual de cada critério de aceite, com as evidências por versão, está em [VALIDATION.md](VALIDATION.md); consulte esse arquivo antes de considerar uma revisão pronta para compartilhar. Para falhas e recuperação, veja o [diagnóstico](docs/diagnostics/README.md).
 
 ## Desenvolver a ferramenta
 

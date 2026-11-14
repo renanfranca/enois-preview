@@ -95,8 +95,9 @@ public final class SeedTool {
                     if (table.getKey().equals("PARENTAL_LINKS") && column.equals("TOKEN_HASH")) continue;
                     if (table.getKey().equals("MESSAGES") && column.equals("ENCRYPTED_KEYS")) continue;
                     if (table.getKey().equals("CONTENT_FINGERPRINTS") && column.equals("TOKEN_COUNT")) continue;
-                    if (column.matches(".*(PASSWORD|SECRET|TOKEN|PRIVATE_KEY|WEBHOOK|MFA|OAUTH_GRANT|CIPHER|ENCRYPTED).*"))
-                        throw new IllegalStateException("Unrecognized authentication or integration column: " + table.getKey() + "." + column + "; extend the reviewed sanitizer before capture");
+                    // Reported, never refused: the operator owns the disposable copy.
+                    if (column.matches("[A-Za-z0-9_]+") && column.matches(".*(PASSWORD|SECRET|TOKEN|PRIVATE_KEY|WEBHOOK|MFA|OAUTH_GRANT|CIPHER|ENCRYPTED).*"))
+                        System.out.println("warning\t" + table.getKey() + "." + column);
                 }
             }
             db.setAutoCommit(false);
@@ -113,7 +114,7 @@ public final class SeedTool {
                 Set<String> selected = new HashSet<>();
                 for (String line : Files.readAllLines(Path.of(args[3]))) {
                     String[] account = line.split("\t", -1);
-                    if (account.length != 2 || !account[0].matches("[A-Za-z0-9_-]{1,100}") || !account[1].matches("[a-z0-9._-]+@enois\\.invalid") || !selected.add(account[0]))
+                    if (account.length != 2 || !account[0].matches("[A-Za-z0-9_-]{1,100}") || !account[1].matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+") || !selected.add(account[0]))
                         throw new IllegalArgumentException("Invalid account selection");
                     try (PreparedStatement credentials = db.prepareStatement("UPDATE USER_CREDENTIALS SET EMAIL=? WHERE USER_ID=?");
                          PreparedStatement user = db.prepareStatement("UPDATE USERS SET EMAIL=? WHERE ID=?")) {

@@ -56,13 +56,13 @@ Nome curto que você escolhe para um preview, como `meu-cenario`. Aceita só let
 
 ### Revisão
 
-Identificador sha256 de 64 caracteres calculado sobre todas as entradas congeladas: o nome do cenário, os commits das três aplicações, os arquivos exportados desses commits, a versão dos dados, a receita da imagem (`recipe/`), o runtime do Codespace (`runtime/`), o Worker (`src/`), o `dist` compilado e o `toolCommit` (o commit da ferramenta, explicado abaixo). O link público usa `<cenario>-<16 primeiros caracteres da revisão>`. Não confunda com a avaliação de código feita no PR.
+Identificador sha256 de 64 caracteres calculado sobre todas as entradas congeladas: o nome do cenário, os commits das três aplicações, os arquivos exportados desses commits, a versão dos dados, a receita da imagem (`recipe/`), o runtime do Codespace (`runtime/`), o Worker (`src/`) e o `dist` compilado. O commit da ferramenta é registrado, mas não entra na revisão, porque esses inventários já identificam o que foi construído. O link público usa `<cenario>-<16 primeiros caracteres da revisão>`. Não confunda com a avaliação de código feita no PR.
 
 **Por que importa para você:** se nada mudou, a revisão é a mesma e o link também. Qualquer commit novo gera outra revisão e outro link, que você precisa colar no PR. Para retomar uma publicação, use a revisão **completa**, com 64 caracteres.
 
 ### Dados congelados e captura
 
-A **captura** para o backend local (só se ele estiver rodando), copia o banco H2 e as pastas de mídia configuradas e devolve o backend ao estado anterior. Depois, ela **sanitiza** a cópia, isto é, remove dela sessões, tokens e senhas: só as contas selecionadas continuam com login. Esses logins usam emails inventados em `@enois.invalid`, como explica [Usar meus próprios dados](RECIPES.md#8-usar-meus-próprios-dados). O resultado fica em `<state>/data/<id>/`, onde `<state>` é o campo `state` da sua configuração.
+A **captura** copia o banco H2 e as pastas de mídia configuradas para o estado privado, sem parar, iniciar nem esperar o seu backend. Se o arquivo parecer em uso (o `fuser` relata, ou existe `rede.lock.db` ao lado), o resultado traz o aviso `database-in-use`; se o arquivo mudou durante a cópia, `database-changed-during-copy`. A cópia é usada mesmo assim, e uma cópia danificada aparece como falha de build ou de validação. Depois, a captura **sanitiza** a cópia, isto é, remove dela sessões, tokens e senhas: só as contas selecionadas continuam com login. Uma coluna desconhecida com cara de credencial não para a captura: ela aparece como `TABELA.COLUNA` no aviso `credential-column`. Esses logins usam emails inventados em `@enois.invalid`, como explica [Usar meus próprios dados](RECIPES.md#8-usar-meus-próprios-dados). O resultado fica em `<state>/data/<id>/`, onde `<state>` é o campo `state` da sua configuração.
 
 **Por que importa para você:** a captura acontece só no primeiro `publish` de um cenário ou quando você pede `--refresh-data`. Nas outras publicações o banco local nem é lido. Uma captura incompleta nunca substitui os dados completos anteriores.
 
@@ -76,19 +76,21 @@ Arquivo `<state>/operations/<revisao>/journal.json`. Registra a etapa atual, a i
 
 Trava que impede duas operações de mexer na mesma coisa ao mesmo tempo. As leases locais são arquivos travados com `flock` (por exemplo `<state>/publication.lock`). A lease remota é a ref `refs/heads/enois-preview-publication-lease` no lançador.
 
-**Por que importa para você:** se uma lease está ocupada, outra operação pode estar viva. Não apague uma lease de outra operação; espere ou use `resume` depois que o dono terminar.
+**Por que importa para você:** se uma lease está ocupada, outra operação pode estar viva. Espere ou use `resume` depois que o dono terminar. Quando você sabe que a outra operação morreu, `publish --force-lease` ou `resume --force-lease` apaga a lease remota dela, registra a tomada em `journal.intents.remoteLease.forced` e mostra o aviso `lease-forced`. Sem a flag, a ferramenta espera e recusa como antes.
 
-### `restoration.json`
+### Commit da ferramenta e `install.json`
 
-Arquivo `<state>/restoration.json`, gravado antes da captura parar o backend. Diz como o backend estava (rodando ou parado) e com qual configuração de serviço.
+`install.json` fica dentro de uma instalação e guarda o commit público dela e os hashes da fonte e do `dist`. Antes de `publish` e `resume`, a ferramenta recalcula esses hashes. Quando batem, o journal e o resultado registram esse commit como `toolCommit`, com `toolVerified: true`. Caso contrário, como num checkout de desenvolvimento ou numa instalação alterada por `npm run`, a ferramenta roda mesmo assim: registra o `HEAD` do Git do checkout (ou `null`), marca `toolVerified: false` e mostra o aviso `unverified-tool`.
 
-**Por que importa para você:** se a restauração do backend falhar, esse arquivo fica. O próximo `publish` ou `resume` lê o arquivo e devolve o backend ao estado anterior antes de olhar as fontes. Não apague esse arquivo.
+A configuração não tem mais o campo `toolCommit`. Uma configuração da 0.3.x que ainda o traga, ou traga `service` ou `installation`, carrega normalmente; esses campos são ignorados e preservados, com um único aviso `ignored-config-fields`.
 
-### `toolCommit` e `install.json`
+**Por que importa para você:** se o `tool.lock.json` do lançador ou a dependência `enois-preview` dele fixam outro commit, a publicação continua com o aviso `launcher-pin`, que cita os dois commits. O lançador nunca é refixado automaticamente; refixe você quando quiser que o Worker use esta versão.
 
-`toolCommit` é o commit público completo da ferramenta, configurado por você e igual ao fixado no `tool.lock.json` do lançador. `install.json` fica dentro da instalação e guarda esse commit e os hashes da fonte e do `dist`.
+### Aviso
 
-**Por que importa para você:** antes de `publish` e `resume`, a ferramenta recalcula os hashes. Se a instalação foi alterada (por exemplo, alguém rodou `npm run` dentro dela) ou pertence a outro commit, ela recusa antes de qualquer efeito.
+Mensagem sobre algo que a ferramenta observou e que não para a operação, como `source-dirty` ou `database-in-use`. O JSON final de `setup`, `publish`, `resume` e `source-digest` sempre traz `warnings: [{code, message}]`, e cada aviso também sai no stderr como `warning: <mensagem>`.
+
+**Por que importa para você:** só três coisas param uma operação: a aplicação não compila ou não roda, a ferramenta não consegue identificar a revisão que construiu e publicou, ou uma conta selecionada não consegue entrar. Leia os avisos antes de compartilhar o link.
 
 ## Em uma frase
 
@@ -104,7 +106,7 @@ O código vem sempre dos **commits atuais** das três aplicações, exportados p
 | Mostrar dados ou mídias novos | `enois-preview publish <cenario> --refresh-data` | Sim |
 | Terminar uma publicação que falhou | `enois-preview resume <revisao-completa>` | Nunca |
 
-Na primeira captura, a ferramenta para só o backend identificado na configuração. O pacote do design system é construído de novo a partir do commit dele a cada imagem.
+A captura nunca para o seu backend. O pacote do design system é construído de novo a partir do commit dele a cada imagem.
 
 Por isso, depois da primeira captura, você pode publicar código novo mesmo com o H2 local indisponível.
 
@@ -126,10 +128,9 @@ A contrapartida: para mudar qualquer coisa, você gera uma revisão nova e atual
 | --- | --- |
 | `~/.local/share/enois-preview/<COMMIT>/` | Instalação imutável da ferramenta, com `install.json` |
 | `~/.local/share/enois-preview/current` | Link para a instalação em uso |
-| `~/.config/enois-preview-ts/config.json` | Configuração privada e confirmação inicial dos planos gratuitos. Mude o diretório com `ENOIS_PREVIEW_HOME` ou `--home` |
+| `~/.config/enois-preview-ts/config.json` | Configuração privada. Mude o diretório com `ENOIS_PREVIEW_HOME` ou `--home` |
 | `<state>/scenarios/<cenario>.json` | Qual versão de dados o cenário usa |
 | `<state>/data/<id>/` | Dados congelados e sanitizados |
 | `<state>/operations/<revisao>/` | Journal, arquivos congelados e evidências de cada revisão |
-| `<state>/restoration.json` | Restauração pendente do backend, quando existe |
 | Lançador: `catalog/scenarios.json` | Catálogo de revisões publicadas |
 | Lançador: `.devcontainer/<slug>/` | Configuração do Codespace de cada revisão |

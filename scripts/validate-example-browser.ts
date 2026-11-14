@@ -18,34 +18,6 @@ const input = inputRecord();
 const browser = await chromium.launch({ headless: true });
 const devices = [];
 try {
-  const noScripts = await browser.newContext({ javaScriptEnabled:false });
-  try {
-    if (input.slug) await noScripts.addCookies([{ name:'__Host-demo-scenario', value:input.slug, url:input.origin, secure:true, httpOnly:true, sameSite:'Lax' }]);
-    const page = await noScripts.newPage();
-    await page.goto(input.origin + '/entrar?tab=login', { waitUntil:'domcontentloaded', timeout:120_000 });
-    const form = page.locator('form[data-demo-ready="false"]');
-    await form.waitFor({ state:'visible' });
-    assert.equal(await form.getAttribute('method'), 'post');
-    assert.equal(await form.locator('button[type="submit"]').isDisabled(), true);
-    // Exercise the native fallback with a fictional marker, never a credential.
-    await form.locator('input[name="email"]').fill('noscript@enois.invalid');
-    await form.locator('input[name="password"]').fill('fictional-noscript-marker');
-    let nativeSubmission:{method:string;url:string;hasBody:boolean|undefined}|undefined;
-    await page.route('**/*', async route => {
-      const request = route.request();
-      if (request.isNavigationRequest() && request.method() === 'POST') {
-        nativeSubmission = { method:request.method(), url:request.url(), hasBody:request.postData()?.includes('fictional-noscript-marker') };
-        await route.fulfill({ status:403, contentType:'text/plain', body:'Native submission refused in acceptance fixture' });
-      } else await route.continue();
-    });
-    await Promise.all([
-      page.waitForResponse(response => response.request().isNavigationRequest() && response.request().method() === 'POST'),
-      form.evaluate(element => { if(!(element instanceof HTMLFormElement))throw new Error('Expected form');element.submit(); }),
-    ]);
-    assert.ok(nativeSubmission);assert.equal(nativeSubmission.method,'POST');
-    assert.equal(nativeSubmission.hasBody,true);
-    assert.equal(new URL(nativeSubmission.url).searchParams.has('password'),false);
-  } finally { await noScripts.close(); }
   for (const width of [1280, 390]) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, ...(width === 390 ? { isMobile: true, hasTouch: true } : {}) });
     try {
@@ -64,10 +36,13 @@ try {
         }
       }
       await page.goto(input.origin + '/entrar?tab=login', { waitUntil: 'domcontentloaded', timeout: 120_000 });
-      const form = page.locator('form[data-demo-ready="true"]');
+      // Without a recipe patch, hydration is observed through the page itself: React attaches its props to the
+      // login form only after hydrating it, so a click can no longer trigger a native submission.
+      const form = page.locator('form').filter({ has: page.locator('input[name="password"]') }).first();
       await form.waitFor({ state:'visible', timeout:120_000 });
-      assert.equal(await form.getAttribute('method'), 'post');
-      await page.getByText(/cadastros.*fechados|cadastro.*fechado/i).first().waitFor({ state:'visible', timeout:30_000 });
+      await page.waitForFunction(() => { const element = document.querySelector('input[name="password"]')?.closest('form'); return element !== null && element !== undefined && Object.keys(element).some(key => key.startsWith('__reactProps$')); }, undefined, { timeout:120_000 });
+      await form.locator('button[type="submit"]').last().waitFor({ state:'visible', timeout:30_000 });
+      assert.equal(await form.locator('button[type="submit"]').last().isEnabled(), true);
       await page.locator('input[name="email"]').first().fill(input.account.email);
       await page.locator('input[name="password"]').first().fill(input.account.password);
       await page.getByRole('button', { name: /entrar/i }).last().click();
@@ -103,7 +78,7 @@ try {
       const feedImages = [...new Map([...(await checkImages()), ...illustrated].map(item => [item.path,item])).values()];
       for (const number of [1, 2, 3]) assert.ok(feedImages.some(item => item.path.endsWith(`/post-${number}.svg`)), `illustrated post ${number} must render; observed ${JSON.stringify(feedImages.map(item => item.path))}`);
       await page.getByRole('button', { name: 'Menu da conta', exact: true }).click();
-      await page.getByRole('link', { name: 'Ver perfil', exact: true }).click();
+      await page.getByRole('link', { name: 'Ver meu perfil', exact: true }).click();
       await page.waitForURL(url => url.pathname === '/perfil/lia-exemplo');
       await page.getByText('Cidade das Ideias, BA', { exact: true }).first().waitFor({ timeout: 60_000 });
       await page.locator('img[src="/example.local/cover.svg"]:visible').first().waitFor({ timeout: 60_000 });

@@ -56,15 +56,12 @@ sequenceDiagram
   participant W as Worker
 
   Op->>CLI: enois-preview publish cenario
-  CLI->>CLI: lê config.json e confere a confirmação inicial
-  opt existe restoration.json
-    CLI->>Apps: restaura o backend ao estado anterior
-  end
+  CLI->>CLI: lê config.json
   CLI->>CLI: trava publication.lock
-  CLI->>Apps: recusa árvore suja e lê os commits
-  CLI->>CLI: confere install.json e toolCommit
+  CLI->>Apps: lê os commits e avisa sobre mudanças não comitadas
+  CLI->>CLI: registra o commit da ferramenta pelo install.json ou pelo Git
   opt primeira vez ou refresh-data
-    CLI->>Apps: para o backend, copia H2 e mídias, restaura
+    CLI->>Apps: copia H2 e mídias sem mexer no backend
     CLI->>CLI: sanitiza e guarda em data/id
   end
   CLI->>Apps: exporta cada commit com git archive
@@ -75,36 +72,35 @@ sequenceDiagram
   CLI->>L: 4 configuration - push de .devcontainer e proveniência
   CLI->>L: 5 catalog - push da entrada do catálogo
   CLI->>W: 6 deploy - build do lançador e wrangler deploy
-  CLI->>W: 7 validatePublic - abre o link e confere tudo
+  CLI->>W: 7 validatePublic - abre o link, confere os portões e registra avisos
   CLI->>L: 8 releaseRemoteLease - apaga a ref de lease
   alt sucesso
-    CLI->>Op: JSON com status validated e url
+    CLI->>Op: JSON com status validated, url e warnings
   else falha numa etapa
     CLI->>CLI: grava failure.json
     CLI->>Op: mensagem com a revisão e o comando resume
   end
 ```
 
-1. **Configuração:** o CLI lê `config.json` da sua instalação privada. Sem a confirmação inicial do `setup`, ele para aqui.
-2. **Recuperação pendente:** se um comando anterior deixou `restoration.json`, o CLI primeiro devolve o backend ao estado registrado.
-3. **Trava local:** `publication.lock` impede dois `publish` ou `resume` ao mesmo tempo no mesmo `state`.
-4. **Árvore limpa:** se qualquer uma das três aplicações tiver mudanças staged, unstaged ou arquivos não rastreados, o CLI recusa sem parar nenhum serviço.
-5. **Instalação verificada:** o CLI recalcula os hashes da instalação e confere se ela pertence ao `toolCommit` configurado.
-6. **Captura:** só na primeira publicação do cenário ou com `--refresh-data`. O backend é parado só se estava rodando e volta ao estado anterior logo depois da cópia. Se nenhuma conta estiver configurada, o CLI pergunta no terminal quais IDs usar.
-7. **Exportação:** cada aplicação é exportada do commit atual com `git archive`, fora dos seus checkouts.
-8. **Congelamento:** o CLI calcula a revisão e, se ela ainda não existe, copia dados, fontes, receita, runtime, Worker e `dist` para `operations/<revisao>/frozen` e cria o journal.
-9. **As oito etapas do publicador** (`Publisher` em `preview/remote.ts`), nesta ordem:
-   1. `buildAndValidate`: constrói a imagem localmente e valida o boot num contêiner local.
-   2. `acquireRemoteLease`: cria a ref `refs/heads/enois-preview-publication-lease` no lançador. Se outra operação a tem, espera até `leaseWaitSeconds`.
+1. **Configuração:** o CLI lê `config.json` da sua instalação privada. Sem o `setup`, ele para aqui. Campos que não são mais usados, como `service`, `toolCommit` ou `installation`, geram o aviso `ignored-config-fields`.
+2. **Trava local:** `publication.lock` impede dois `publish` ou `resume` ao mesmo tempo no mesmo `state`.
+3. **Fontes:** o CLI lê o `HEAD` comitado de cada aplicação. Mudanças staged, unstaged ou arquivos não rastreados geram o aviso `source-dirty` e ficam de fora.
+4. **Commit da ferramenta:** o CLI recalcula os hashes da instalação e registra o commit dela com `toolVerified: true`. Um checkout de desenvolvimento ou uma instalação alterada registra o `HEAD` do Git (ou `null`) com o aviso `unverified-tool`.
+5. **Captura:** só na primeira publicação do cenário, com `--refresh-data`, ou quando `--accounts` escolhe contas diferentes das dos dados congelados. O CLI copia o H2 e as mídias sem parar, iniciar nem esperar o backend; arquivo em uso ou alterado durante a cópia gera aviso. Se nenhuma conta estiver configurada, o `--accounts` escolhe, ou o CLI pergunta no terminal.
+6. **Exportação:** cada aplicação é exportada do commit atual com `git archive`, fora dos seus checkouts.
+7. **Congelamento:** o CLI calcula a revisão e, se ela ainda não existe, copia dados, fontes, receita, runtime, Worker e `dist` para `operations/<revisao>/frozen` e cria o journal.
+8. **As oito etapas do publicador** (`Publisher` em `preview/remote.ts`), nesta ordem:
+   1. `buildAndValidate`: constrói a imagem localmente, sem rodar os testes das aplicações, e valida o boot num contêiner local.
+   2. `acquireRemoteLease`: cria a ref `refs/heads/enois-preview-publication-lease` no lançador. Se outra operação a tem, espera até `leaseWaitSeconds`; com `--force-lease`, apaga a ref, registra a tomada e mostra `lease-forced`.
    3. `registry`: envia a imagem ao GHCR com a tag `preview-<revisao>` e passa a usá-la pelo digest.
    4. `configuration`: faz push de `.devcontainer/<slug>/` e da proveniência no lançador.
    5. `catalog`: faz push da nova entrada em `catalog/scenarios.json`.
-   6. `deploy`: no checkout do lançador, roda `npm ci`, `npm run build`, `npm test`, `npm run check` e `wrangler deploy`.
-   7. `validatePublic`: abre o link público e confere imagem, boot, saúde, contas, mídias e revisão.
+   6. `deploy`: no checkout do lançador, roda `npm ci --ignore-scripts`, `npm run build` e `wrangler deploy`. Um lançador fixado em outro commit da ferramenta gera o aviso `launcher-pin` e não é refixado.
+   7. `validatePublic`: abre o link público. Prontidão, identidade da revisão e login de cada conta selecionada são portões; mídias, decodificação, permissões e cookies viram avisos.
    8. `releaseRemoteLease`: apaga a ref de lease.
-10. **Resultado:** em caso de sucesso, o CLI imprime um JSON com `status: "validated"` e a `url`. Em caso de falha, grava `failure.json`, informa a etapa, a revisão completa e o comando `enois-preview resume <revisao>`.
+9. **Resultado:** em caso de sucesso, o CLI imprime um JSON com `status: "validated"`, a `url` e `warnings`. Em caso de falha, grava `failure.json`, informa a etapa, a revisão completa e o comando `enois-preview resume <revisao>`.
 
-O `resume` faz os passos 1, 2, 3 e 5 e pula a árvore limpa, a captura, a exportação e o congelamento (passos 4, 6, 7 e 8): lê o journal da revisão, confere os arquivos congelados e continua as oito etapas a partir do que já foi registrado. Ele nunca recaptura dados.
+O `resume` faz os passos 1, 2 e 4 e pula as fontes, a captura, a exportação e o congelamento (passos 3, 5, 6 e 7): lê o journal da revisão, confere os arquivos congelados e continua as oito etapas a partir do que já foi registrado. Ele nunca recaptura dados.
 
 ## O que acontece quando alguém abre o link
 

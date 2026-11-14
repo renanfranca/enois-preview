@@ -13,7 +13,7 @@ With a preview link in the PR, reviewers open the change running in a real envir
 enois-preview solves this for whoever opens the PR (the operator). You run `enois-preview publish <scenario>` in your terminal, where the [scenario](CONCEPTS.md#scenario) is a short name you choose, and get an HTTPS link. When someone opens the link, a GitHub Codespace, a cloud development machine from GitHub, boots by itself with the three applications at your commits and a [sanitized](CONCEPTS.md#frozen-data-and-capture) copy of your data, without sessions, tokens or passwords. After ten minutes without use, the environment is deleted.
 
 In short:
-- **On `publish`:** the tool checks that sources are committed, copies data only when needed, freezes everything into an immutable [revision](CONCEPTS.md#revision), builds the app's Docker image, writes the configuration to your [launcher](CONCEPTS.md#launcher) (a private repository of yours on GitHub), deploys the [Worker](CONCEPTS.md#worker-durable-object-and-codespace) (the Cloudflare program that answers the link), and reports success only after opening the link and checking the result.
+- **On `publish`:** the tool takes the committed `HEAD` of each application, copies data only when needed, freezes everything into an immutable [revision](CONCEPTS.md#revision), builds the app's Docker image, writes the configuration to your [launcher](CONCEPTS.md#launcher) (a private repository of yours on GitHub), deploys the [Worker](CONCEPTS.md#worker-durable-object-and-codespace) (the Cloudflare program that answers the link), and reports success only after opening the link and checking that the app is up, runs the expected revision and lets the selected accounts log in.
 - **On a visit:** the Worker creates the Codespace, shows the accounts and passwords generated at boot, and forwards browsing to the app.
 
 Each side, step by step, is in Flow: [what happens during `publish`](FLOW.md#what-happens-during-publish) and [what happens when someone opens the link](FLOW.md#what-happens-when-someone-opens-the-link).
@@ -28,19 +28,23 @@ The [CLI](CONCEPTS.md#cli), the `enois-preview` command, runs on your machine, w
 
 | Command | Purpose | Recipe |
 | --- | --- | --- |
-| `enois-preview setup --config <file>` | Checks existing infrastructure and records the initial Free plan confirmation | [Install](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit) · [My data](RECIPES.md#8-use-my-own-data) |
+| `enois-preview setup --config <file>` | Checks existing infrastructure and prints the Free plan warning | [Install](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit) · [My data](RECIPES.md#8-use-my-own-data) |
 | `enois-preview publish <scenario>` | Publishes current commits with the scenario's frozen data | [New code](RECIPES.md#3-publish-again-with-new-code-only) |
 | `enois-preview publish <scenario> --refresh-data` | Captures new data and publishes | [New data](RECIPES.md#4-publish-with-new-data) |
+| `enois-preview publish <scenario> --accounts ID[,ID...]` | Selects the visitor accounts without a terminal prompt | [My data](RECIPES.md#8-use-my-own-data) |
+| `... --force-lease` (on `publish` or `resume`) | Removes a remote lease held by another operation and continues | [Lease](CONCEPTS.md#lease) |
 | `enois-preview resume <full-revision>` | Continues a failed publication, without recapturing data | [Resume](RECIPES.md#5-resume-a-failed-publication) |
 | `enois-preview install <full-commit>` | Installs another verified public commit and points the command at it | [Install](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit) |
-| `enois-preview source-digest` | Read only: reports the logical digest of the stopped source database | [Check the database](RECIPES.md#7-check-whether-the-database-changed) |
+| `enois-preview source-digest` | Read only: reports the logical digest of the source database, even while the backend runs | [Check the database](RECIPES.md#7-check-whether-the-database-changed) |
 
 `enois-preview --help` prints the summary. Every command accepts `--home <directory>` to use another private installation.
+
+`setup`, `publish`, `resume` and `source-digest` end with one JSON result that always carries `warnings: [{code, message}]`. A warning never stops the operation; it is also printed on stderr as `warning: <message>` when observed. Only three things stop an operation: the application fails to build or run, the tool cannot identify the revision it built and published, or a selected account cannot log in.
 
 ## Requirements
 
 - Linux with Node 24.x (`>=24 <25`); `.nvmrc` selects the 24 family.
-- Git, Java 25 and Javac, Docker, `fuser`, `flock` and GitHub CLI.
+- Git, Java 25 and Javac, Docker, `flock` and GitHub CLI. `fuser` is optional: when present, it helps report a database in use.
 - GitHub, GHCR and Cloudflare authentication.
 - Your own private infrastructure: a private launcher repository, a private GHCR package and a Cloudflare Worker. To create it, follow [installation diagnostics](../diagnostics/installation.en.md).
 - The H2 driver must match the configured database. The image recipe includes `ffmpeg` and a local image classification model; new uploads require no external storage write service.
@@ -74,12 +78,11 @@ enois-preview publish my-scenario
 ```
 
 Attention:
-- `publish` and `resume` recompute the hashes and refuse, before any effect, an installation that differs from its record or from [`toolCommit`](CONCEPTS.md#toolcommit-and-installjson).
+- `publish` and `resume` recompute the hashes and record the running tool's commit in the journal and the result. A tool that is not a verified installation, such as a development checkout or an installation that differs from its record, still publishes, with the `unverified-tool` warning. See [tool commit and install.json](CONCEPTS.md#tool-commit-and-installjson).
 - `install.sh` exists from 0.3.9 on. To install an earlier commit, follow the [manual path](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit).
 - Installations are immutable: install another commit for another version. Do not run `npm run` inside one, because it rebuilds `dist`.
-- A development checkout cannot publish, even when clean at the same commit.
 - Revisions frozen by 0.3.1 or earlier resume only with their original executor: a clean checkout at their commit, built with `npm run build`.
-- Configuration, data, [journals](CONCEPTS.md#journal), provenance and catalog use `format: "enois-preview-ts-v1"`. The default private installation is `~/.config/enois-preview-ts`. Records with historical `schema` fields or without this `format` are refused before mutation: start a fresh installation and catalog, without copying the old confirmation or converting Python journals. Previous files and Git history stay preserved, without a promise to resume old operations or retain old links.
+- Configuration, data, [journals](CONCEPTS.md#journal), provenance and catalog use `format: "enois-preview-ts-v1"`. The default private installation is `~/.config/enois-preview-ts`. A 0.3.x configuration still loads: `service`, `toolCommit`, `installation` and other fields no longer used are ignored and preserved, with one `ignored-config-fields` warning. Records with historical `schema` fields or without this `format` are refused before mutation: start a fresh installation and catalog, without copying the old confirmation or converting Python journals. Previous files and Git history stay preserved, without a promise to resume old operations or retain old links.
 
 The first publication, with fictional data, is in the [tutorial](TUTORIAL.md).
 
@@ -97,15 +100,15 @@ The first publication, with fictional data, is in the [tutorial](TUTORIAL.md).
 
 ## Limits and costs
 
-- Publication never changes or commits the three source applications. It refuses sources with staged, unstaged or untracked changes.
+- Publication never changes or commits the three source applications. It publishes only their committed `HEAD`; staged, unstaged or untracked changes produce the `source-dirty` warning and are left out.
 - Code always comes from the current commits and data stays frozen since the scenario's last capture, which reads the local database only on the first publication or with `--refresh-data`. Details are in [Code vs data](CONCEPTS.md#code-vs-data).
-- Visitors share accounts, data and upload capacity, and the environment is deleted after ten minutes without interaction. In a public PR, the link is public too, and all content of the captured data is visible. The exact limits and which data to use are in [Show in the PR that the problem is fixed](RECIPES.md#9-show-in-the-pr-that-the-problem-is-fixed).
-- Free plan and spending block verification occurs only at `setup`. Publish, resume and link visits require no renewal. The tool never asks for a card, purchases resources or enables paid plans. Human confirmation is not a billing API audit. Read [Codespaces billing](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces) and [Durable Objects Free limits](https://developers.cloudflare.com/durable-objects/platform/pricing/).
+- Visitors share accounts, data and Codespace disk, and one visitor can change a shared account's password until the environment recycles. Each uploaded file is limited to 100 MB. The environment is deleted after ten minutes without interaction. In a public PR, the link is public too, and all content of the captured data is visible. The exact limits and which data to use are in [Show in the PR that the problem is fixed](RECIPES.md#9-show-in-the-pr-that-the-problem-is-fixed).
+- `setup` prints a `free-plan` warning about Free plans and spending blocks; it asks for no confirmation and is not a billing API audit. The tool never asks for a card, purchases resources or enables paid plans. Read [Codespaces billing](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces) and [Durable Objects Free limits](https://developers.cloudflare.com/durable-objects/platform/pricing/).
 - This is a temporary development and testing preview associated with the project. [Codespaces terms](https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features#codespaces) restrict disproportionate server use and hosting production facing applications. Technical operation does not establish GitHub approval of this architecture.
 
 ## For auditing
 
-Publication reports success only after the public checks pass. The individual acceptance results, with evidence per release, are in [VALIDATION.md](../../VALIDATION.md); read it before treating a revision as ready to share. For failures and recovery, see [diagnostics](../diagnostics/README.md).
+Publication reports success only after the public gates pass: readiness, revision identity and login of each selected account. Media, decoding, permissions, cookies and image inventory checks still run and appear as warnings. The individual acceptance results, with evidence per release, are in [VALIDATION.md](../../VALIDATION.md); read it before treating a revision as ready to share. For failures and recovery, see [diagnostics](../diagnostics/README.md).
 
 ## Developing the tool
 

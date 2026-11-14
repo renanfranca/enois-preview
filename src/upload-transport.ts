@@ -1,10 +1,12 @@
 import type { Transport } from './contracts.js';
 import { message } from './responses.js';
 
+/** The Cloudflare Free plan request body ceiling (100 MB); the runtime transport and DemoLocalStore use the same per file limit. */
+export const UPLOAD_LIMIT_BYTES=100_000_000;
 /** Split only the trusted private transport; the public upload API is unchanged. */
 export async function forwardUpload(request:Request, origin:string, headers:Headers, transport:Transport, secret:string):Promise<Response> {
   const total=Number(request.headers.get('Content-Length'));
-  if(!Number.isSafeInteger(total) || total<=0 || total>20_971_520 || !request.body)return message('Limite de 20 MiB por arquivo.',413);
+  if(!Number.isSafeInteger(total) || total<=0 || total>UPLOAD_LIMIT_BYTES || !request.body)return message('Limite de 100 MB por arquivo.',413);
   const id=crypto.randomUUID();
   const endpoint=new URL('/__demo/upload-transport/'+id,origin);
   const original=new URL(request.url);
@@ -41,7 +43,7 @@ export async function forwardUpload(request:Request, origin:string, headers:Head
   } finally {
     if(offset<total) {
       await reader.cancel().catch(()=>{});
-      // Cancellation closes the one backend stream and releases its reservation.
+      // Cancellation closes the one backend stream, so no partial file is committed.
       try {const result=await transport(endpoint,{method:'DELETE',headers:partHeaders,redirect:'manual',signal:AbortSignal.timeout(10_000)});await result.body?.cancel();}catch{/* gateway timeout is a second cleanup boundary */}
     }
   }

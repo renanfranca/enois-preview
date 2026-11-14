@@ -20,7 +20,7 @@ export function unstampedPublicationHome(root: string, source: string) {
   for (const name of ['dist', 'preview', 'recipe', 'runtime', 'src', 'scripts', 'package.json', 'package-lock.json']) cpSync(join(source, name), join(tool, name), { recursive: true });
   mkdirSync(join(tool, 'node_modules'));
   for (const name of ['tar', 'tough-cookie']) symlinkSync(dependency(name), join(tool, 'node_modules', name), 'dir');
-  config.toolCommit = createHash('sha1').update(root).digest('hex');
+  const toolCommit = createHash('sha1').update(root).digest('hex');
   const bytes = Buffer.from('explicitly simulated sanitized data');
   const files = { 'seed/rede.mv.db': { bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') } };
   const content = { accounts: [{ email: 'author@enois.invalid', id: 'author', label: 'Author' }], externalReads: [], files, format: 'enois-preview-ts-v1', logicalSeedSha256: 'a'.repeat(64), media: [], permissions: { author: { admin: false, moderator: false } }, sanitizerSha256: 'f'.repeat(64) };
@@ -30,10 +30,10 @@ export function unstampedPublicationHome(root: string, source: string) {
   writeFileSync(join(config.state, 'data', data, 'manifest.json'), JSON.stringify({ ...content, id: data }));
   mkdirSync(join(config.state, 'scenarios')); writeFileSync(join(config.state, 'scenarios/fixture.json'), JSON.stringify({ format: 'enois-preview-ts-v1', data }));
   const home = join(root, 'home'); mkdirSync(home);
-  return { root, config, tool, home, data, cli: join(tool, 'dist/preview/cli.js') };
+  return { root, config, tool, home, data, toolCommit, cli: join(tool, 'dist/preview/cli.js') };
 }
 
 /** A fixture CLI home: three clean fixture repositories, an installed tool copy and one frozen scenario `fixture`. */
 export async function publicationHome(root: string, source: string) {
-  const home = unstampedPublicationHome(root, source); await stampInstallation(home.tool, home.config.toolCommit); return home;
+  const home = unstampedPublicationHome(root, source); await stampInstallation(home.tool, home.toolCommit); return home;
 }

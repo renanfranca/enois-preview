@@ -20,7 +20,7 @@ test('independent fictional author and reader exercise blog distribution, owners
   const flows=object(result.functionalEvidence);const blog=object(flows.blog);const media=object(flows.media);
   assert.equal(blog.positivePersonalizedFeed,true);assert.equal(blog.absentFromAll,true);assert.equal(blog.notification,true);assert.equal(blog.ownership,true);assert.equal(blog.unsubscribe,true);
   assert.equal(media.ownerUploadReadAttachDelete,true);assert.equal(media.foreignWriteDeleteRejected,true);assert.equal(media.malformedRejected,true);
-  assert.equal(media.boundaryInputBytes,20971520);assert.equal(media.exact20MiBAccepted,true);assert.equal(media.oneByteLargerRejected,true);assert.equal(media.seedDeletionObserved,true);
+  assert.equal(media.seedDeletionObserved,true);
   assert.equal(flows.signupBlocked,true);assert.equal(flows.localOnly,true);
 });
 

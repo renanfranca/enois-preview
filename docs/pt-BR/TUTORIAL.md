@@ -41,9 +41,9 @@ Atenção:
    curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
    ```
 
-   O `install.sh` desse commit prepara o instalador num diretório temporário e o apaga no fim. O instalador cria `~/.local/share/enois-preview/<COMMIT_PUBLICO_FIXADO>`, aponta `~/.local/share/enois-preview/current` para ela, liga o comando `enois-preview` e instala o Chromium usado na validação pública. O JSON final traz `linked: true` e `browser: true`. Veja [`toolCommit` e `install.json`](CONCEPTS.md#toolcommit-e-installjson).
+   O `install.sh` desse commit prepara o instalador num diretório temporário e o apaga no fim. O instalador cria `~/.local/share/enois-preview/<COMMIT_PUBLICO_FIXADO>`, aponta `~/.local/share/enois-preview/current` para ela, liga o comando `enois-preview` e instala o Chromium usado na validação pública. O JSON final traz `linked: true` e `browser: true`. Veja [commit da ferramenta e `install.json`](CONCEPTS.md#commit-da-ferramenta-e-installjson).
 
-   Atenção: não execute `npm run` nem edite arquivos dentro da instalação. O `publish` recusaria a instalação depois.
+   Atenção: não execute `npm run` nem edite arquivos dentro da instalação. O `publish` passaria a mostrar o aviso `unverified-tool`.
 
 5. Autentique na Cloudflare com o `wrangler` da instalação:
 
@@ -59,7 +59,7 @@ Atenção:
 
    A preparação busca as fontes públicas fixadas, compila o backend e aplica as migrações dele a um H2 novo antes de inserir só dados fictícios.
 
-7. Edite o arquivo privado `/caminho/absoluto/novo-workspace/.preview/config.json`. Substitua `repository`, `branch`, `registry`, `origin` e `cloudflareAccountId` pela sua infraestrutura existente e preencha `toolCommit` com `<COMMIT_PUBLICO_FIXADO>`.
+7. Edite o arquivo privado `/caminho/absoluto/novo-workspace/.preview/config.json`. Substitua `repository`, `branch`, `registry`, `origin` e `cloudflareAccountId` pela sua infraestrutura existente.
 
    Atenção: não use a infraestrutura de outro operador.
 
@@ -69,7 +69,7 @@ Atenção:
    enois-preview setup --config /caminho/absoluto/novo-workspace/.preview/config.json
    ```
 
-   Confira os planos gratuitos e os bloqueios de gasto nas contas configuradas e responda `yes` à confirmação no terminal interativo. O setup verifica acessos e a identidade do serviço e guarda a configuração e a confirmação em `~/.config/enois-preview-ts`. Defina `ENOIS_PREVIEW_HOME` para manter outra instalação independente. Repetir o setup preserva a confirmação da mesma infraestrutura; não existe renovação periódica.
+   O setup verifica acessos e guarda a configuração em `~/.config/enois-preview-ts`, sem perguntas. O JSON dele termina com `warnings`, incluindo `free-plan`: mantenha os planos gratuitos com gastos bloqueados nas contas configuradas. Defina `ENOIS_PREVIEW_HOME` para manter outra instalação independente.
 
 9. Publique:
 
@@ -77,7 +77,7 @@ Atenção:
    enois-preview publish meu-cenario
    ```
 
-   Na primeira publicação acontece a [captura](CONCEPTS.md#dados-congelados-e-captura). O exemplo já seleciona Lia (`example_lia`) e Rui (`example_rui`), com as permissões preservadas. O comando só termina com sucesso depois de validar imagem, boot, saúde JSON, todas as contas, mídias e identidade pública. O que acontece em cada etapa está em [Fluxo](FLOW.md#o-que-acontece-no-publish).
+   Na primeira publicação acontece a [captura](CONCEPTS.md#dados-congelados-e-captura). O exemplo já seleciona Lia (`example_lia`) e Rui (`example_rui`), com as permissões preservadas. O comando só termina com sucesso depois que o link público informa prontidão, a revisão esperada e o login de cada conta selecionada. Conteúdo da imagem, mídias e decodificação continuam conferidos e aparecem em `warnings`. O que acontece em cada etapa está em [Fluxo](FLOW.md#o-que-acontece-no-publish).
 
 10. Abra a `url` do JSON final no navegador, teste o comportamento específico do pull request (PR) e cole o link no PR. As senhas aparecem na página de entrada do ambiente, nunca no relatório do CLI.
 
@@ -112,4 +112,4 @@ Antes de usar um lançador da versão Python:
 3. Aponte a dependência pública para o SHA imutável da versão TypeScript.
 4. Depois de `npm ci --ignore-scripts`, rode `npm run build` no lançador. Ele compila explicitamente `node_modules/enois-preview` e verifica `launcher.ts`.
 
-Atenção: não reutilize configuração, journals, receitas ou confirmação financeira da versão anterior. O procedimento completo está no [diagnóstico de instalação](../diagnostics/installation.pt-BR.md).
+Atenção: não reutilize journals nem receitas da versão anterior. Uma configuração anterior carrega, e os campos que não são mais usados são ignorados com um aviso. O procedimento completo está no [diagnóstico de instalação](../diagnostics/installation.pt-BR.md).

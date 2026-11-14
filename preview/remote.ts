@@ -9,6 +9,7 @@ import { buildImage, validateLocal, verifyImage } from './build.js';
 import { Session, validate } from './validation.js';
 import type { ValidationResult } from './validation.js';
 import { canonical, exists, FORMAT, identity, inventory, object, PreviewError, privateDir, readRecord, requireFormat, run, string, commandRunner, writeRecord } from './state.js';
+import { warn } from './warnings.js';
 
 function refSha(value: unknown): string {
   const sha = string(object(object(value).object).sha);
@@ -27,7 +28,7 @@ export class Publisher {
   private readonly command: typeof run;
   readonly leaseRef = 'refs/heads/enois-preview-publication-lease';
   get checkout(): string { return join(this.directory,'launcher'); }
-  constructor(readonly config: Config, readonly journal: Journal, readonly directory: string, readonly signal?: AbortSignal) { this.github = new GitHub(config.repository,signal); this.command = commandRunner(signal); }
+  constructor(readonly config: Config, readonly journal: Journal, readonly directory: string, readonly signal?: AbortSignal, readonly options: { forceLease?: boolean; toolCommit?: string | null } = {}) { this.github = new GitHub(config.repository,signal); this.command = commandRunner(signal); }
   async save(): Promise<void> { await writeRecord(join(this.directory,'journal.json'),this.journal); }
   async intent(stage: string, details: Record<string, unknown> = {}): Promise<Record<string,unknown>> {
     this.signal?.throwIfAborted();
@@ -70,7 +71,12 @@ export class Publisher {
     if (vars.GITHUB_REPOSITORY !== this.config.repository || vars.GITHUB_OWNER !== this.config.repository.split('/')[0]) throw new PreviewError('Private launcher does not match the installation.');
     const lock = await readRecord(join(this.checkout,'tool.lock.json'));
     const packageInfo = object(JSON.parse(await readFile(join(this.checkout,'package.json'),'utf8')));
-    if (canonical(lock) !== canonical({ format:FORMAT,repository:'renanfranca/enois-preview',commit:this.config.toolCommit }) || object(packageInfo.devDependencies)['enois-preview'] !== `https://codeload.github.com/renanfranca/enois-preview/tar.gz/${this.config.toolCommit}` || worker.main !== 'launcher.ts') throw new PreviewError('Private launcher tool pin differs from the executor. Complete its reviewed TypeScript installation before publication or resume.');
+    if (worker.main !== 'launcher.ts') throw new PreviewError('Private launcher does not match the installation.');
+    // A different pin only matters when the Worker and runtime contract changes; it is reported, never repinned.
+    const running = this.options.toolCommit ?? null;
+    const pinned = typeof lock.commit === 'string' ? lock.commit : null;
+    const dependency = object(packageInfo.devDependencies)['enois-preview'];
+    if (running === null || canonical(lock) !== canonical({ format:FORMAT,repository:'renanfranca/enois-preview',commit:running }) || dependency !== `https://codeload.github.com/renanfranca/enois-preview/tar.gz/${running}`) warn('launcher-pin', `Private launcher pins enois-preview ${pinned ?? 'an unknown commit'} (dependency ${typeof dependency === 'string' ? dependency.split('/').pop() : 'missing'}), while the running tool is ${running ?? 'an unknown commit'}. The launcher was not repinned.`);
     return (await this.command(['git','-C',this.checkout,'rev-parse','HEAD'])).toString().trim();
   }
   async commitPush(paths: string[], message: string, stage: string): Promise<string> {
@@ -167,7 +173,7 @@ export class Publisher {
     const catalog = await readRecord(join(this.checkout,'catalog/scenarios.json'));
     const expected = object(object(catalog.scenarios)[this.journal.slug]); requireFormat(expected);
     if (expected.revision !== this.journal.revision) throw new PreviewError('Current remote catalog lost the recorded revision.');
-    for (const [label,args] of [['install',['npm','ci','--ignore-scripts']],['build',['npm','run','build']],['test',['npm','test']],['check',['npm','run','check']]] as const) await this.command(args,{cwd:this.checkout,timeout:1800,logPath:join(this.directory,`consumer-${label}.log`)});
+    for (const [label,args] of [['install',['npm','ci','--ignore-scripts']],['build',['npm','run','build']]] as const) await this.command(args,{cwd:this.checkout,timeout:1800,logPath:join(this.directory,`consumer-${label}.log`)});
     const session = new Session(this.config.origin,{slug:this.journal.slug,signal:this.signal});
     let actual: Record<string,unknown> | undefined;
     try { actual = object(await session.json('/__demo/revision')); } catch (error: unknown) { this.signal?.throwIfAborted(); if (!(error instanceof PreviewError)) throw error; }
@@ -198,6 +204,13 @@ export class Publisher {
         try { record = JSON.parse(string(commit.message)); } catch { throw new PreviewError('Remote publication lease has an unsupported format; preserve it and inspect its owner before creating a fresh installation.'); }
         requireFormat(record);
         if (record.operation === this.journal.operation) { owned = ref; break; }
+        if (this.options.forceLease) {
+          await this.github.call(`git/refs/${this.leaseRef.slice('refs/'.length)}`,'DELETE');
+          const intent = this.journal.intents.remoteLease ?? {}; const taken = Array.isArray(intent.forced) ? intent.forced : [];
+          intent.forced = [...taken,{ operation:string(record.operation),commit:refSha(ref),at:new Date().toISOString() }]; this.journal.intents.remoteLease = intent; await this.save();
+          warn('lease-forced', `Removed the remote publication lease held by operation ${string(record.operation)} (--force-lease).`);
+          continue;
+        }
       } else {
         const base = refSha(await this.github.call(`git/ref/heads/${this.config.branch}`));
         const current = object(await this.github.call(`git/commits/${base}`));

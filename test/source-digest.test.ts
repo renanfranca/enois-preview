@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -13,16 +14,15 @@ function sourceDigest(home: string, ...extra: string[]) {
   return { code: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 function setup() {
-  const f = fixture(); writeFileSync(join(f.root, 'status'), 'stopped');
+  const f = fixture();
   const home = join(f.root, 'home'); mkdirSync(home); writeFileSync(join(home, 'config.json'), JSON.stringify(f.config));
   const sql = (statement: string) => command('java', '-cp', f.config.h2Jar, 'org.h2.tools.Shell', '-url', `jdbc:h2:file:${f.root}/live;MODE=MySQL;IFEXISTS=TRUE`, '-user', 'sa', '-password', '', '-sql', statement);
-  const events = () => existsSync(join(f.root, 'events')) ? readFileSync(join(f.root, 'events'), 'utf8').trim().split('\n') : [];
   const leftovers = () => existsSync(join(f.config.state, 'digest')) ? readdirSync(join(f.config.state, 'digest')) : [];
-  return { f, home, sql, events, leftovers };
+  return { f, home, sql, leftovers };
 }
 
-test('source-digest reports a logical digest of a stopped source that survives physical rewrites and follows data changes, without touching the source', () => {
-  const { f, home, sql, events, leftovers } = setup();
+test('source-digest reports a logical digest of the configured source that survives physical rewrites and follows data changes, without touching the source', () => {
+  const { f, home, sql, leftovers } = setup();
   try {
     const original = readFileSync(f.config.database);
     const first = sourceDigest(home);
@@ -33,7 +33,7 @@ test('source-digest reports a logical digest of a stopped source that survives p
     assert.match(report.logicalSha256, /^[a-f0-9]{64}$/);
     assert.deepEqual(report.tables, { AUTH_SESSIONS: 1, LINKEDIN_CONNECTIONS: 1, PARENTAL_LINKS: 1, POSTS: 1, USERS: 2, USER_CREDENTIALS: 2 });
     assert.deepEqual(readFileSync(f.config.database), original, 'the source database must stay byte for byte identical');
-    assert.equal(events().some(action => action === 'start' || action === 'stop'), false, 'source-digest never starts or stops the backend');
+    assert.deepEqual((JSON.parse(first.stdout) as { warnings: unknown[] }).warnings, []);
     assert.deepEqual(leftovers(), [], 'the private copy is removed');
 
     sql('SHUTDOWN COMPACT');
@@ -49,29 +49,25 @@ test('source-digest reports a logical digest of a stopped source that survives p
   } finally { f.cleanup(); }
 });
 
-test('source-digest refuses a running backend, a pending restoration and extra arguments without side effects', () => {
-  const { f, home, events, leftovers } = setup();
+test('source-digest works while another process holds the H2 file, warns that it is in use and refuses extra arguments', async () => {
+  const { f, home, leftovers } = setup(); let child: ReturnType<typeof spawn> | undefined;
   try {
-    const original = readFileSync(f.config.database);
-    writeFileSync(join(f.root, 'status'), 'running');
-    const running = sourceDigest(home);
-    assert.notEqual(running.code, 0); assert.equal(running.stdout, ''); assert.match(running.stderr, /stopped/);
-    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'running');
+    const source=join(f.root,'Hold.java');writeFileSync(source,'import java.sql.*; public class Hold { public static void main(String[] args) throws Exception { try(Connection db=DriverManager.getConnection("jdbc:h2:file:"+args[0]+";IFEXISTS=TRUE","sa","")) { System.out.println("holding H2"); System.out.flush(); System.in.read(); } } }');
+    command('javac','-d',f.root,source);
+    child=spawn('java',['-cp',`${f.root}:${f.config.h2Jar}`,'Hold',join(f.root,'live')],{stdio:['pipe','pipe','pipe']});
+    const [first]=await once(child.stdout!,'data');assert.equal(String(first).trim(),'holding H2');
 
-    writeFileSync(join(f.root, 'status'), 'stopped');
-    mkdirSync(f.config.state, { recursive: true });
-    const restoration = join(f.config.state, 'restoration.json'); const record = JSON.stringify({ format: 'enois-preview-ts-v1', service: f.config.service, database: f.config.database, running: true });
-    writeFileSync(restoration, record);
-    const pending = sourceDigest(home);
-    assert.notEqual(pending.code, 0); assert.equal(pending.stdout, ''); assert.match(pending.stderr, /restoration/i);
-    assert.equal(readFileSync(restoration, 'utf8'), record, 'the pending restoration record is preserved');
-    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'stopped');
-
+    const running = await new Promise<{code:number|null;stdout:string;stderr:string}>(done=>{const digest=spawn(process.execPath,['dist/preview/cli.js','--home',home,'source-digest'],{stdio:['ignore','pipe','pipe']});let stdout='',stderr='';digest.stdout.on('data',data=>stdout+=String(data));digest.stderr.on('data',data=>stderr+=String(data));digest.on('close',code=>done({code,stdout,stderr}));});
     const extra = sourceDigest(home, 'unexpected');
-    assert.notEqual(extra.code, 0); assert.equal(extra.stdout, '');
 
-    assert.deepEqual(readFileSync(f.config.database), original);
-    assert.equal(events().some(action => action === 'start' || action === 'stop'), false);
+    assert.equal(running.code, 0, running.stderr);
+    const report = JSON.parse(running.stdout) as Digest & { warnings: { code: string; message: string }[] };
+    assert.match(report.logicalSha256, /^[a-f0-9]{64}$/);
+    assert.deepEqual(report.warnings.map(warning => warning.code), ['database-in-use']);
+    assert.match(running.stderr, /^warning: The configured H2 file appears in use/m);
+    assert.equal(child.exitCode, null); process.kill(child.pid!, 0);
+    assert.notEqual(extra.code, 0); assert.equal(extra.stdout, '');
     assert.deepEqual(leftovers(), []);
-  } finally { f.cleanup(); }
+    const closed=once(child,'exit');child.stdin!.end('\n');assert.deepEqual(await closed,[0,null]);
+  } finally { child?.kill('SIGKILL'); f.cleanup(); }
 });

@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 
 // Public source downloads and a real Maven/H2 preparation; run with npm run test:example.
-test('Node prepares the pinned fictional workspace with versioned configuration and a usable Node service adapter',async()=>{
+test('Node prepares the pinned fictional workspace with a configuration free of legacy fields and a usable example backend adapter',async()=>{
   const evidence=process.env.ENOIS_PREVIEW_EVIDENCE??mkdtempSync(join(tmpdir(),'enois-example-proof-'));mkdirSync(evidence,{recursive:true});
   const destination=join(evidence,'example-01');
   const result=await new Promise<{code:number|null;stdout:string;stderr:string}>((resolvePromise,reject)=>{
@@ -20,14 +20,14 @@ test('Node prepares the pinned fictional workspace with versioned configuration 
   const manifest=JSON.parse(readFileSync(join(destination,'example-manifest.json'),'utf8'));
   assert.equal(manifest.format,'enois-preview-ts-v1');
   assert.deepEqual(manifest.observed,{users:4,posts:8,comments:6,replies:2,reactions:8,postsWithImages:3});
-  assert.equal(manifest.canonicalDataSha256,'8e66e081f49ac81fb86d341c060bf1de641bd13f540b105b2d6ca84c51425b66');
   assert.equal(Object.keys(manifest.media).length,9);
   const config=JSON.parse(readFileSync(join(destination,'.preview/config.json'),'utf8'));
   assert.equal(config.format,'enois-preview-ts-v1');assert.equal(config.accounts.length,2);
-  assert.equal(config.service.identity[0],process.execPath);assert.match(config.service.identity[1],/service\.js$/);
-  const identity=spawnSync(config.service.identity[0],config.service.identity.slice(1),{encoding:'utf8'});
+  for(const legacy of ['service','toolCommit','installation'])assert.equal(legacy in config,false,legacy);
+  const adapter=[resolve('dist/preview/service.js'),join(destination,'.preview/service.json')];
+  const identity=spawnSync(process.execPath,[...adapter,'identity'],{encoding:'utf8'});
   assert.equal(identity.status,0,identity.stderr);assert.equal(identity.stdout.trim(),join(destination,'.preview/data/rede.mv.db'));
-  const status=spawnSync(config.service.status[0],config.service.status.slice(1),{encoding:'utf8'});
+  const status=spawnSync(process.execPath,[...adapter,'status'],{encoding:'utf8'});
   assert.equal(status.status,0,status.stderr);assert.equal(status.stdout.trim(),'stopped');
   assert.equal(statSync(join(destination,'.preview/service-environment.json')).mode&0o777,0o600);
   assert.doesNotMatch(result.stdout+result.stderr,/REDE_SECURITY_ENCRYPTION_KEY=/);

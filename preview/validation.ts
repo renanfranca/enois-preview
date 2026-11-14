@@ -57,14 +57,18 @@ import type { Journal } from './publication.js';
 import { ROOT } from './capture.js';
 import { canonical, object, requireFormat, run, string, commandRunner } from './state.js';
 import { IMAGE_PREFIX_BYTES, imageType } from '../runtime/image-type.js';
+import { warn } from './warnings.js';
+import type { Warning } from './warnings.js';
 import type { DecodingRow } from '../scripts/validate-decoding.js';
 
 export interface ValidationResult {
   origin: string; localOnly: boolean; elapsedSeconds: number; readiness:'UP'; identityVerified:true;
-  accounts:{id:string;authenticated:true;permissions:{admin:boolean;moderator:boolean}}[];
-  media:{path:string;bytes:number;contentType:string;sha256:string;expectedContentType:string;imageClassification:'image'|'unclassified'}[];
+  accounts:{id:string;authenticated:true;permissions:{admin:boolean;moderator:boolean}|null;permissionsMatch:boolean;secureCookies:boolean}[];
+  media:{path:string;bytes:number;contentType:string;sha256:string;expectedContentType:string;imageClassification:'image'|'unclassified';matches:boolean}[];
   imageDecoding: DecodingRow[];
   externalReads:{scope:string;results:Record<string,unknown>[]};
+  /** Checks that ran and differed; they never stop validation. */
+  warnings: Warning[];
 }
 export async function validate(origin:string,journal:Journal,options:{credentials?:unknown;local?:boolean;timeout?:number;evidence?:string;alive?:()=>Promise<boolean>;signal?:AbortSignal|undefined}={}):Promise<ValidationResult>{
   options.signal?.throwIfAborted();
@@ -96,6 +100,8 @@ export async function validate(origin:string,journal:Journal,options:{credential
   if(runtime.revision!==journal.revision||runtime.dataVersion!==journal.inputs.data||canonical(runtime.commits)!==canonical(journal.inputs.commits))throw new PreviewError('Running image input identity mismatch.');
   const credentials=options.credentials??await session.json('/__demo/access.json');requireFormat(credentials);
   if(!Array.isArray(credentials.accounts)||credentials.accounts.length!==journal.inputs.dataManifest.accounts.length)throw new PreviewError('Selected account count mismatch.');
+  const observed:Warning[]=[];
+  const note=(code:string,message:string)=>{if(!observed.some(item=>item.code===code&&item.message===message))observed.push({code,message});warn(code,message);};
   const accountResults:ValidationResult['accounts']=[];
   for(const [index,expected]of journal.inputs.dataManifest.accounts.entries()){
     const account=object(credentials.accounts[index]);
@@ -103,37 +109,51 @@ export async function validate(origin:string,journal:Journal,options:{credential
     const independent=new Session(origin,sessionOptions);
     const login=object(await independent.json('/api/auth/login',{body:{email:account.email,password:account.password}}));
     if(object(login.user).id!==expected.id||object(await independent.json('/api/me')).id!==expected.id)throw new PreviewError('Authenticated account identity mismatch.');
-    const capabilities=object(await independent.json('/api/moderation/me'));const permission=journal.inputs.dataManifest.permissions[expected.id];
-    if(!permission||capabilities.admin!==permission.admin||capabilities.moderator!==permission.moderator)throw new PreviewError('Authenticated permissions differ from the frozen selected identity.');
+    const permission=journal.inputs.dataManifest.permissions[expected.id];let actual:{admin:boolean;moderator:boolean}|null=null;
+    try{const capabilities=object(await independent.json('/api/moderation/me'));if(typeof capabilities.admin==='boolean'&&typeof capabilities.moderator==='boolean')actual={admin:capabilities.admin,moderator:capabilities.moderator};}
+    catch(error:unknown){options.signal?.throwIfAborted();if(!(error instanceof PreviewError))throw error;}
+    const permissionsMatch=actual!==null&&permission!==undefined&&actual.admin===permission.admin&&actual.moderator===permission.moderator;
+    if(!permissionsMatch)note('permissions-differ',`Account ${expected.id} permissions differ from the frozen record or could not be read.`);
     const secure=new Set((await independent.cookies.getCookies(`${origin}/`)).filter(cookie=>cookie.secure&&cookie.httpOnly).map(cookie=>cookie.key));
-    if(!secure.has('enois_session')||!secure.has('enois_refresh'))throw new PreviewError('Secure HttpOnly session cookies missing.');
-    accountResults.push({id:expected.id,authenticated:true,permissions:permission});
+    const secureCookies=secure.has('enois_session')&&secure.has('enois_refresh');
+    if(!secureCookies)note('session-cookies-missing',`Account ${expected.id} did not receive secure HttpOnly session cookies.`);
+    accountResults.push({id:expected.id,authenticated:true,permissions:actual,permissionsMatch,secureCookies});
   }
   const media:ValidationResult['media']=[];const imagePaths:string[]=[];
   for(const mapping of journal.inputs.dataManifest.media){
     for(const [path,expected]of Object.entries(mapping.inventory)){
-      const url=mapping.url+path.split('/').map(encodeURIComponent).join('/');const response=await session.request(url);const reader=response.body?.getReader();
+      const url=mapping.url+path.split('/').map(encodeURIComponent).join('/');
+      let response:Response;
+      try{response=await session.request(url);}
+      catch(error:unknown){options.signal?.throwIfAborted();if(!(error instanceof PreviewError))throw error;note('media-unavailable',`Frozen media ${url} did not respond.`);continue;}
+      const reader=response.body?.getReader();
       const digest=createHash('sha256');let bytes=0;let prefix:Buffer=Buffer.alloc(0);
-      if(reader){try{for(;;){const chunk=await reader.read();if(chunk.done)break;bytes+=chunk.value.length;digest.update(chunk.value);if(prefix.length<IMAGE_PREFIX_BYTES)prefix=Buffer.concat([prefix,Buffer.from(chunk.value.subarray(0,IMAGE_PREFIX_BYTES-prefix.length))]);if(bytes>expected.bytes){await reader.cancel();throw new PreviewError('Public frozen media bytes differ from the recorded inventory.');}}}finally{reader.releaseLock();}}
-      if(bytes!==expected.bytes||digest.digest('hex')!==expected.sha256)throw new PreviewError('Public frozen media bytes differ from the recorded inventory.');
+      if(reader){try{for(;;){const chunk=await reader.read();if(chunk.done)break;bytes+=chunk.value.length;digest.update(chunk.value);if(prefix.length<IMAGE_PREFIX_BYTES)prefix=Buffer.concat([prefix,Buffer.from(chunk.value.subarray(0,IMAGE_PREFIX_BYTES-prefix.length))]);}}finally{reader.releaseLock();}}
+      const sha256=digest.digest('hex');
       const recognized=imageType(prefix);const expectedContentType=recognized??'application/octet-stream';const contentType=response.headers.get('Content-Type')??'';
-      if(contentType.split(';')[0]?.trim().toLowerCase()!==expectedContentType)throw new PreviewError(`Frozen media MIME mismatch for ${url}: expected ${expectedContentType}.`);
-      if(recognized)imagePaths.push(url);
-      media.push({path:url,bytes,contentType,sha256:expected.sha256,expectedContentType,imageClassification:recognized?'image':'unclassified'});
+      const sameBytes=bytes===expected.bytes&&sha256===expected.sha256;const sameType=contentType.split(';')[0]?.trim().toLowerCase()===expectedContentType;
+      if(!sameBytes)note('media-bytes-differ',`Frozen media ${url} bytes differ from the recorded inventory.`);
+      if(!sameType)note('media-mime-differs',`Frozen media ${url} MIME differs: expected ${expectedContentType}.`);
+      if(recognized&&sameBytes)imagePaths.push(url);
+      media.push({path:url,bytes,contentType,sha256,expectedContentType,imageClassification:recognized?'image':'unclassified',matches:sameBytes&&sameType});
     }
   }
+  const imageDecoding:DecodingRow[]=[];
   let decoded:unknown;
   try{decoded=JSON.parse((await run([process.execPath,join(ROOT,'dist/scripts/validate-decoding.js')],{input:JSON.stringify({origin,slug:slug??null,paths:imagePaths}),...(options.evidence?{logPath:join(options.evidence,'decoding.log')}:{})})).toString());}
-  catch{options.signal?.throwIfAborted();throw new PreviewError('Recognized frozen image decoding failed; inspect private decoding evidence.');}
-  if(!Array.isArray(decoded)||decoded.length!==2)throw new PreviewError('Image decoding evidence must cover widths 1280 and 390 exactly.');
-  const imageDecoding:DecodingRow[]=[];
-  for(const [index,value]of decoded.entries()){
-    const row=object(value);if(row.width!==[1280,390][index]||row.mobileEmulation!==(index===1)||!Array.isArray(row.images)||row.images.length!==imagePaths.length)throw new PreviewError('Image decoding evidence does not cover the required viewports and images.');
-    const images=row.images.map((entry:unknown)=>{const image=object(entry);if(typeof image.width!=='number'||!Number.isInteger(image.width)||image.width<=0||typeof image.height!=='number'||!Number.isInteger(image.height)||image.height<=0)throw new PreviewError('Image dimensions are invalid.');return {path:string(image.path),width:image.width,height:image.height};});
-    if(canonical(images.map(image=>image.path).sort())!==canonical([...imagePaths].sort()))throw new PreviewError('Image decoding evidence does not cover exactly the recognized images.');
-    imageDecoding.push({width:row.width as number,mobileEmulation:index===1,images});
-  }
-  return {origin,localOnly:options.local===true,elapsedSeconds:Math.round((performance.now()-start))/1000,readiness:'UP',identityVerified:true,accounts:accountResults,media,imageDecoding,externalReads:{scope:'captured renderable URL references; excluded from the frozen local media guarantee',results:await Promise.all(journal.inputs.dataManifest.externalReads.map(value=>externalRead(value,options.signal)))}};
+  catch{options.signal?.throwIfAborted();note('image-decoding-skipped','Image decoding in Chromium did not run or failed; decoding was skipped. Inspect private decoding evidence.');}
+  if(decoded!==undefined)try{
+    if(!Array.isArray(decoded)||decoded.length!==2)throw new PreviewError('Image decoding evidence must cover widths 1280 and 390 exactly.');
+    for(const [index,value]of decoded.entries()){
+      const row=object(value);if(row.width!==[1280,390][index]||row.mobileEmulation!==(index===1)||!Array.isArray(row.images)||row.images.length!==imagePaths.length)throw new PreviewError('Image decoding evidence does not cover the required viewports and images.');
+      const images=row.images.map((entry:unknown)=>{const image=object(entry);if(typeof image.width!=='number'||!Number.isInteger(image.width)||image.width<=0||typeof image.height!=='number'||!Number.isInteger(image.height)||image.height<=0)throw new PreviewError('Image dimensions are invalid.');return {path:string(image.path),width:image.width,height:image.height};});
+      if(canonical(images.map(image=>image.path).sort())!==canonical([...imagePaths].sort()))throw new PreviewError('Image decoding evidence does not cover exactly the recognized images.');
+      imageDecoding.push({width:row.width as number,mobileEmulation:index===1,images});
+    }
+  }catch(error:unknown){if(!(error instanceof PreviewError))throw error;imageDecoding.length=0;note('image-decoding-incomplete',error.message);}
+  const externalResults=await Promise.all(journal.inputs.dataManifest.externalReads.map(value=>externalRead(value,options.signal)));
+  if(externalResults.length)note('external-reads',`${externalResults.length} external URL references were observed; they are outside the frozen media guarantee.`);
+  return {origin,localOnly:options.local===true,elapsedSeconds:Math.round((performance.now()-start))/1000,readiness:'UP',identityVerified:true,accounts:accountResults,media,imageDecoding,externalReads:{scope:'captured renderable URL references; excluded from the frozen local media guarantee',results:externalResults},warnings:observed};
 }
 function publicAddress(address:string):boolean{
   if(isIP(address)===4){const [a=0,b=0,c=0]=address.split('.').map(Number);return !(a===0||a===10||a===127||a>=224||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&(b===168||b===0||b===2))||(a===100&&b>=64&&b<=127)||(a===198&&(b===18||b===19||b===51))||(a===203&&b===0&&c===113));}

@@ -173,9 +173,10 @@ export class Scenario {
           // from our creation request, whose ref is the catalog's immutable SHA.
           const expectedRef = remote.git_status?.ref === state.config.launcherCommit || remote.git_status?.ref === 'HEAD';
           if (remote.owner?.login !== this.env.GITHUB_OWNER || remote.repository?.full_name !== this.env.GITHUB_REPOSITORY ||
-              !expectedRef || remote.machine?.cpus !== 2 ||
+              !expectedRef ||
               !/^[a-z0-9-]+$/.test(state.name??'') || body.domain !== 'app.github.dev' ||
               typeof body.portToken !== 'string' || body.portToken.length < 20) return message('Registro recusado.', 403);
+          if (remote.machine?.cpus !== 2) console.log(`Codespace ${state.name} reports ${remote.machine?.cpus ?? 'unknown'} CPUs; registering anyway.`);
           let credentials:Credentials;
           try { credentials=parseCredentials(body.credentials); } catch {return message('Credenciais inválidas.',403);}
           if(credentials.accounts.length!==state.config.accounts.length||credentials.accounts.some((account,index)=>{const expected=state.config.accounts[index];return !expected||account.id!==expected.id||account.email!==expected.email||account.label!==expected.label;}))return message('Credenciais inválidas.',403);

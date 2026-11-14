@@ -5,9 +5,12 @@ interface Upload {offset:number;total:number;target:string;busy:boolean;result:P
 
 import { timingSafeEqual } from 'node:crypto';
 
+/** Same per file limit as the Worker's forwardUpload and DemoLocalStore: the Cloudflare Free plan request body ceiling. */
+export const UPLOAD_LIMIT_BYTES = 100_000_000;
+
 // The private forwarding service limits each request to 16 MB. Transport parts
 // stay below that limit; the existing backend sees one stream and owns the
-// original authorization, raw-byte reservation, validation and physical write.
+// original authorization, validation and physical write.
 export function createUploadTransport({ secret = process.env.DEMO_CALLBACK_SECRET, backendPort = 8081, timeoutMs = 30_000 }:{secret?:string|undefined;backendPort?:number;timeoutMs?:number} = {}) {
   const active = new Map<string,Upload>();
   const authorized = (value:unknown) => typeof secret === 'string' && secret.length >= 20 && typeof value === 'string' &&
@@ -26,7 +29,7 @@ export function createUploadTransport({ secret = process.env.DEMO_CALLBACK_SECRE
     const offset=Number(request.headers['x-demo-upload-offset']), total=Number(request.headers['x-demo-upload-total']), length=Number(request.headers['content-length']);
     if (request.method!=='POST' || !id || typeof target!=='string' ||
         !/^\/api\/storage\/uploads\/[a-f0-9-]+\/media_[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+$/.test(target) || target.includes('..') ||
-        !Number.isSafeInteger(offset) || offset<0 || !Number.isSafeInteger(total) || total<=0 || total>20_971_520 ||
+        !Number.isSafeInteger(offset) || offset<0 || !Number.isSafeInteger(total) || total<=0 || total>UPLOAD_LIMIT_BYTES ||
         !Number.isSafeInteger(length) || length<=0 || length>8_388_608 || offset+length>total) {
       request.resume();reply(response,400);return;
     }
@@ -57,7 +60,7 @@ export function createUploadTransport({ secret = process.env.DEMO_CALLBACK_SECRE
       for await (const chunk of request) {
         count+=chunk.length;if(count>length)throw new Error('Part length mismatch');
         // Backpressure keeps gateway memory bounded and streams into the
-        // backend reservation instead of assembling a second temporary file.
+        // backend upload instead of assembling a second temporary file.
         if (!item.upstream.destroyed && !item.upstream.write(chunk)) {
           await Promise.race([new Promise<void>(resolve=>item!.upstream.once('drain',()=>resolve())),item.result]);
         }

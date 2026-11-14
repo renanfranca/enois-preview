@@ -10,7 +10,7 @@ import { CookieJar } from 'tough-cookie';
 import { credentials as credentialRecord } from '../../src/contracts.js';
 import { object,readRecord,run,string,writeRecord } from '../../preview/state.js';
 
-test('a native Cloudflare Worker sends one authenticated 20 MiB upload through the actual Node gateway and Java storage',async()=>{
+test('a native Cloudflare Worker sends one authenticated 50 MB upload through the actual Node gateway and Java storage',async()=>{
   const input=process.env.ENOIS_PREVIEW_EXAMPLE_WORKSPACE;assert.ok(input);const workspace=resolve(input),receipt=await readRecord(join(workspace,'.preview/local-image-receipt.json'));
   const journal=await readRecord(join(string(receipt.directory),'journal.json')),inputs=object(journal.inputs),manifest=object(inputs.dataManifest);
   const evidence=await mkdtemp(join(workspace,'.preview/worker-upload-node-'));const secret='controlled-worker-callback-secret',token='controlled-private-port-token',origin='https://preview.example';
@@ -51,13 +51,13 @@ test('a native Cloudflare Worker sends one authenticated 20 MiB upload through t
     const author=credentials.accounts[0];assert.ok(author);const login=await api('/api/auth/login','POST',{email:author.email,password:author.password});
     if(login.status!==200)await writeRecord(join(evidence,'private-login-failure.json'),{status:login.status,body:await login.clone().text()});
     assert.equal(login.status,200);await login.arrayBuffer();
-    const allocated=await api('/api/media/uploads','POST',{fileName:'through-worker.wav',mimeType:'audio/wav',size:20971520,purpose:'POST_AUDIO'});assert.equal(allocated.status,201);const asset=object(await allocated.json());
-    const bytes=Buffer.alloc(20971520);bytes.write('RIFF',0);bytes.writeUInt32LE(bytes.length-8,4);bytes.write('WAVEfmt ',8);bytes.writeUInt32LE(16,16);bytes.writeUInt16LE(1,20);bytes.writeUInt16LE(1,22);bytes.writeUInt32LE(48000,24);bytes.writeUInt32LE(96000,28);bytes.writeUInt16LE(2,32);bytes.writeUInt16LE(16,34);bytes.write('LIST',36);bytes.writeUInt32LE(26,40);bytes.write('INFOISFT',44);bytes.writeUInt32LE(14,52);bytes.write('fictionaltest\0',56);bytes.write('data',70);bytes.writeUInt32LE(bytes.length-78,74);
+    const allocated=await api('/api/media/uploads','POST',{fileName:'through-worker.wav',mimeType:'audio/wav',size:50000000,purpose:'POST_AUDIO'});assert.equal(allocated.status,201);const asset=object(await allocated.json());
+    const bytes=Buffer.alloc(50000000);bytes.write('RIFF',0);bytes.writeUInt32LE(bytes.length-8,4);bytes.write('WAVEfmt ',8);bytes.writeUInt32LE(16,16);bytes.writeUInt16LE(1,20);bytes.writeUInt16LE(1,22);bytes.writeUInt32LE(48000,24);bytes.writeUInt32LE(96000,28);bytes.writeUInt16LE(2,32);bytes.writeUInt16LE(16,34);bytes.write('LIST',36);bytes.writeUInt32LE(26,40);bytes.write('INFOISFT',44);bytes.writeUInt32LE(14,52);bytes.write('fictionaltest\0',56);bytes.write('data',70);bytes.writeUInt32LE(bytes.length-78,74);
 
     const uploaded=await api(string(asset.uploadUrl),'PUT',undefined,bytes);
 
-    assert.equal(uploaded.status,200);await uploaded.arrayBuffer();assert.deepEqual(partLengths,[8388608,8388608,4194304]);assert.equal(creates,1);
-    const stored=await api(string(asset.cdnUrl),'GET',undefined,undefined,'bytes=0-77');assert.equal(stored.status,206);assert.equal(stored.headers.get('Content-Range'),'bytes 0-77/20971520');const prefix=Buffer.from(await stored.arrayBuffer());assert.equal(prefix.readUInt32LE(4)+8,20971520);
-    await writeRecord(join(evidence,'validation.json'),{nativeCloudflareRuntime:true,actualNodeGateway:true,actualJavaStorage:true,inputBytes:20971520,partLengths,physicalContentRange:'bytes 0-77/20971520',accountsAuthenticated:true,creates:1,remoteWrites:false,transport:'controlled GitHub and private tunnel destination mapped to a disposable local image; no actual cloud or TLS delivery claim'});
+    assert.equal(uploaded.status,200);await uploaded.arrayBuffer();assert.deepEqual(partLengths,[8388608,8388608,8388608,8388608,8388608,8056960]);assert.equal(creates,1);
+    const stored=await api(string(asset.cdnUrl),'GET',undefined,undefined,'bytes=0-77');assert.equal(stored.status,206);assert.equal(stored.headers.get('Content-Range'),'bytes 0-77/50000000');const prefix=Buffer.from(await stored.arrayBuffer());assert.equal(prefix.readUInt32LE(4)+8,50000000);
+    await writeRecord(join(evidence,'validation.json'),{nativeCloudflareRuntime:true,actualNodeGateway:true,actualJavaStorage:true,inputBytes:50000000,partLengths,physicalContentRange:'bytes 0-77/50000000',accountsAuthenticated:true,creates:1,remoteWrites:false,transport:'controlled GitHub and private tunnel destination mapped to a disposable local image; no actual cloud or TLS delivery claim'});
   }finally{try{await mf?.dispose();await run(['docker','logs',container],{logPath:join(evidence,'runtime.log')});}finally{await run(['docker','rm','-f',container]);}}
 });

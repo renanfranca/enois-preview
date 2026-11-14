@@ -76,8 +76,8 @@ test('proxy preserves application origin, CSRF and query while isolating private
   const refused=await s.request('proxy','/api/feed/posts',{method:'POST',headers:{Origin:'https://evil.example'},body:'{}'});assert.equal(refused.status,403);assert.equal(hops,1);
 });
 
-test('callback rejects mismatched owner, repository, commit, machine and private domain before saving readiness',async()=>{
-  const changes=[{owner:{login:'other'}},{repository:{full_name:'owner/other'}},{git_status:{ref:'main'}},{git_status:{ref:'e'.repeat(40)}},{git_status:{}},{machine:{cpus:4}}];
+test('callback rejects mismatched owner, repository, commit and private domain before saving readiness',async()=>{
+  const changes=[{owner:{login:'other'}},{repository:{full_name:'owner/other'}},{git_status:{ref:'main'}},{git_status:{ref:'e'.repeat(40)}},{git_status:{}}];
   for(const change of changes){
     const s=setup({...ready,phase:'starting'}),get=s.instance.github.get;s.instance.github.get=async name=>({...await get(name),...change});s.instance.transport=async()=>{throw new Error('Invalid metadata must not probe the private service');};
 
@@ -90,6 +90,16 @@ test('callback rejects mismatched owner, repository, commit, machine and private
   const get=s.instance.github.get;s.instance.github.get=async name=>({...await get(name),git_status:{ref:'HEAD'}});
   assert.equal((await s.request('register','/',{method:'POST',body:JSON.stringify({name:'demo-one',domain:'app.github.dev',portToken:'x'.repeat(32),credentials:access})})).status,200);
   assert.equal(object(await s.storage.get('state')).phase,'ready');
+});
+
+test('callback registers a Codespace whose machine does not report 2 CPUs and logs the difference',async context=>{
+  const s=setup({...ready,phase:'starting'}),get=s.instance.github.get;s.instance.github.get=async name=>({...await get(name),machine:{cpus:4}});s.instance.transport=async()=>Response.json({status:'UP'});
+  const logged=context.mock.method(console,'log',()=>{});
+
+  const response=await s.request('register','/',{method:'POST',body:JSON.stringify({name:'demo-one',domain:'app.github.dev',portToken:'x'.repeat(32),credentials:access})});
+
+  assert.equal(response.status,200);assert.equal(object(await s.storage.get('state')).phase,'ready');
+  assert.ok(logged.mock.calls.some(call=>/4 CPUs/.test(String(call.arguments[0]))));
 });
 
 test('callback requires ready application JSON and the exact ordered account selection with distinct boot credentials',async()=>{

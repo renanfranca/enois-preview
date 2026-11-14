@@ -42,7 +42,7 @@ export async function start(args:string[]=process.argv.slice(2)):Promise<number>
     await mkdir('/tmp/demo-media',{mode:0o700});await cp(join(root,'media'),'/tmp/demo-media',{recursive:true});
     const credentials=launch('java',['-cp',`${join(root,'tools')}:${join(root,'backend/lib/*')}`,'DemoCredentials']);
     if(await credentials.done!==0||stopping)throw new Error('Credential preparation failed');
-    const backend=launch('java',['--enable-native-access=ALL-UNNAMED','-XX:ActiveProcessorCount=1','-Xms48m','-Xmx768m','-Xss512k','-XX:MaxMetaspaceSize=160m','-XX:ReservedCodeCacheSize=32m','-XX:MaxDirectMemorySize=16m','-XX:+UseSerialGC','-Denois.preview.demo=true','-jar',join(root,'backend/rede.jar'),'--spring.profiles.active=demo','--server.address=127.0.0.1','--server.port=8081']);
+    const backend=launch('java',['--enable-native-access=ALL-UNNAMED','-XX:ActiveProcessorCount=1','-Xms48m','-Xmx768m','-Xss512k','-XX:MaxMetaspaceSize=160m','-XX:ReservedCodeCacheSize=32m','-XX:MaxDirectMemorySize=16m','-XX:+UseSerialGC','-jar',join(root,'backend/rede.jar'),'--spring.profiles.active=demo','--server.address=127.0.0.1','--server.port=8081']);
     const deadline=performance.now()+600000;let ready=false;
     while(!stopping&&performance.now()<deadline){
       if(backend.child.exitCode!==null||backend.child.signalCode!==null)throw new Error('Backend exited before readiness');

@@ -8,21 +8,20 @@ export async function commits(config: Record<string, unknown>, signal?: AbortSig
   const result: Record<string, string> = {};
   for (const name of REPOSITORIES) {
     const directory = string(sources[name]);
-    if ((await run(['git', '-C', directory, 'status', '--porcelain=v1', '--untracked-files=all'])).length) {
-      throw new PreviewError(`${name} has staged, unstaged or untracked source changes; commit or resolve them before publishing. No service was stopped.`);
-    }
-    result[name] = (await run(['git', '-C', directory, 'rev-parse', 'HEAD'])).toString().trim();
+    const head = (await run(['git', '-C', directory, 'rev-parse', 'HEAD'])).toString().trim();
+    if ((await run(['git', '-C', directory, 'status', '--porcelain=v1', '--untracked-files=all'])).length) warn('source-dirty', `${name} has staged, unstaged or untracked changes; only the committed HEAD ${head} is published.`);
+    result[name] = head;
   }
   return result;
 }
 
 import { constants } from 'node:fs';
-import { copyFile, open, readFile, realpath, rename, rm } from 'node:fs/promises';
+import { copyFile, open, readFile, realpath, rename, rm, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { setTimeout as delay } from 'node:timers/promises';
-import { accounts as parseAccounts, captureConfig } from './config.js';
+import { accounts as parseAccounts, captureConfig, storageWarning } from './config.js';
+import { warn } from './warnings.js';
 import type { Account, CaptureConfig } from './config.js';
 import { canonical, exists, FORMAT, identity, inventory, lease, privateDir, readRecord, sha, verify, writeRecord } from './state.js';
 import type { Inventory } from './state.js';
@@ -32,47 +31,14 @@ export interface DataManifest {
   accounts: Account[]; permissions: Record<string, { admin: boolean; moderator: boolean }>;
   externalReads: string[]; media: { directory: string; url: string; inventory: Inventory }[]; files: Inventory;
 }
-export type AccountSelector=(listing:string,signal:AbortSignal)=>Promise<Account[]>;
-async function service(config: CaptureConfig, action: 'status'|'identity'|'stop'|'start'|'ready'|'released', signal?: AbortSignal): Promise<string> {
-  return (await run(config.service[action], { timeout: config.service.timeout, signal })).toString().trim();
-}
-async function wait(config: CaptureConfig, action: 'status'|'ready'|'released', expected: string, signal?: AbortSignal): Promise<void> {
-  const deadline = performance.now() + config.service.timeout * 1000;
-  do {
-    try { if (await service(config, action, signal) === expected) return; } catch (error) { signal?.throwIfAborted(); if (!(error instanceof PreviewError)) throw error; }
-    await delay(100, undefined, { signal });
-  } while (performance.now() < deadline);
-  throw new PreviewError(`Backend ${action} did not confirm ${expected}; restoration is pending if recorded.`);
-}
-// The record is the cross-process fact: `shutdown: 'requested'` is persisted before a stop is issued
-// and cleared only after `stopped` is confirmed, so a later process settles an accepted stop first.
-function restorationRecord(config: CaptureConfig, running: boolean, shutdown?: 'requested'): object {
-  return { service: config.service, database: config.database, running, ...(shutdown ? { shutdown } : {}) };
-}
-export async function recover(config: CaptureConfig): Promise<void> {
-  const file = join(config.state, 'restoration.json'); if (!await exists(file)) return;
-  const record = await readRecord(file);
-  if (canonical(record.service) !== canonical(config.service) || record.database !== config.database) throw new PreviewError('Pending restoration belongs to another service configuration.');
-  if (record.shutdown !== undefined && (record.shutdown !== 'requested' || record.running !== true)) throw new PreviewError('Pending restoration record is invalid; inspect before continuing.');
-  if (await service(config, 'identity') !== config.service.expectedIdentity) throw new PreviewError('Pending backend restoration: service identity mismatch.');
-  let status = await service(config, 'status');
-  if (record.running === true) {
-    if (record.shutdown === 'requested') {
-      if (status === 'running') await service(config, 'stop');
-      await wait(config, 'status', 'stopped');
-      await writeRecord(file, restorationRecord(config, true));
-      status = 'stopped';
-    }
-    if (status === 'stopped') await service(config, 'start'); else if (status !== 'running') throw new PreviewError('Backend restoration: ambiguous service status.');
-    await wait(config, 'ready', 'ready');
-  } else if (record.running !== false || status !== 'stopped') throw new PreviewError('Previously stopped backend changed state; inspect before continuing.');
-  await rm(file);
-}
+/** An interactive selection; a missing email becomes a generated disposable login. */
+export type AccountSelector=(listing:string,signal:AbortSignal)=>Promise<{id:string;label:string;email?:string}[]>;
 export async function sourceLease<T>(config: CaptureConfig, work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   const base = join(process.env.XDG_RUNTIME_DIR ?? join(homedir(), '.cache'), 'enois-preview/capture');
   return lease(join(base, `${identity(await realpath(config.database))}.lock`), work, signal);
 }
-async function safeCopy(source: string, destination: string): Promise<void> {
+/** Copies one regular file privately. Returns false when the source changed during the copy; the copy is still used. */
+async function safeCopy(source: string, destination: string): Promise<boolean> {
   const original = await open(source, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const info = await original.stat(); if (!info.isFile()) throw new PreviewError('Capture source must be a regular file.');
@@ -80,8 +46,20 @@ async function safeCopy(source: string, destination: string): Promise<void> {
     await privateDir(dirname(destination)); const output = await open(destination, 'wx', 0o600);
     try { for await (const chunk of original.createReadStream({ autoClose: false })) await output.write(chunk); await output.sync(); }
     finally { await output.close(); }
-    if (await sha(destination) !== before || await sha(source) !== before) throw new PreviewError('Source changed during capture; incomplete copy rejected.');
+    return await sha(destination) === before && await sha(source) === before;
   } finally { await original.close(); }
+}
+/** Observes, never resolves: an H2 file held by another process is reported, and nothing is stopped or removed. */
+async function inUseWarning(database: string, signal?: AbortSignal): Promise<void> {
+  const lock = database.endsWith('.mv.db') ? `${database.slice(0, -'.mv.db'.length)}.lock.db` : undefined;
+  if (lock && await exists(lock)) { warn('database-in-use', `The configured H2 file appears in use: ${basename(lock)} exists next to it. The copy may be inconsistent.`); return; }
+  try { await run(['fuser', database], { signal, timeout: 30 }); }
+  catch { signal?.throwIfAborted(); return; }
+  warn('database-in-use', 'The configured H2 file appears in use: fuser reports a process holding it. The copy may be inconsistent.');
+}
+async function copyDatabase(database: string, destination: string, signal?: AbortSignal): Promise<void> {
+  await inUseWarning(database, signal);
+  if (!await safeCopy(database, destination)) warn('database-changed-during-copy', 'The configured H2 file changed during the copy; the copy is used, and a damaged copy surfaces as a build or validation failure.');
 }
 async function javaTool(config: CaptureConfig, signal: AbortSignal, action: string, ...args: string[]): Promise<string> {
   const run = commandRunner(signal);
@@ -91,26 +69,19 @@ async function javaTool(config: CaptureConfig, signal: AbortSignal, action: stri
   try { return (await run(['java', '-cp', `${classes}:${config.h2Jar}`, 'SeedTool', action, ...args], { logPath })).toString(); }
   catch (error: unknown) {
     signal.throwIfAborted();
-    if (action === 'sanitize' && (await readFile(logPath, 'utf8')).includes('Selected identity missing')) throw new PreviewError('Selected identity missing in refreshed data. Correct private account IDs with setup, then explicitly refresh again. Previous complete data preserved; backend restored.');
+    if (action === 'sanitize' && (await readFile(logPath, 'utf8')).includes('Selected identity missing')) throw new PreviewError('Selected identity missing in refreshed data. Correct private account IDs in the configuration or with --accounts, then explicitly refresh again. Previous complete data preserved.');
     throw error;
   }
 }
 export interface SourceDigest { format: typeof FORMAT; databaseSha256: string; logicalSha256: string; tables: Record<string, number> }
-/** Read only: digests a private copy of the stopped, released source. Never starts or stops the backend. */
+/** Read only: digests a private copy of the configured file, whether or not a backend uses it. Never starts or stops anything. */
 export async function sourceDigest(value: unknown, signal: AbortSignal): Promise<SourceDigest> {
   const config = captureConfig(value);
-  const restoration = join(config.state, 'restoration.json');
-  const refuseRestoration = async () => { if (await exists(restoration)) throw new PreviewError('Backend restoration pending; run publish or resume to settle it first. No digest computed.'); };
-  await refuseRestoration();
   return sourceLease(config, async () => {
-    await refuseRestoration(); signal.throwIfAborted();
-    if (await service(config, 'identity', signal) !== config.service.expectedIdentity) throw new PreviewError('Backend identity mismatch; no digest computed.');
-    if (await service(config, 'status', signal) !== 'stopped' || await service(config, 'released', signal) !== 'released') throw new PreviewError('The source backend must be stopped and released; source-digest never stops it. No digest computed.');
-    try { await run(['fuser', config.database], { signal, timeout: config.service.timeout, successCodes: [1] }); }
-    catch { signal.throwIfAborted(); throw new PreviewError('H2 is in use or cannot be checked; no digest computed.'); }
+    signal.throwIfAborted();
     const directory = await privateDir(join(config.state, 'digest', randomUUID()));
     try {
-      const copy = join(directory, 'rede.mv.db'); await safeCopy(config.database, copy); const databaseSha256 = await sha(copy);
+      const copy = join(directory, 'rede.mv.db'); await copyDatabase(config.database, copy, signal); const databaseSha256 = await sha(copy);
       let logicalSha256: string | undefined; const tables: Record<string, number> = {};
       for (const line of (await javaTool(config, signal, 'digest', join(directory, 'rede'))).trim().split('\n')) {
         const fields = line.split('\t');
@@ -123,52 +94,49 @@ export async function sourceDigest(value: unknown, signal: AbortSignal): Promise
     } finally { await rm(directory, { recursive: true, force: true }); }
   }, signal);
 }
-export async function capture(value: unknown, previous?: DataManifest, select?: AccountSelector, operationSignal?: AbortSignal): Promise<DataManifest> {
+/** Account selection precedence: explicit IDs, configured accounts, the previous frozen selection, then an interactive terminal. */
+export async function capture(value: unknown, previous?: DataManifest, select?: AccountSelector, operationSignal?: AbortSignal, accountIds?: string[]): Promise<DataManifest> {
   const interruption = operationSignal ? undefined : listenForInterruption();
   const signal = operationSignal ?? interruption!.signal;
   const check = () => signal.throwIfAborted();
   try {
   check();
   const config = captureConfig(value);
-  const restoration = join(config.state, 'restoration.json');
-  if (await exists(restoration)) await readRecord(restoration);
   return await sourceLease(config, async () => {
-    await recover(config);
     check();
-    const initial = await service(config, 'status', signal);
-    if (!['running','stopped'].includes(initial) || await service(config, 'identity', signal) !== config.service.expectedIdentity) throw new PreviewError('Backend identity or state is ambiguous; no capture attempted.');
     const staging = await privateDir(join(config.state, 'staging', randomUUID()));
     const raw = await privateDir(join(staging, 'raw')); const seed = await privateDir(join(staging, 'package/seed'));
-    check();
-    await writeRecord(restoration, restorationRecord(config, initial === 'running'));
     const media: DataManifest['media'] = [];
     try {
-      try {
-        check();
-        if (initial === 'running') { await writeRecord(restoration, restorationRecord(config, true, 'requested')); await service(config, 'stop', signal); }
-        await wait(config, 'status', 'stopped', signal);
-        if (initial === 'running') await writeRecord(restoration, restorationRecord(config, true));
-        await wait(config, 'released', 'released', signal); check();
-        try { await run(['fuser',config.database],{signal,timeout:config.service.timeout,successCodes:[1]}); }
-        catch(error:unknown){ check(); throw new PreviewError('H2 is in use or cannot be checked. No lock file was removed.'); }
-        await safeCopy(config.database, join(raw, 'rede.mv.db')); check();
-        for (const [index, mapping] of config.media.entries()) {
-          const files = await inventory(mapping.root); const target = await privateDir(join(staging, 'package/media', String(index)));
-          for (const file of Object.keys(files)) { check(); await safeCopy(join(mapping.root, file), join(target, file)); }
-          await verify(mapping.root, files); await verify(target, files); media.push({ directory: String(index), url: mapping.url, inventory: files });
-        }
-      } finally { await recover(config); }
+      await storageWarning(config, (await stat(config.database)).size);
+      await copyDatabase(config.database, join(raw, 'rede.mv.db'), signal); check();
+      for (const [index, mapping] of config.media.entries()) {
+        const files = await inventory(mapping.root); const target = await privateDir(join(staging, 'package/media', String(index)));
+        let changed = false;
+        for (const file of Object.keys(files)) { check(); if (!await safeCopy(join(mapping.root, file), join(target, file))) changed = true; }
+        const copied = await inventory(target);
+        if (changed || canonical(copied) !== canonical(files)) warn('media-changed-during-copy', `Media under ${mapping.url} changed during the copy; the copied files are used.`);
+        media.push({ directory: String(index), url: mapping.url, inventory: copied });
+      }
       check();
-      let selectionAccounts=config.accounts.length?config.accounts:previous?.accounts??[];
-      if(!selectionAccounts.length&&select)selectionAccounts=await select(await javaTool(config, signal,'list',join(raw,'rede')),signal);
+      let selectionAccounts: unknown[] = config.accounts.length ? config.accounts : previous?.accounts ?? [];
+      if (accountIds?.length) {
+        const listing = listed(await javaTool(config, signal, 'list', join(raw, 'rede')));
+        selectionAccounts = accountIds.map(id => { const label = listing.get(id); if (label === undefined) throw new PreviewError(`Unknown account ID ${id}; use an ID from the captured listing.`); return { id, label: label || id }; });
+      } else if (!selectionAccounts.length && select) selectionAccounts = await select(await javaTool(config, signal, 'list', join(raw, 'rede')), signal);
       check();
-      if(!selectionAccounts.length)throw new PreviewError('Select stable account IDs with enois-preview publish SCENARIO in an interactive local terminal, or configure accounts. Backend restored; capture incomplete.');
+      if (!selectionAccounts.length) throw new PreviewError('Select stable account IDs with enois-preview publish SCENARIO --accounts ID[,ID...], in an interactive local terminal, or in the configuration.');
       const selected = parseAccounts(selectionAccounts);
       const selection = join(staging, 'accounts.tsv');
       const handle = await open(selection, 'wx', 0o600);
       try { await handle.writeFile(selected.map(a => `${a.id}\t${a.email}\n`).join('')); } finally { await handle.close(); }
       const sanitizer = join(ROOT, 'recipe/SeedTool.java'); const sanitizerSha256 = await sha(sanitizer);
-      await javaTool(config, signal, 'sanitize', join(raw, 'rede'), join(seed, 'rede'), selection); check();
+      for (const line of (await javaTool(config, signal, 'sanitize', join(raw, 'rede'), join(seed, 'rede'), selection)).split('\n')) {
+        const fields = line.split('\t');
+        if (fields[0] === 'warning' && fields.length === 2 && /^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$/.test(fields[1]!)) warn('credential-column', `Unrecognized credential-like column ${fields[1]} was kept in the captured data.`);
+        else if (line.trim()) throw new PreviewError('Unrecognized sanitizer output; capture remains incomplete.');
+      }
+      check();
       const permissions: DataManifest['permissions'] = {}; const externalReads: string[] = [];
       for (const line of (await javaTool(config, signal, 'metadata', join(seed, 'rede'), selection)).trim().split('\n')) {
         const fields = line.split('\t');
@@ -193,9 +161,14 @@ export async function capture(value: unknown, previous?: DataManifest, select?: 
       check();
       return manifest;
     } catch (error: unknown) {
-      const status = await exists(restoration) ? 'restoration pending' : 'restored to its prior state';
-      throw new PreviewError(`Capture incomplete; backend ${status}. ${signal.aborted?'Capture interrupted.':error instanceof PreviewError ? error.message : 'Private input unavailable.'} Previous complete data preserved; retry publication explicitly.`);
+      await rm(staging, { recursive: true, force: true });
+      throw new PreviewError(`Capture incomplete. ${signal.aborted?'Capture interrupted.':error instanceof PreviewError ? error.message : 'Private input unavailable.'} Previous complete data preserved; retry publication explicitly.`);
     }
   }, signal);
   } finally { interruption?.dispose(); }
+}
+function listed(listing: string): Map<string, string> {
+  const rows = new Map<string, string>();
+  for (const line of listing.split('\n')) { if (!line) continue; const split = line.indexOf('\t'); if (split < 1) throw new PreviewError('No usable existing identities in the captured data.'); rows.set(line.slice(0, split), line.slice(split + 1).trim()); }
+  return rows;
 }

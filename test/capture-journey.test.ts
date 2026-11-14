@@ -1,68 +1,26 @@
-import { fixture, command } from './fixtures/h2.js';
-import { workspace } from './fixtures/workspace.js';
+import { fixture, command, pausingFuser } from './fixtures/h2.js';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, symlinkSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir, homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { existsSync, readdirSync, symlinkSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import * as captures from '../preview/capture.js';
 import { captureConfig } from '../preview/config.js';
-import { run, inventory, identity, PreviewError } from '../preview/state.js';
+import { collectWarnings } from '../preview/warnings.js';
+import { run, PreviewError } from '../preview/state.js';
 
-test('capture timeout prevents late child and grandchild effects while restoring prior state and preserving an independent service',async()=>{
-  const f=fixture();
-  const tree=resolve('dist/test/fixtures/timeout-tree.js');
-  const roots:string[]=[];
-  try{
-    const previous=await captures.capture(f.config);
-    const preserved=await inventory(join(f.config.state,'data'));
-    const database=createHash('sha256').update(readFileSync(f.config.database)).digest('hex');
-    const control=join(f.root,'control');mkdirSync(control);roots.push(control);
+async function waitFor(file:string,timeout=10_000):Promise<void>{const deadline=Date.now()+timeout;while(!existsSync(file)&&Date.now()<deadline)await delay(10);assert.ok(existsSync(file),`${file} not reached`);}
+function captureProcess(config:unknown,root:string,name:string,env:NodeJS.ProcessEnv){
+  const file=join(root,`${name}.json`);writeFileSync(file,JSON.stringify(config));
+  const child=spawn(process.execPath,['dist/test/fixtures/capture-process.js',file],{stdio:['ignore','ignore','pipe'],env});let stderr='';child.stderr!.on('data',data=>stderr+=String(data));
+  return {child,stderr:()=>stderr};
+}
 
-    const output=await run([process.execPath,tree,control,'control'],{timeout:10});
-
-    assert.match(output.toString(),/descendants confirmed active/);
-    assert.equal(existsSync(join(control,'child.effect')),true);
-    assert.equal(existsSync(join(control,'grandchild.effect')),true);
-    for(const initial of ['running','stopped']){
-      const root=join(f.root,initial);mkdirSync(root);roots.push(root);
-      writeFileSync(join(f.root,'status'),initial);
-      const config={...f.config,service:{...f.config.service,timeout:1,
-        [initial==='running'?'stop':'released']:[process.execPath,tree,root,initial==='running'?'stop':'released']}};
-      // The stop command writes its own fixture status; the service adapter reads the shared state.
-      if(initial==='running')symlinkSync(join(f.root,'status'),join(root,'status'));
-
-      await assert.rejects(captures.capture(config,previous),initial==='running'?/node timed out/:/Backend released did not confirm released/);
-
-      const observed=JSON.parse(readFileSync(join(root,'observed.json'),'utf8'));
-      assert.equal(observed.bothAlive,true);
-      assert.ok(observed.child>0&&observed.grandchild>0);
-      await delay(2800);
-      assert.equal(existsSync(join(root,'child.effect')),false,'timed out child must not perform its delayed effect');
-      assert.equal(existsSync(join(root,'grandchild.effect')),false,'timed out grandchild must not perform its delayed effect');
-      const independent=JSON.parse(readFileSync(join(root,'independent.json'),'utf8'));
-      assert.equal(await (await fetch(`http://127.0.0.1:${independent.port}`,{signal:AbortSignal.timeout(2000)})).text(),'independent ready');
-      assert.equal(readFileSync(join(f.root,'status'),'utf8'),initial);
-      assert.equal(createHash('sha256').update(readFileSync(f.config.database)).digest('hex'),database);
-      assert.deepEqual(await inventory(join(f.config.state,'data')),preserved);
-      assert.equal(existsSync(join(f.config.state,'restoration.json')),false);
-      if(process.env.ENOIS_PREVIEW_EVIDENCE)writeFileSync(join(process.env.ENOIS_PREVIEW_EVIDENCE,`timeout-${initial}.json`),JSON.stringify({initial,restored:readFileSync(join(f.root,'status'),'utf8'),observed,independentResponded:true,controlEffects:true,lateEffects:false,databaseBeforeSha256:database,databaseAfterSha256:createHash('sha256').update(readFileSync(f.config.database)).digest('hex'),completeDataBeforeSha256:identity(preserved),completeDataAfterSha256:identity(await inventory(join(f.config.state,'data'))),completeDataPreserved:true,restorationPending:false})+'\n',{mode:0o600});
-    }
-  }finally{
-    for(const root of roots){
-      for(const role of ['child','grandchild'])if(existsSync(join(root,role+'.pid'))){try{process.kill(Number(readFileSync(join(root,role+'.pid'),'utf8')),'SIGKILL');}catch{}}
-      if(existsSync(join(root,'independent.json'))){try{process.kill(JSON.parse(readFileSync(join(root,'independent.json'),'utf8')).pid,'SIGKILL');}catch{}}
-    }
-    f.cleanup();
-  }
-});
-
-test('capture restores running backend and sanitizes a real H2 copy while preserving content and relationships', async () => {
+test('capture sanitizes a real H2 copy while preserving content and relationships', async () => {
   const f = fixture();
   try {
     const before = createHash('sha256').update(readFileSync(f.config.database)).digest('hex');
@@ -70,7 +28,6 @@ test('capture restores running backend and sanitizes a real H2 copy while preser
 
     const data = await api.capture(f.config);
 
-    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'running');
     assert.equal(createHash('sha256').update(readFileSync(f.config.database)).digest('hex'), before);
     const packageRoot = join(f.config.state, 'data', data.id, 'package');
     const answer = command('java', '-cp', f.config.h2Jar, 'org.h2.tools.Shell', '-url', `jdbc:h2:file:${packageRoot}/seed/rede;IFEXISTS=TRUE`, '-user', 'sa', '-sql', 'SELECT ID, IS_ADMIN FROM USERS ORDER BY ID; SELECT * FROM POSTS; SELECT COUNT(*) FROM AUTH_SESSIONS; SELECT COUNT(*) FROM LINKEDIN_CONNECTIONS; SELECT PASSWORD_USABLE FROM USER_CREDENTIALS; SELECT * FROM PARENTAL_LINKS');
@@ -79,7 +36,6 @@ test('capture restores running backend and sanitizes a real H2 copy while preser
     const seed = readFileSync(join(packageRoot, 'seed/rede.mv.db'));
     for (const marker of ['original-credential-marker', 'original-session', 'refresh-marker', 'integration-marker', 'original@example.invalid', 'parental-invitation-marker']) assert.equal(seed.includes(Buffer.from(marker)), false, marker);
     assert.equal(data.sanitizerSha256, createHash('sha256').update(readFileSync('recipe/SeedTool.java')).digest('hex'));
-    assert.equal(existsSync(join(f.config.state, 'restoration.json')), false);
   } finally { f.cleanup(); }
 });
 
@@ -92,7 +48,6 @@ INSERT INTO CALENDAR_SUBSCRIPTIONS VALUES('subscription','author','PERSONAL','${
 
     const data = await captures.capture(f.config as never) as { id: string };
 
-    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'running');
     assert.equal(createHash('sha256').update(readFileSync(f.config.database)).digest('hex'), before);
     const packageRoot = join(f.config.state, 'data', data.id, 'package');
     const answer = command('java', '-cp', f.config.h2Jar, 'org.h2.tools.Shell', '-url', `jdbc:h2:file:${packageRoot}/seed/rede;IFEXISTS=TRUE`, '-user', 'sa', '-sql', 'SELECT COUNT(*) AS SUBSCRIPTIONS FROM CALENDAR_SUBSCRIPTIONS');
@@ -108,7 +63,6 @@ INSERT INTO MESSAGES VALUES('keyed','author','fictional keyed message','${marker
   try {
     const data = await captures.capture(f.config as never) as { id: string };
 
-    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'running');
     const packageRoot = join(f.config.state, 'data', data.id, 'package');
     const answer = command('java', '-cp', f.config.h2Jar, 'org.h2.tools.Shell', '-url', `jdbc:h2:file:${packageRoot}/seed/rede;IFEXISTS=TRUE`, '-user', 'sa', '-sql', "SELECT ID, CONTENT FROM MESSAGES ORDER BY ID; SELECT COUNT(*) AS KEYED FROM MESSAGES WHERE ENCRYPTED_KEYS IS NOT NULL");
     assert.match(answer, /keyed\s*\|\s*fictional keyed message/);
@@ -118,62 +72,35 @@ INSERT INTO MESSAGES VALUES('keyed','author','fictional keyed message','${marker
   } finally { f.cleanup(); }
 });
 
-test('capture still refuses an unreviewed credential column without promoting data', async () => {
+test('an unreviewed credential column is reported by TABLE.COLUMN and the capture is still promoted', async () => {
   const f = fixture(`CREATE TABLE CALENDAR_FEEDS(ID VARCHAR PRIMARY KEY, FEED_TOKEN VARCHAR);
 INSERT INTO CALENDAR_FEEDS VALUES('feed','calendar-feed-marker-0d8e61b4a7f2');`);
   try {
-    await assert.rejects(captures.capture(f.config as never), /Capture incomplete; backend restored to its prior state/);
 
-    assert.match(readFileSync(join(f.config.state, 'tools', 'sanitize.log'), 'utf8'), /Unrecognized authentication or integration column: CALENDAR_FEEDS\.FEED_TOKEN; extend the reviewed sanitizer before capture/);
-    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'running');
-    assert.equal(existsSync(join(f.config.state, 'data')), false);
-    assert.equal(existsSync(join(f.config.state, 'restoration.json')), false);
+    const { result: data, warnings } = await collectWarnings(() => captures.capture(f.config));
+
+    assert.deepEqual(warnings.filter(warning => warning.code === 'credential-column').map(warning => warning.message), ['Unrecognized credential-like column CALENDAR_FEEDS.FEED_TOKEN was kept in the captured data.']);
+    assert.deepEqual(readdirSync(join(f.config.state, 'data')), [data.id]);
+    assert.equal(existsSync(join(f.config.state, 'data', data.id, 'package/seed/rede.mv.db')), true);
   } finally { f.cleanup(); }
 });
 
-test('a new CLI invocation restores a backend after SIGKILL before inspecting dirty sources', async () => {
-  const f = fixture(); let helper: number | undefined;
-  const base = workspace(f.root);
-  const config = { ...base, ...f.config };
-  const home = join(f.root, 'home'); mkdirSync(home); writeFileSync(join(home, 'config.json'), JSON.stringify(config));
-  const file = join(f.root, 'config.json'); writeFileSync(file, JSON.stringify(config));
-  writeFileSync(join(f.root, 'hold-release'), '');
-  const child = spawn(process.execPath, ['dist/test/fixtures/capture-process.js', file], { stdio: 'ignore' });
-  try {
-    const deadline = Date.now() + 5000;
-    while (!existsSync(join(f.root, 'paused')) && Date.now() < deadline) await delay(25);
-    assert.equal(existsSync(join(f.root, 'paused')), true);
-    helper = Number(readFileSync(join(f.root, 'paused'), 'utf8'));
-    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'stopped');
-    const closed = once(child, 'exit'); child.kill('SIGKILL'); await closed;
-    assert.equal(existsSync(join(f.config.state, 'restoration.json')), true);
-    writeFileSync(join(f.root, 'enois-frontend/source'), 'pending');
+test('an H2 file held open by another process is copied with an in use warning and the holder is never signalled',async()=>{
+  const f=fixture();let child:ReturnType<typeof spawn>|undefined;
+  try{
+    const source=join(f.root,'Hold.java');writeFileSync(source,'import java.sql.*; public class Hold { public static void main(String[] args) throws Exception { try(Connection db=DriverManager.getConnection("jdbc:h2:file:"+args[0]+";IFEXISTS=TRUE","sa","")) { System.out.println("holding H2"); System.out.flush(); System.in.read(); } } }');
+    command('javac','-d',f.root,source);
+    child=spawn('java',['-cp',`${f.root}:${f.config.h2Jar}`,'Hold',join(f.root,'live')],{stdio:['pipe','pipe','pipe']});
+    let signalled=false;child.on('exit',(_code,signal)=>{signalled=signal!==null;});
+    const [first]=await once(child.stdout!,'data');assert.equal(String(first).trim(),'holding H2');
 
-    const result = spawnSync(process.execPath, ['dist/preview/cli.js', '--home', home, 'publish', 'fixture'], { encoding: 'utf8', timeout: 5000 });
+    const {result:data,warnings}=await collectWarnings(()=>captures.capture(f.config));
 
-    assert.equal(result.status, 1, result.stderr);
-    assert.match(result.stderr, /No service was stopped/);
-    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'running');
-    assert.equal(existsSync(join(f.config.state, 'restoration.json')), false);
-    assert.equal(existsSync(join(f.config.state, 'data')), false);
-  } finally {
-    child.kill('SIGKILL'); if (helper) { try { process.kill(helper, 'SIGTERM'); } catch {} }
-    f.cleanup();
-  }
-});
-
-test('an initially stopped backend remains stopped during capture', async () => {
-  const f = fixture();
-  try {
-    writeFileSync(join(f.root, 'status'), 'stopped');
-
-    await captures.capture(f.config);
-
-    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'stopped');
-    const events = readFileSync(join(f.root, 'events'), 'utf8').trim().split('\n');
-    assert.equal(events.includes('start'), false);
-    assert.equal(events.includes('stop'), false);
-  } finally { f.cleanup(); }
+    assert.ok(warnings.some(warning=>warning.code==='database-in-use'),JSON.stringify(warnings));
+    assert.equal(child.exitCode,null);assert.equal(signalled,false);process.kill(child.pid!,0);
+    assert.deepEqual(readdirSync(join(f.config.state,'data')),[data.id]);
+    const closed=once(child,'exit');child.stdin!.end('\n');assert.deepEqual(await closed,[0,null]);
+  }finally{child?.kill('SIGKILL');f.cleanup();}
 });
 
 test('captures of the same database through directory aliases cannot overlap across processes', async () => {
@@ -181,45 +108,49 @@ test('captures of the same database through directory aliases cannot overlap acr
   const alias = `${f.root}-alias`;
   symlinkSync(f.root, alias, 'dir');
   const alternate = { ...f.config, state: join(f.root, 'other-private'), database: join(alias, 'live.mv.db') };
-  const firstConfig = join(f.root, 'first.json'); const secondConfig = join(f.root, 'second.json');
-  writeFileSync(firstConfig, JSON.stringify(f.config)); writeFileSync(secondConfig, JSON.stringify(alternate));
-  writeFileSync(join(f.root, 'hold-release'), '');
-  const first = spawn(process.execPath, ['dist/test/fixtures/capture-process.js', firstConfig], { stdio: 'ignore' });
-  let second: ReturnType<typeof spawn> | undefined;
-  let helper: number | undefined;
+  const firstBarrier = join(f.root, 'first-paused'); const secondBarrier = join(f.root, 'second-paused');
+  const first = captureProcess(f.config, f.root, 'first', pausingFuser(f.root, firstBarrier));
+  let second: ReturnType<typeof captureProcess> | undefined;
   try {
-    const deadline = Date.now() + 5000;
-    while (!existsSync(join(f.root, 'paused')) && Date.now() < deadline) await delay(25);
-    assert.equal(existsSync(join(f.root, 'paused')), true);
-    helper = Number(readFileSync(join(f.root, 'paused'), 'utf8'));
-    const before = readFileSync(join(f.root, 'events'), 'utf8');
-    second = spawn(process.execPath, ['dist/test/fixtures/capture-process.js', secondConfig], { stdio: 'ignore' });
+    await waitFor(firstBarrier);
+    second = captureProcess(alternate, f.root, 'second', pausingFuser(f.root, secondBarrier));
 
     await delay(500);
 
-    assert.equal(readFileSync(join(f.root, 'events'), 'utf8'), before, 'second capture must wait before any service access');
-    const firstClosed = once(first, 'exit'); const secondClosed = once(second, 'exit');
-    rmSync(join(f.root, 'hold-release'));
-    assert.deepEqual(await firstClosed, [0, null]);
-    assert.deepEqual(await secondClosed, [0, null]);
-    assert.equal(readFileSync(join(f.root, 'status'), 'utf8'), 'running');
+    assert.equal(existsSync(secondBarrier), false, 'second capture must wait for the lease before inspecting the database');
+    const firstClosed = once(first.child, 'exit');
+    writeFileSync(`${firstBarrier}.release`, '');
+    assert.deepEqual(await firstClosed, [0, null], first.stderr());
+    await waitFor(secondBarrier);
+    const secondClosed = once(second.child, 'exit');writeFileSync(`${secondBarrier}.release`, '');
+    assert.deepEqual(await secondClosed, [0, null], second.stderr());
   } finally {
-    first.kill('SIGKILL'); second?.kill('SIGKILL');
-    if (helper) { try { process.kill(helper, 'SIGTERM'); } catch {} }
+    first.child.kill('SIGKILL'); second?.child.kill('SIGKILL');
+    for (const barrier of [firstBarrier, secondBarrier]) if (existsSync(barrier)) { try { process.kill(Number(readFileSync(barrier, 'utf8')), 'SIGKILL'); } catch {} }
     rmSync(alias); f.cleanup();
   }
 });
 
-test('headless capture without selected accounts gives the interactive command after restoring the backend',async()=>{
+test('headless capture without selected accounts names --accounts and promotes nothing',async()=>{
   const f=fixture();
   try{
     const {accounts:_selection,...config}=f.config;
 
-    await assert.rejects(captures.capture(config),/Select stable account IDs.*enois-preview publish.*interactive.*configure accounts/);
+    await assert.rejects(captures.capture(config),/--accounts ID\[,ID\.\.\.\]/);
 
-    assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');
-    assert.equal(existsSync(join(f.config.state,'restoration.json')),false);
     assert.equal(existsSync(join(f.config.state,'data')),false);
+  }finally{f.cleanup();}
+});
+
+test('explicit account IDs take their labels from the captured listing and receive distinct generated logins',async()=>{
+  const f=fixture();
+  try{
+    const {accounts:_selection,...config}=f.config;
+
+    const data=await captures.capture(config,undefined,undefined,undefined,['reader','author']);
+
+    assert.deepEqual(data.accounts,[{id:'reader',email:'account1@enois.invalid',label:'Fictional reader'},{id:'author',email:'account2@enois.invalid',label:'Fictional author'}]);
+    await assert.rejects(captures.capture(config,undefined,undefined,undefined,['missing']),/Unknown account ID missing/);
   }finally{f.cleanup();}
 });
 
@@ -231,89 +162,40 @@ test('an explicit refresh reuses the recorded account selection when configurati
     const refreshed=await captures.capture(captureConfig(config),previous);
 
     assert.equal(refreshed.id,previous.id);assert.deepEqual(refreshed.accounts,previous.accounts);
-    assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');
     assert.equal(readdirSync(join(f.config.state,'data')).length,1);
   }finally{f.cleanup();}
 });
 
-test('operator configuration refuses a login outside the reserved @enois.invalid domain',()=>{
+test('configured accounts accept any valid unique email, generate missing logins and keep at least one account',()=>{
   const f=fixture();
   try{
-    const withLogin=(email:string)=>({...f.config,accounts:[{id:'author',email,label:'Author'}]});
-    const refused=(error:unknown)=>error instanceof PreviewError&&error.message==='Accounts require stable id, label and disposable @enois.invalid email.';
+    const withAccounts=(accounts:unknown[])=>captureConfig({...f.config,accounts});
+    const many=Array.from({length:25},(_,index)=>({id:`user${index}`,label:`User ${index}`}));
 
-    assert.throws(()=>captureConfig(withLogin('author@example.com')),refused);
-    assert.throws(()=>captureConfig(withLogin('Author@enois.invalid')),refused);
+    const accepted=withAccounts([{id:'author',email:'Author@Example.com',label:'Author'},{id:'reader',label:'Reader'}]);
+    const twentyFive=withAccounts(many);
 
-    const accepted=captureConfig(withLogin('author@enois.invalid'));
-    assert.equal(accepted.accounts[0]?.email,'author@enois.invalid');
+    assert.deepEqual(accepted.accounts,[{id:'author',email:'Author@Example.com',label:'Author'},{id:'reader',email:'account1@enois.invalid',label:'Reader'}]);
+    assert.equal(twentyFive.accounts.length,25);assert.equal(new Set(twentyFive.accounts.map(account=>account.email)).size,25);
+    assert.deepEqual(withAccounts([{id:'a',email:'account1@enois.invalid',label:'A'},{id:'b',label:'B'}]).accounts.map(account=>account.email),['account1@enois.invalid','account2@enois.invalid']);
+    assert.throws(()=>withAccounts([{id:'author',email:'not an email',label:'Author'}]),(error:unknown)=>error instanceof PreviewError&&/valid addresses/.test(error.message));
+    assert.throws(()=>withAccounts([{id:'a',email:'same@example.com',label:'A'},{id:'b',email:'same@example.com',label:'B'}]),/distinct/);
+    assert.deepEqual(captureConfig({...f.config,accounts:[]}).accounts,[]);
   }finally{f.cleanup();}
 });
 
-test('a service answer arriving after its timeout cannot promote a capture',async()=>{
-  const f=fixture();
+test('SIGTERM during capture ends the process and never promotes incomplete data',async()=>{
+  const f=fixture();const barrier=join(f.root,'paused');
+  const capture=captureProcess(f.config,f.root,'interrupted',pausingFuser(f.root,barrier));
   try{
-    writeFileSync(join(f.root,'late-release'),'');const config={...f.config,service:{...f.config.service,timeout:0.3}};
+    await waitFor(barrier);const closed=once(capture.child,'exit');
 
-    await assert.rejects(captures.capture(config),/Backend released did not confirm released/);
+    capture.child.kill('SIGTERM');
 
-    assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');
-    assert.equal(existsSync(join(f.config.state,'restoration.json')),false);assert.equal(existsSync(join(f.config.state,'data')),false);
-  }finally{f.cleanup();}
-});
-
-test('failed copy and failed restart retain restoration until a subsequent CLI can restore before dirty source refusal',async()=>{
-  const f=fixture();
-  try{
-    const base=workspace(f.root);const config={...base,...f.config,media:[{root:join(f.root,'missing-media'),url:'/fixture/'}]};
-    writeFileSync(join(f.root,'fail-start'),'');
-
-    await assert.rejects(captures.capture(config),/Capture incomplete; backend restoration pending/);
-
-    assert.equal(readFileSync(join(f.root,'status'),'utf8'),'stopped');
-    assert.equal(existsSync(join(config.state,'restoration.json')),true);assert.equal(existsSync(join(config.state,'data')),false);
-    rmSync(join(f.root,'fail-start'));const home=join(f.root,'home');mkdirSync(home);writeFileSync(join(home,'config.json'),JSON.stringify(config));
-    writeFileSync(join(f.root,'enois-frontend/source'),'dirty after failed capture');
-
-    const result=spawnSync(process.execPath,['dist/preview/cli.js','--home',home,'publish','fixture'],{encoding:'utf8'});
-
-    assert.equal(result.status,1);assert.match(result.stderr,/source changes.*No service was stopped/);
-    assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');
-    assert.equal(existsSync(join(config.state,'restoration.json')),false);assert.equal(existsSync(join(config.state,'data')),false);
-  }finally{f.cleanup();}
-});
-
-test('SIGTERM during the paused capture restores the backend and never promotes incomplete data',async()=>{
-  const f=fixture();let helper:number|undefined;
-  const file=join(f.root,'config.json');writeFileSync(file,JSON.stringify({...f.config,service:{...f.config.service,timeout:10}}));
-  writeFileSync(join(f.root,'hold-release'),'');
-  const child=spawn(process.execPath,['dist/test/fixtures/capture-process.js',file],{stdio:'ignore'});
-  try{
-    const deadline=Date.now()+5000;while(!existsSync(join(f.root,'paused'))&&Date.now()<deadline)await delay(25);
-    assert.equal(existsSync(join(f.root,'paused')),true);helper=Number(readFileSync(join(f.root,'paused'),'utf8'));
-    assert.equal(readFileSync(join(f.root,'status'),'utf8'),'stopped');const closed=once(child,'exit');
-
-    child.kill('SIGTERM');rmSync(join(f.root,'hold-release'));
-
-    assert.deepEqual(await closed,[1,null]);assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');
-    assert.equal(existsSync(join(f.config.state,'restoration.json')),false);assert.equal(existsSync(join(f.config.state,'data')),false);
-  }finally{child.kill('SIGKILL');if(helper){try{process.kill(helper,'SIGTERM');}catch{}}f.cleanup();}
-});
-
-test('an actual open H2 connection refuses capture even when the service adapter claims release',async()=>{
-  const f=fixture();let child:ReturnType<typeof spawn>|undefined;
-  try{
-    const source=join(f.root,'Hold.java');writeFileSync(source,'import java.sql.*; public class Hold { public static void main(String[] args) throws Exception { try(Connection db=DriverManager.getConnection("jdbc:h2:file:"+args[0]+";IFEXISTS=TRUE","sa","")) { System.out.println("holding H2"); System.out.flush(); System.in.read(); } } }');
-    command('javac','-d',f.root,source);
-    child=spawn('java',['-cp',`${f.root}:${f.config.h2Jar}`,'Hold',join(f.root,'live')],{stdio:['pipe','pipe','pipe']});
-    const [first]=await once(child.stdout!,'data');assert.equal(String(first).trim(),'holding H2');
-
-    await assert.rejects(captures.capture(f.config),/H2 is in use.*No lock file was removed/);
-
-    assert.equal(child.exitCode,null);assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');
-    assert.equal(existsSync(join(f.config.state,'restoration.json')),false);assert.equal(existsSync(join(f.config.state,'data')),false);
-    const closed=once(child,'exit');child.stdin!.end('\n');assert.deepEqual(await closed,[0,null]);
-  }finally{child?.kill('SIGKILL');f.cleanup();}
+    assert.deepEqual(await closed,[1,null],capture.stderr());
+    assert.equal(existsSync(join(f.config.state,'data')),false);
+    assert.deepEqual(existsSync(join(f.config.state,'staging'))?readdirSync(join(f.config.state,'staging')):[],[]);
+  }finally{capture.child.kill('SIGKILL');if(existsSync(barrier)){try{process.kill(Number(readFileSync(barrier,'utf8')),'SIGKILL');}catch{}}f.cleanup();}
 });
 
 

@@ -7,14 +7,6 @@ import { IMAGE_PREFIX_BYTES, imageType } from './image-type.js';
 import { createUploadTransport } from './upload-transport.js';
 import { invokedDirectly } from './entry.js';
 
-// Defense in depth: all public traffic enters this gateway, including direct forwarded ports.
-function demoBlocked(pathname:string):boolean {
-  if (pathname.includes(';')) return true;
-  if (/^\/api\/(?:oauth2|login\/oauth2|auth\/(?:signup|register|oauth|password|forgot|reset|verify|email|2fa|account|admin)|(?:me\/)?integrations|webhooks|support)(?:\/|$)/i.test(pathname)) return true;
-  if (/^\/api\/(?:admin\/support|identity\/verification|me\/github|admin\/github|admin\/contributors\/(?:sync|repositories))(?:\/|$)/i.test(pathname)) return true;
-  return false;
-}
-
 export function createGateway({ mediaRoot = '/tmp/demo-media', manifestPath = '/opt/render-demo/runtime-manifest.json' }:{mediaRoot?:string;manifestPath?:string} = {}):http.Server {
   const raw:unknown=JSON.parse(fs.readFileSync(manifestPath,'utf8'));requireFormat(raw);
   if(!Array.isArray(raw.media))throw new Error('Invalid media manifest');
@@ -73,7 +65,8 @@ export function createGateway({ mediaRoot = '/tmp/demo-media', manifestPath = '/
       }
       return;
     }
-    if (demoBlocked(pathname) || pathname.startsWith('/__demo/')) {
+    // Application routes reach the backend unchanged; only tool paths and ';' path parameters are refused.
+    if (pathname.includes(';') || pathname.startsWith('/__demo/')) {
       response.writeHead(403, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify({ error: 'Operação desabilitada na demonstração.' })); return;
     }

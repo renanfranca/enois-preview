@@ -1,6 +1,6 @@
 import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
-import { fixture as h2Fixture, command as h2Command } from './fixtures/h2.js';
+import { fixture as h2Fixture, command as h2Command, pausingFuser } from './fixtures/h2.js';
 import assert from 'node:assert/strict';
 import { spawnSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { inventory } from '../preview/state.js';
 import { createServer } from 'node:http';
-import { git } from './fixtures/workspace.js';
+import { git, legacyFields } from './fixtures/workspace.js';
 import { unstampedPublicationHome } from './fixtures/publication-home.js';
 
 function recordEvidence(name:string,value:unknown):void{
@@ -18,10 +18,10 @@ function recordEvidence(name:string,value:unknown):void{
 }
 
 function prepared(existingRoot?: string) {
-  const { root, config, tool, home, data } = unstampedPublicationHome(existingRoot ?? mkdtempSync(join(tmpdir(), 'enois-publication-')), resolve('.'));
-  const stamped = spawnSync(process.execPath, [resolve('dist/test/fixtures/stamp-tool.js'), tool, config.toolCommit], { encoding: 'utf8' }); assert.equal(stamped.status, 0, stamped.stderr);
+  const { root, config, tool, home, data, toolCommit } = unstampedPublicationHome(existingRoot ?? mkdtempSync(join(tmpdir(), 'enois-publication-')), resolve('.'));
+  const stamped = spawnSync(process.execPath, [resolve('dist/test/fixtures/stamp-tool.js'), tool, toolCommit], { encoding: 'utf8' }); assert.equal(stamped.status, 0, stamped.stderr);
   writeFileSync(join(home, 'config.json'), JSON.stringify(config));
-  return { root, config, tool, home, data, invoke: (...args: string[]) => spawnSync(process.execPath, [join(tool, 'dist/preview/cli.js'), '--home', home, ...args], { encoding: 'utf8', timeout: 10_000 }) };
+  return { root, config, tool, home, data, toolCommit, invoke: (...args: string[]) => spawnSync(process.execPath, [join(tool, 'dist/preview/cli.js'), '--home', home, ...args], { encoding: 'utf8', timeout: 10_000 }) };
 }
 
 test('code-only publication freezes new commits with D1 while live data and service remain unavailable', () => {
@@ -51,12 +51,11 @@ test('code-only publication freezes new commits with D1 while live data and serv
     assert.equal(secondJournal.inputs.data, f.data);
     assert.equal(secondJournal.inputs.commits['enois-frontend'], git(frontend, 'rev-parse','HEAD').trim());
     assert.equal(readFileSync(join(operations, secondRevision, 'frozen/sources/enois-frontend/source'), 'utf8'), 'new code');
-    assert.equal(existsSync(join(f.config.state, 'restoration.json')), false);
     assert.deepEqual(readdirSync(join(f.config.state, 'data')), [f.data]);
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
-test('a refresh with a missing selected identity preserves D1 and gives correction guidance after restoration', () => {
+test('a refresh with a missing selected identity preserves D1 and gives correction guidance', () => {
   const h2 = h2Fixture(); const f = prepared(h2.root);
   try {
     const config = { ...f.config, ...h2.config };
@@ -72,29 +71,30 @@ test('a refresh with a missing selected identity preserves D1 and gives correcti
 
     assert.equal(refresh.status, 1);
     assert.match(refresh.stderr, /Selected identity missing/);
-    assert.match(refresh.stderr, /Correct private account IDs/);
+    assert.match(refresh.stderr, /Correct private account IDs.*--accounts/);
     assert.deepEqual(readFileSync(pointer), before);
-    assert.equal(readFileSync(join(f.root, 'status'),'utf8'), 'running');
-    assert.equal(existsSync(join(config.state,'restoration.json')), false);
     assert.equal(readdirSync(join(config.state,'data')).length, 1);
     assert.doesNotMatch(refresh.stderr, /original@example|reader@example/);
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
-function remoteConsumer(f:ReturnType<typeof prepared>):void{
+function remoteConsumer(f:ReturnType<typeof prepared>,pinned=f.toolCommit):void{
   const bare=join(f.root,'remote.git');mkdirSync(bare);git(bare,'init','--bare','-q');
   const seed=join(f.root,'launcher');mkdirSync(seed);git(seed,'init','-q','-b','preview');mkdirSync(join(seed,'catalog'));
   writeFileSync(join(seed,'catalog/scenarios.json'),'{"format":"enois-preview-ts-v1","scenarios":{}}');
   writeFileSync(join(seed,'wrangler.jsonc'),JSON.stringify({main:'launcher.ts',vars:{GITHUB_REPOSITORY:f.config.repository,GITHUB_OWNER:'fixture'}}));
-  writeFileSync(join(seed,'tool.lock.json'),JSON.stringify({format:'enois-preview-ts-v1',repository:'renanfranca/enois-preview',commit:f.config.toolCommit}));
-  writeFileSync(join(seed,'package.json'),JSON.stringify({devDependencies:{'enois-preview':`https://codeload.github.com/renanfranca/enois-preview/tar.gz/${f.config.toolCommit}`}}));
+  writeFileSync(join(seed,'tool.lock.json'),JSON.stringify({format:'enois-preview-ts-v1',repository:'renanfranca/enois-preview',commit:pinned}));
+  writeFileSync(join(seed,'package.json'),JSON.stringify({devDependencies:{'enois-preview':`https://codeload.github.com/renanfranca/enois-preview/tar.gz/${pinned}`}}));
   git(seed,'add','.');git(seed,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture');git(seed,'remote','add','origin',bare);git(seed,'push','-q','origin','preview');
   const bin=join(f.root,'bin');mkdirSync(bin);const executable=join(f.tool,'dist/test/fixtures/git-command.js');chmodSync(executable,0o755);symlinkSync(executable,join(bin,'git'));
   writeFileSync(join(f.root,'platform.json'),JSON.stringify({builds:{},images:{},deployments:{},validations:{}}));
 }
 function publishProcess(f:ReturnType<typeof prepared>,...args:string[]):Promise<{code:number|null;stdout:string;stderr:string}>{
+  return publishWith(f,process.env,...args);
+}
+function publishWith(f:ReturnType<typeof prepared>,env:NodeJS.ProcessEnv,...args:string[]):Promise<{code:number|null;stdout:string;stderr:string}>{
   return new Promise((resolve,reject)=>{
-    const child=spawn(process.execPath,[join(f.tool,'dist/test/fixtures/publication-driver.js'),f.root,'--home',f.home,...args],{stdio:['ignore','pipe','pipe']});
+    const child=spawn(process.execPath,[join(f.tool,'dist/test/fixtures/publication-driver.js'),f.root,'--home',f.home,...args],{stdio:['ignore','pipe','pipe'],env});
     let stdout='';let stderr='';child.stdout.on('data',chunk=>{stdout+=String(chunk);});child.stderr.on('data',chunk=>{stderr+=String(chunk);});
     const timeout=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('CLI fixture timed out'));},20_000);
     child.on('error',reject);child.on('close',code=>{clearTimeout(timeout);resolve({code,stdout,stderr});});
@@ -184,26 +184,25 @@ test('simultaneous CLI resumes reread confirmed checkpoints after acquiring the 
   }
 });
 
-test('interactive CLI selects captured identities only after backend restoration',async()=>{
+test('interactive CLI selects captured identities with generated logins',async()=>{
   const h2=h2Fixture();const f=prepared(h2.root);
   try{
     const {accounts:_selection,...captureConfiguration}=h2.config;
     writeFileSync(join(f.home,'config.json'),JSON.stringify({...f.config,...captureConfiguration}));remoteConsumer(f);
     const command=[process.execPath,join(f.tool,'dist/test/fixtures/publication-driver.js'),f.root,'--home',f.home,'publish','interactive'].map(value=>"'"+value.replaceAll("'","'\\''")+"'").join(' ');
-    let restoredAtPrompt=false;let answered=false;
+    let answered=false;
     const result=await new Promise<{code:number|null;output:string}>((resolve,reject)=>{
       const child=spawn('script',['--return','--quiet','--command',command,'/dev/null'],{stdio:['pipe','pipe','pipe']});let output='';
       const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Interactive CLI fixture timed out'));},20_000);
       child.stdin.on('error',()=>{});
-      const receive=(chunk:Buffer):void=>{output+=chunk.toString();if(!answered&&output.includes('Stable IDs to make available')){answered=true;restoredAtPrompt=readFileSync(join(f.root,'status'),'utf8')==='running';child.stdin.write('author,reader\n');}};
+      const receive=(chunk:Buffer):void=>{output+=chunk.toString();if(!answered&&output.includes('Stable IDs to make available')){answered=true;child.stdin.write('author,reader\n');}};
       child.stdout.on('data',receive);child.stderr.on('data',receive);child.on('error',reject);child.on('close',code=>{clearTimeout(timer);resolve({code,output});});
     });
 
-    assert.equal(result.code,0,result.output);assert.equal(answered,true);assert.equal(restoredAtPrompt,true);
+    assert.equal(result.code,0,result.output);assert.equal(answered,true);
     const pointer=JSON.parse(readFileSync(join(h2.config.state,'scenarios/interactive.json'),'utf8'));
     const manifest=JSON.parse(readFileSync(join(h2.config.state,'data',pointer.data,'manifest.json'),'utf8'));
     assert.deepEqual(manifest.accounts.map((account:{id:string;email:string})=>({id:account.id,email:account.email})),[{id:'author',email:'account1@enois.invalid'},{id:'reader',email:'account2@enois.invalid'}]);
-    assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');assert.equal(existsSync(join(h2.config.state,'restoration.json')),false);
   }finally{rmSync(f.root,{recursive:true,force:true});}
 });
 
@@ -216,12 +215,11 @@ test('ordinary CLI publication retains real captured D1 with live inputs unavail
     git(frontend,'add','.');git(frontend,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','new code');
     h2Command('java','-cp',config.h2Jar,'org.h2.tools.Shell','-url',`jdbc:h2:file:${join(f.root,'live')};IFEXISTS=TRUE`,'-user','sa','-sql',"UPDATE POSTS SET CONTENT='changed live data D2'");
     writeFileSync(join(f.root,'media/image.bin'),'changed media D2');
-    const events=readFileSync(join(f.root,'events'),'utf8');renameSync(config.database,`${config.database}.unavailable`);renameSync(join(f.root,'media'),join(f.root,'media-unavailable'));
+    renameSync(config.database,`${config.database}.unavailable`);renameSync(join(f.root,'media'),join(f.root,'media-unavailable'));
 
     const ordinary=await publishProcess(f,'publish','data-reuse');assert.equal(ordinary.code,0,ordinary.stderr);const second=JSON.parse(ordinary.stdout);
 
     assert.equal(second.dataVersion,first.dataVersion);assert.equal(second.dataReused,true);assert.notEqual(second.revision,first.revision);
-    assert.equal(readFileSync(join(f.root,'events'),'utf8'),events);
     const frozen=join(config.state,'operations',second.revision,'frozen');
     assert.equal(readFileSync(join(frozen,'sources/enois-frontend/source'),'utf8'),'changed committed code');
     assert.equal(readFileSync(join(frozen,'data/media/0/image.bin'),'utf8'),'fictional');
@@ -234,7 +232,6 @@ test('ordinary CLI publication retains real captured D1 with live inputs unavail
     assert.deepEqual(third.commits,second.commits);assert.equal(readFileSync(join(config.state,'operations',third.revision,'frozen/data/media/0/image.bin'),'utf8'),'changed media D2');
     assert.equal(readFileSync(join(config.state,'operations',third.revision,'frozen/data/seed/rede.mv.db')).includes(Buffer.from('changed live data D2')),true);
     const catalog=JSON.parse(git(join(f.root,'remote.git'),'show','preview:catalog/scenarios.json'));assert.equal(Object.keys(catalog.scenarios).length,3);
-    assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');assert.equal(existsSync(join(config.state,'restoration.json')),false);
   }finally{h2.cleanup();}
 });
 
@@ -261,75 +258,114 @@ test('CLI resume refuses tampered frozen inputs even when the mutable journal in
       assert.equal(resumed.status,1,corruption);assert.equal(resumed.stdout,'');
       assert.match(resumed.stderr,/Frozen input integrity failure|Symlinks are not allowed|Frozen data manifest identity mismatch/,corruption);
       assert.deepEqual(readFileSync(file),before);assert.deepEqual(readFileSync(join(f.config.state,'scenarios/fixture.json')),pointer);
-      assert.deepEqual(readdirSync(join(f.config.state,'data')),[f.data]);assert.equal(existsSync(join(f.config.state,'restoration.json')),false);
+      assert.deepEqual(readdirSync(join(f.config.state,'data')),[f.data]);
     }finally{rmSync(f.root,{recursive:true,force:true});}
   }
 });
 
-function captureReady(){
-  const h2=h2Fixture();const f=prepared(h2.root);const config={...f.config,...h2.config};
-  writeFileSync(join(f.home,'config.json'),JSON.stringify(config));
-  const publish=(...args:string[])=>spawnSync(process.execPath,[join(f.tool,'dist/preview/cli.js'),'--home',f.home,...args],{encoding:'utf8',timeout:60_000});
-  const untouched=()=>{
-    assert.equal(existsSync(join(f.root,'events'))&&readFileSync(join(f.root,'events'),'utf8').includes('stop'),false);
-    assert.equal(existsSync(join(config.state,'operations')),false);
-  };
-  return {f,config,publish,untouched};
-}
-
-test('a development checkout clean at the pinned commit with a different compiled dist is refused before stopping the service',()=>{
-  const {f,config,publish,untouched}=captureReady();
-  try{
-    rmSync(join(f.tool,'install.json'),{force:true});
-    writeFileSync(join(f.tool,'.gitignore'),'node_modules/\ndist/\n');git(f.tool,'init','-q');git(f.tool,'add','.');git(f.tool,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture tool');
-    config.toolCommit=git(f.tool,'rev-parse','HEAD').trim();writeFileSync(join(f.home,'config.json'),JSON.stringify(config));
-    writeFileSync(join(f.tool,'dist/preview/service.js'),readFileSync(join(f.tool,'dist/preview/service.js'),'utf8')+'\n// compiled from another branch\n');
-    assert.equal(git(f.tool,'status','--porcelain=v1','--untracked-files=all'),'');
-
-    const result=publish('publish','other-branch');
-
-    assert.equal(result.status,1,result.stderr);assert.equal(result.stdout,'');
-    assert.match(result.stderr,/verified installation/);
-    untouched();
-  }finally{rmSync(f.root,{recursive:true,force:true});}
-});
-
-test('a stamped installation that differs from its record or the configured commit is refused before stopping the service',()=>{
-  const differences:Record<string,(f:ReturnType<typeof prepared>,config:ReturnType<typeof captureReady>['config'])=>void>={
-    'configured commit':(f,config)=>{config.toolCommit='d'.repeat(40);writeFileSync(join(f.home,'config.json'),JSON.stringify(config));},
-    'recipe source':f=>writeFileSync(join(f.tool,'recipe/SeedTool.java'),readFileSync(join(f.tool,'recipe/SeedTool.java'),'utf8')+'\n// changed\n'),
-    'compiled dist':f=>writeFileSync(join(f.tool,'dist/preview/service.js'),readFileSync(join(f.tool,'dist/preview/service.js'),'utf8')+'\n// changed\n'),
-    'extra source file':f=>writeFileSync(join(f.tool,'preview/extra.ts'),''),
-    'missing record':f=>rmSync(join(f.tool,'install.json')),
-  };
-  for(const [difference,apply] of Object.entries(differences)){
-    const {f,config,publish,untouched}=captureReady();
-    try{
-      apply(f,config);
-
-      const result=publish('publish','other-branch');
-
-      assert.equal(result.status,1,`${difference}: ${result.stderr}`);assert.equal(result.stdout,'');
-      assert.match(result.stderr,/verified installation/,difference);
-      untouched();
-    }finally{rmSync(f.root,{recursive:true,force:true});}
-  }
-});
-
-test('CLI resume of an existing revision refuses an installation whose compiled dist changed',()=>{
+test('a development checkout publishes and resumes with an unverified tool warning and records its own commit',async()=>{
   const f=prepared();
   try{
-    assert.equal(f.invoke('publish','fixture').status,1);
-    const operations=join(f.config.state,'operations');const revision=readdirSync(operations).find(name=>!name.startsWith('.'));assert.ok(revision);
-    const journal=join(operations,revision,'journal.json');const before=readFileSync(journal);
-    writeFileSync(join(f.tool,'dist/preview/service.js'),readFileSync(join(f.tool,'dist/preview/service.js'),'utf8')+'\n// changed\n');
+    rmSync(join(f.tool,'install.json'));
+    writeFileSync(join(f.tool,'.gitignore'),'node_modules/\ndist/\n');git(f.tool,'init','-q');git(f.tool,'add','.');git(f.tool,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture tool');
+    const head=git(f.tool,'rev-parse','HEAD').trim();remoteConsumer(f,head);
+    writeFileSync(join(f.tool,'dist/preview/service.js'),readFileSync(join(f.tool,'dist/preview/service.js'),'utf8')+'\n// compiled from another branch\n');
 
-    const resumed=f.invoke('resume',revision);
+    const published=await publishProcess(f,'publish','fixture');
 
-    assert.equal(resumed.status,1);assert.equal(resumed.stdout,'');
-    assert.match(resumed.stderr,/Stage frozenInputs incomplete: Tool is not a verified installation/);
-    assert.deepEqual(readFileSync(journal),before);
+    assert.equal(published.code,0,published.stderr);const report=JSON.parse(published.stdout);
+    assert.equal(report.toolCommit,head);assert.equal(report.toolVerified,false);
+    assert.deepEqual(report.warnings.map((warning:{code:string})=>warning.code),['unverified-tool']);
+    assert.match(published.stderr,/^warning: This tool is not a verified installation/m);
+    const journal=JSON.parse(readFileSync(join(f.config.state,'operations',report.revision,'journal.json'),'utf8'));
+    assert.deepEqual(journal.tool,{commit:head,verified:false});assert.equal(Object.hasOwn(journal.inputs,'toolCommit'),false);
+
+    const resumed=await publishProcess(f,'resume',report.revision);
+
+    assert.equal(resumed.code,0,resumed.stderr);assert.equal(JSON.parse(resumed.stdout).revision,report.revision);
+    assert.deepEqual(JSON.parse(resumed.stdout).warnings.map((warning:{code:string})=>warning.code),['unverified-tool']);
   }finally{rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('a launcher pinned to another tool commit is reported with both commits and never repinned',async()=>{
+  const f=prepared();
+  try{
+    remoteConsumer(f,'d'.repeat(40));const lock=git(join(f.root,'remote.git'),'show','preview:tool.lock.json');
+
+    const result=await publishProcess(f,'publish','fixture');
+
+    assert.equal(result.code,0,result.stderr);const report=JSON.parse(result.stdout);
+    const pin=report.warnings.filter((warning:{code:string})=>warning.code==='launcher-pin');
+    assert.equal(pin.length,1);assert.match(pin[0].message,new RegExp(`${'d'.repeat(40)}.*${f.toolCommit}`));
+    assert.equal(git(join(f.root,'remote.git'),'show','preview:tool.lock.json'),lock);
+  }finally{rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('a source repository with uncommitted changes publishes its committed HEAD with a warning',async()=>{
+  const f=prepared();
+  try{
+    remoteConsumer(f);const frontend=f.config.repositories['enois-frontend'];assert.ok(frontend);const head=git(frontend,'rev-parse','HEAD').trim();
+    writeFileSync(join(frontend,'source'),'uncommitted');writeFileSync(join(frontend,'untracked'),'new');
+
+    const result=await publishProcess(f,'publish','fixture');
+
+    assert.equal(result.code,0,result.stderr);const report=JSON.parse(result.stdout);
+    assert.deepEqual(report.warnings,[{code:'source-dirty',message:`enois-frontend has staged, unstaged or untracked changes; only the committed HEAD ${head} is published.`}]);
+    assert.equal(report.commits['enois-frontend'],head);
+    assert.equal(readFileSync(join(f.config.state,'operations',report.revision,'frozen/sources/enois-frontend/source'),'utf8'),'enois-frontend');
+    assert.equal(existsSync(join(f.config.state,'operations',report.revision,'frozen/sources/enois-frontend/untracked')),false);
+  }finally{rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('a 0.3.9 configuration publishes without setup and warns once about service, toolCommit and installation',async()=>{
+  const f=prepared();
+  try{
+    remoteConsumer(f);writeFileSync(join(f.home,'config.json'),JSON.stringify({...f.config,...legacyFields()}));
+
+    const result=await publishProcess(f,'publish','fixture');
+
+    assert.equal(result.code,0,result.stderr);const report=JSON.parse(result.stdout);
+    assert.deepEqual(report.warnings,[{code:'ignored-config-fields',message:'Configuration fields no longer used are ignored and preserved: installation, service, toolCommit.'}]);
+    assert.equal((result.stderr.match(/^warning:/gm)??[]).length,1);
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(f.home,'config.json'),'utf8'))).filter(key=>['service','toolCommit','installation'].includes(key)).sort(),['installation','service','toolCommit']);
+  }finally{rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('publish --accounts selects accounts without a terminal and gives them distinct generated logins',async()=>{
+  const h2=h2Fixture();const f=prepared(h2.root);
+  try{
+    const {accounts:_selection,...captureConfiguration}=h2.config;
+    writeFileSync(join(f.home,'config.json'),JSON.stringify({...f.config,...captureConfiguration}));remoteConsumer(f);
+
+    const result=await publishProcess(f,'publish','unattended','--accounts','reader,author');
+
+    assert.equal(result.code,0,result.stderr);const report=JSON.parse(result.stdout);
+    const manifest=JSON.parse(readFileSync(join(h2.config.state,'data',report.dataVersion,'manifest.json'),'utf8'));
+    assert.deepEqual(manifest.accounts,[{id:'reader',email:'account1@enois.invalid',label:'Fictional reader'},{id:'author',email:'account2@enois.invalid',label:'Fictional author'}]);
+    const missing=await publishProcess(f,'publish','headless');
+    assert.equal(missing.code,1);assert.match(missing.stderr,/--accounts ID\[,ID\.\.\.\]/);
+  }finally{rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('an unreviewed credential column and an H2 file held by a running process are reported while publication proceeds',async()=>{
+  const h2=h2Fixture(`CREATE TABLE PROFILES(ID VARCHAR PRIMARY KEY, EXAMPLE_TOKEN VARCHAR);
+INSERT INTO PROFILES VALUES('profile','example-token-marker');`);const f=prepared(h2.root);let holder:ReturnType<typeof spawn>|undefined;
+  try{
+    writeFileSync(join(f.home,'config.json'),JSON.stringify({...f.config,...h2.config}));remoteConsumer(f);
+    const source=join(f.root,'Hold.java');writeFileSync(source,'import java.sql.*; public class Hold { public static void main(String[] args) throws Exception { try(Connection db=DriverManager.getConnection("jdbc:h2:file:"+args[0]+";IFEXISTS=TRUE","sa","")) { System.out.println("holding H2"); System.out.flush(); System.in.read(); } } }');
+    h2Command('javac','-d',f.root,source);
+    holder=spawn('java',['-cp',`${f.root}:${h2.config.h2Jar}`,'Hold',join(f.root,'live')],{stdio:['pipe','pipe','pipe']});let signalled=false;holder.on('exit',(_code,signal)=>{signalled=signal!==null;});
+    const [first]=await once(holder.stdout!,'data');assert.equal(String(first).trim(),'holding H2');
+
+    const result=await publishProcess(f,'publish','observed');
+
+    assert.equal(result.code,0,result.stderr);const report=JSON.parse(result.stdout);
+    assert.deepEqual(report.warnings.map((warning:{code:string})=>warning.code).sort(),['credential-column','database-in-use']);
+    assert.match(report.warnings.find((warning:{code:string})=>warning.code==='credential-column').message,/PROFILES\.EXAMPLE_TOKEN/);
+    assert.equal(report.status,'validated');assert.equal(existsSync(join(h2.config.state,'data',report.dataVersion,'package/seed/rede.mv.db')),true);
+    assert.equal(holder.exitCode,null);assert.equal(signalled,false);process.kill(holder.pid!,0);
+    for(const warning of report.warnings)assert.match(result.stderr,new RegExp(`^warning: ${warning.message.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}$`,'m'));
+  }finally{holder?.kill('SIGKILL');rmSync(f.root,{recursive:true,force:true});}
 });
 
 test('simultaneous different CLI publications preserve both immutable catalog entries',async()=>{
@@ -347,53 +383,6 @@ test('simultaneous different CLI publications preserve both immutable catalog en
     assert.equal(git(join(f.root,'remote.git'),'rev-list','--count','preview').trim(),'5');
     const platform=JSON.parse(readFileSync(join(f.root,'platform.json'),'utf8'));assert.equal(Object.keys(platform.images).length,2);assert.deepEqual(Object.values(platform.builds),[1,1]);
   }finally{rmSync(f.root,{recursive:true,force:true});}
-});
-
-
-test('CLI interruption restores prior backend state despite further signals and preserves H2 and complete data',async()=>{
-  for(const [initial,failStart] of [['running',false],['stopped',false],['running',true]] as const){
-    const h2=h2Fixture(),f=prepared(h2.root);
-    const config={...f.config,...h2.config,state:f.config.state,service:{...h2.config.service,timeout:20}};
-    writeFileSync(join(f.home,'config.json'),JSON.stringify(config));writeFileSync(join(f.root,'status'),initial);
-    writeFileSync(join(f.root,'hold-release'),'');writeFileSync(join(f.root,'hold-restore'),'');
-    if(failStart)writeFileSync(join(f.root,'fail-start'),'');
-    const preserved=await inventory(join(config.state,'data'));
-    const independent=createServer((_request,response)=>response.end('independent ready'));independent.listen(0,'127.0.0.1');await once(independent,'listening');
-    const address=independent.address();assert.ok(address&&typeof address==='object');
-    const before=readFileSync(config.database),complete=readFileSync(join(config.state,'data',f.data,'manifest.json'));
-    const child=spawn(process.execPath,[join(f.tool,'dist/preview/cli.js'),'--home',f.home,'publish','fixture','--refresh-data'],{stdio:['ignore','pipe','pipe']});
-    let stdout='',stderr='';child.stdout.on('data',data=>stdout+=String(data));child.stderr.on('data',data=>stderr+=String(data));
-    const completed=once(child,'close');
-    async function phase(name:string){const deadline=Date.now()+5000;while(!existsSync(join(f.root,name))&&Date.now()<deadline)await delay(10);assert.ok(existsSync(join(f.root,name)),`${name}: ${stderr}`);}
-    try{
-      await phase('paused');assert.equal(readFileSync(join(f.root,'status'),'utf8'),'stopped');
-      child.kill('SIGTERM');
-      await phase('restore-paused');
-      assert.equal(existsSync(join(config.state,'restoration.json')),true);
-      child.kill('SIGINT');child.kill('SIGTERM');
-      assert.equal(child.exitCode,null);
-      rmSync(join(f.root,'hold-restore'));
-
-      assert.deepEqual(await completed,[143,null],stderr);
-      assert.equal(stdout,'');assert.match(stderr,/interrupt/i);assert.match(stderr,failStart?/restoration pending/i:/restored to its prior state/i);
-      assert.equal(readFileSync(join(f.root,'status'),'utf8'),failStart?'stopped':initial);
-      assert.equal(await(await fetch(`http://127.0.0.1:${address.port}`)).text(),'independent ready');
-      assert.deepEqual(await inventory(join(config.state,'data')),preserved);
-      assert.deepEqual(readFileSync(config.database),before);assert.deepEqual(readFileSync(join(config.state,'data',f.data,'manifest.json')),complete);
-      assert.deepEqual(readdirSync(join(config.state,'data')),[f.data]);assert.equal(existsSync(join(config.state,'operations')),false);
-      assert.equal(existsSync(join(config.state,'restoration.json')),failStart);
-      if(failStart){
-        rmSync(join(f.root,'fail-start'));writeFileSync(join(config.repositories['enois-frontend']!,'source'),'dirty after interruption');
-        writeFileSync(join(f.root,'hold-ready'),'');
-        const recovering=spawn(process.execPath,[join(f.tool,'dist/preview/cli.js'),'--home',f.home,'publish','fixture'],{stdio:['ignore','ignore','pipe']});
-        let recoveryError='';recovering.stderr.on('data',data=>recoveryError+=String(data));const recoveryComplete=once(recovering,'close');
-        try{await phase('ready-paused');assert.equal(existsSync(join(config.state,'restoration.json')),true,'record must survive until readiness confirms');rmSync(join(f.root,'hold-ready'));assert.deepEqual(await recoveryComplete,[1,null],recoveryError);assert.match(recoveryError,/source changes.*No service was stopped/);}finally{recovering.kill('SIGKILL');}
-        assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');assert.equal(existsSync(join(config.state,'restoration.json')),false);
-        assert.deepEqual(await inventory(join(config.state,'data')),preserved);assert.deepEqual(readFileSync(config.database),before);
-      }
-      recordEvidence(`capture-${initial}${failStart?'-failed-start':''}`,{transport:'CLI OS signals; controlled service adapter; real H2 fixture',initial,firstSignal:'SIGTERM',furtherSignals:['SIGINT','SIGTERM'],exitCode:143,restorationPendingAtExit:failStart,recoveryReadinessBarrierExercised:failStart,pendingAfterRecovery:existsSync(join(config.state,'restoration.json')),priorH2Sha256:createHash('sha256').update(before).digest('hex'),finalH2Sha256:createHash('sha256').update(readFileSync(config.database)).digest('hex'),previousCompleteDataPreserved:true,independentServiceReady:true,incompleteDataPromoted:false});
-    }finally{independent.closeAllConnections();await new Promise<void>(done=>independent.close(()=>done()));child.kill('SIGKILL');for(const name of ['paused','restore-paused','ready-paused'])if(existsSync(join(f.root,name))){try{process.kill(Number(readFileSync(join(f.root,name),'utf8')),'SIGKILL');}catch{}}rmSync(f.root,{recursive:true,force:true});}
-  }
 });
 
 
@@ -488,17 +477,17 @@ test('CLI interruption cancels HTTP headers and body waits before another reques
 });
 
 
-test('CLI interruption cancels the H2 ownership probe and restores the stopped backend before exit',async()=>{
+test('CLI interruption during the H2 probe ends the publication without promoting data or creating a revision',async()=>{
   const h2=h2Fixture(),f=prepared(h2.root);const config={...f.config,...h2.config,state:f.config.state};
-  writeFileSync(join(f.home,'config.json'),JSON.stringify(config));const bin=join(f.root,'bin');mkdirSync(bin);const executable=resolve('dist/test/fixtures/infrastructure.js');chmodSync(executable,0o755);symlinkSync(executable,join(bin,'fuser'));
-  const barrier=join(f.root,'fuser-paused'),before=readFileSync(config.database);
-  const child=spawn(process.execPath,[join(f.tool,'dist/preview/cli.js'),'--home',f.home,'publish','fixture','--refresh-data'],{env:{...process.env,PATH:`${bin}:${process.env.PATH??''}`,FIXTURE_FUSER_BARRIER:barrier},stdio:['ignore','pipe','pipe']});
+  writeFileSync(join(f.home,'config.json'),JSON.stringify(config));const barrier=join(f.root,'fuser-paused'),before=readFileSync(config.database);
+  const child=spawn(process.execPath,[join(f.tool,'dist/preview/cli.js'),'--home',f.home,'publish','fixture','--refresh-data'],{env:pausingFuser(f.root,barrier),stdio:['ignore','pipe','pipe']});
   let stderr='',stdout='';child.stdout.on('data',data=>stdout+=String(data));child.stderr.on('data',data=>stderr+=String(data));const completed=once(child,'close');
   try{
-    const deadline=Date.now()+5000;while(!existsSync(barrier)&&Date.now()<deadline)await delay(10);assert.ok(existsSync(barrier),stderr);process.kill(Number(readFileSync(barrier,'utf8')),0);
-    assert.equal(readFileSync(join(f.root,'status'),'utf8'),'stopped');child.kill('SIGTERM');
+    const deadline=Date.now()+10000;while(!existsSync(barrier)&&Date.now()<deadline)await delay(10);assert.ok(existsSync(barrier),stderr);process.kill(Number(readFileSync(barrier,'utf8')),0);
+    child.kill('SIGTERM');
     const timer=setTimeout(()=>child.kill('SIGKILL'),2000);try{assert.deepEqual(await completed,[143,null],stderr);}finally{clearTimeout(timer);}
-    assert.equal(stdout,'');assert.match(stderr,/restored to its prior state/);assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');assert.equal(existsSync(join(config.state,'restoration.json')),false);assert.deepEqual(readFileSync(config.database),before);
+    assert.equal(stdout,'');assert.match(stderr,/Interrupted by SIGTERM/);assert.deepEqual(readFileSync(config.database),before);
+    assert.deepEqual(readdirSync(join(config.state,'data')),[f.data]);assert.equal(existsSync(join(config.state,'operations')),false);
   }finally{child.kill('SIGKILL');if(existsSync(barrier)){try{process.kill(Number(readFileSync(barrier,'utf8')),'SIGKILL');}catch{}}rmSync(f.root,{recursive:true,force:true});}
 });
 
@@ -518,85 +507,4 @@ test('interruption during permitted lease cleanup completes release and records 
     recordEvidence('release-interruption',{transport:'real local Git with controlled GitHub lease transport',signal:'SIGTERM',exitCode:143,revision,releaseCheckpoint:journal.checkpoints.releaseLease,reportedRelease:failure.publicationLeaseReleased,validatedReportEmitted:false});assert.match(stderr,new RegExp(`resume ${revision}`));
     assert.equal(spawnSync('git',['-C',join(f.root,'remote.git'),'show-ref','--verify','--quiet','refs/heads/enois-preview-publication-lease']).status,1);
   }finally{child?.kill('SIGKILL');rmSync(f.root,{recursive:true,force:true});}
-});
-
-
-test('interruption during an accepted backend stop settles shutdown before trusting readiness or removing restoration',async()=>{
-  const h2=h2Fixture(),f=prepared(h2.root);const config={...f.config,...h2.config,state:f.config.state,service:{...h2.config.service,timeout:15}};
-  writeFileSync(join(f.home,'config.json'),JSON.stringify(config));writeFileSync(join(f.root,'hold-stop'),'');
-  const before=readFileSync(config.database),preserved=await inventory(join(config.state,'data'));
-  const child=spawn(process.execPath,[join(f.tool,'dist/preview/cli.js'),'--home',f.home,'publish','fixture','--refresh-data'],{stdio:['ignore','pipe','pipe']});
-  let stderr='',stdout='';child.stdout.on('data',data=>stdout+=String(data));child.stderr.on('data',data=>stderr+=String(data));const completed=once(child,'close');
-  async function phase(name:string,timeout=5000){const deadline=Date.now()+timeout;while(!existsSync(join(f.root,name))&&Date.now()<deadline)await delay(10);return existsSync(join(f.root,name));}
-  try{
-    assert.equal(await phase('stop-worker.pid'),true,stderr);assert.equal(await phase('stop-paused'),true);process.kill(Number(readFileSync(join(f.root,'stop-worker.pid'),'utf8')),0);
-    assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');assert.equal(spawnSync(process.execPath,[resolve('dist/test/fixtures/service.js'),f.root,'ready'],{encoding:'utf8'}).stdout.trim(),'ready');
-    child.kill('SIGTERM');
-    const draining=await phase('stop-draining',2000);
-    if(!draining){writeFileSync(join(f.root,'finish-stop'),'');const deadline=Date.now()+1000;while(readFileSync(join(f.root,'status'),'utf8')!=='stopped'&&Date.now()<deadline)await delay(10);}
-    assert.equal(draining,true,`accepted stop left backend=${readFileSync(join(f.root,'status'),'utf8')}, restoration=${existsSync(join(config.state,'restoration.json'))}: ${stderr}`);
-    assert.equal(existsSync(join(config.state,'restoration.json')),true);assert.equal(child.exitCode,null);child.kill('SIGINT');
-    writeFileSync(join(f.root,'finish-stop'),'');const timer=setTimeout(()=>child.kill('SIGKILL'),3000);try{assert.deepEqual(await completed,[143,null],stderr);}finally{clearTimeout(timer);}
-    assert.equal(stdout,'');assert.match(stderr,/restored to its prior state/);assert.equal(readFileSync(join(f.root,'status'),'utf8'),'running');assert.equal(existsSync(join(config.state,'restoration.json')),false);
-    assert.deepEqual(readFileSync(config.database),before);assert.deepEqual(await inventory(join(config.state,'data')),preserved);assert.equal(existsSync(join(config.state,'operations')),false);
-    recordEvidence('stop-transition-interruption',{transport:'CLI OS signals; controlled adapter with independent accepted shutdown worker',firstSignal:'SIGTERM',furtherSignal:'SIGINT',exitCode:143,healthyBeforePendingShutdown:true,shutdownSettledBeforeRestoration:true,backendRestored:true,restorationRecordRetainedUntilSettled:true,completeDataPreserved:true});
-  }finally{child.kill('SIGKILL');for(const name of ['stop-worker.pid','stop-paused','stop-draining'])if(existsSync(join(f.root,name))){try{process.kill(Number(readFileSync(join(f.root,name),'utf8')),'SIGKILL');}catch{}}rmSync(f.root,{recursive:true,force:true});}
-});
-
-
-for(const variant of ['timeout','sigkill'] as const)test(`a restoration interrupted during an accepted stop stays pending across processes until shutdown settles and readiness returns (${variant})`,async()=>{
-  const h2=h2Fixture(),f=prepared(h2.root);const config={...f.config,...h2.config,state:f.config.state,service:{...h2.config.service,timeout:3}};
-  writeFileSync(join(f.home,'config.json'),JSON.stringify(config));writeFileSync(join(f.root,'hold-stop'),'');
-  const record=join(config.state,'restoration.json'),marker=(name:string)=>join(f.root,name),status=()=>readFileSync(marker('status'),'utf8');
-  const before=readFileSync(config.database),preserved=await inventory(join(config.state,'data')),complete=readFileSync(join(config.state,'data',f.data,'manifest.json'));
-  const independent=createServer((_request,response)=>response.end('independent ready'));independent.listen(0,'127.0.0.1');await once(independent,'listening');
-  const address=independent.address();assert.ok(address&&typeof address==='object');
-  const orphans:number[]=[];const remember=(name:string)=>{if(existsSync(marker(name)))orphans.push(Number(readFileSync(marker(name),'utf8')));};
-  async function phase(name:string,timeout=5000){const deadline=Date.now()+timeout;while(!existsSync(marker(name))&&Date.now()<deadline)await delay(10);return existsSync(marker(name));}
-  const child=spawn(process.execPath,[join(f.tool,'dist/preview/cli.js'),'--home',f.home,'publish','fixture','--refresh-data'],{stdio:['ignore','pipe','pipe']});
-  let stderr='',stdout='';child.stdout.on('data',data=>stdout+=String(data));child.stderr.on('data',data=>stderr+=String(data));const completed=once(child,'close');
-  let recovering:ReturnType<typeof spawn>|undefined;
-  try{
-    assert.equal(await phase('stop-worker.pid'),true,stderr);assert.equal(await phase('stop-paused'),true,stderr);
-    assert.equal(status(),'running');assert.equal(spawnSync(process.execPath,[resolve('dist/test/fixtures/service.js'),f.root,'ready'],{encoding:'utf8'}).stdout.trim(),'ready');
-    if(variant==='timeout'){
-      child.kill('SIGINT');
-      assert.equal(await phase('stop-draining',3000),true,`restoration must settle the accepted stop: ${stderr}`);
-      assert.equal(child.exitCode,null);child.kill('SIGTERM');
-      const timer=setTimeout(()=>child.kill('SIGKILL'),10000);try{assert.deepEqual(await completed,[130,null],stderr);}finally{clearTimeout(timer);}
-      assert.equal(stdout,'');assert.match(stderr,/restoration pending/);
-    }else{
-      remember('stop-paused');child.kill('SIGKILL');assert.deepEqual(await completed,[null,'SIGKILL']);
-    }
-    assert.equal(existsSync(record),true,'restoration record retained after the first process');assert.equal(status(),'running');assert.equal(existsSync(marker('stop-pending')),true);
-    remember('stop-paused');remember('stop-draining');
-    for(const name of ['stop-draining','stop-paused','ready-paused'])rmSync(marker(name),{force:true});
-    const eventsBefore=readFileSync(marker('events'),'utf8').length;const newEvents=()=>readFileSync(marker('events'),'utf8').slice(eventsBefore).trim().split('\n').filter(Boolean);
-    writeFileSync(join(config.repositories['enois-frontend']!,'source'),'dirty after interruption');writeFileSync(marker('hold-ready'),'');
-    recovering=spawn(process.execPath,[join(f.tool,'dist/preview/cli.js'),'--home',f.home,'publish','fixture'],{stdio:['ignore','ignore','pipe']});
-    let recoveryError='';recovering.stderr!.on('data',data=>recoveryError+=String(data));const recoveryComplete=once(recovering,'close');
-    const window=Date.now()+1500;
-    while(Date.now()<window&&!existsSync(marker('stop-draining'))&&!existsSync(marker('ready-paused'))&&recovering.exitCode===null)await delay(10);
-    assert.equal(existsSync(marker('stop-pending')),true,'accepted shutdown still pending during observation');
-    assert.equal(recovering.exitCode,null,recoveryError);assert.equal(existsSync(record),true,'record kept while shutdown is pending');
-    assert.equal(existsSync(marker('ready-paused')),false,`readiness trusted while the accepted stop is pending: ${newEvents().join(',')}`);
-    assert.deepEqual(newEvents().filter(event=>event==='ready'||event==='start'),[]);assert.doesNotMatch(recoveryError,/source changes/);
-    writeFileSync(marker('finish-stop'),'');
-    assert.equal(await phase('ready-paused'),true,recoveryError);
-    assert.equal(status(),'running');assert.equal(existsSync(record),true,'record must survive until readiness confirms');
-    const events=newEvents();assert.ok(events.includes('start'),events.join(','));assert.ok(events.indexOf('start')<events.lastIndexOf('ready'),events.join(','));
-    const firstEffect=events.findIndex(event=>event==='stop'||event==='start');assert.ok(events.indexOf('identity')!==-1&&events.indexOf('identity')<firstEffect,events.join(','));
-    rmSync(marker('hold-ready'));
-    assert.deepEqual(await recoveryComplete,[1,null],recoveryError);assert.match(recoveryError,/source changes.*No service was stopped/);
-    assert.equal(status(),'running');assert.equal(existsSync(record),false);
-    assert.deepEqual(readFileSync(config.database),before);assert.deepEqual(await inventory(join(config.state,'data')),preserved);
-    assert.deepEqual(readFileSync(join(config.state,'data',f.data,'manifest.json')),complete);assert.equal(existsSync(join(config.state,'operations')),false);
-    assert.equal(await(await fetch(`http://127.0.0.1:${address.port}`)).text(),'independent ready');
-    recordEvidence(`cross-process-shutdown-${variant}`,{transport:'two CLI processes; controlled adapter with independent accepted shutdown worker; real H2 fixture',firstProcess:variant==='timeout'?{firstSignal:'SIGINT',furtherSignal:'SIGTERM',exitCode:130,restorationTimedOut:true}:{signal:'SIGKILL',finallyRan:false},restorationPendingAfterFirstProcess:true,shutdownPendingAtSecondProcess:true,readinessQueriedWhileShutdownPending:false,recordRetainedWhileShutdownPending:true,secondProcessEvents:events,identityBeforeEffects:true,startBeforeReady:true,dirtySourceRefusalAfterRecovery:true,recordAfterRecovery:false,finalStatus:'running',priorH2Sha256:createHash('sha256').update(before).digest('hex'),finalH2Sha256:createHash('sha256').update(readFileSync(config.database)).digest('hex'),completeDataPreserved:true,independentServiceReady:true,operationsCreated:false});
-  }finally{
-    child.kill('SIGKILL');recovering?.kill('SIGKILL');if(existsSync(f.root))writeFileSync(marker('finish-stop'),'');
-    for(const name of ['stop-worker.pid','stop-paused','stop-draining','ready-paused'])remember(name);
-    for(const pid of orphans){try{process.kill(pid,'SIGKILL');}catch{}}
-    independent.closeAllConnections();await new Promise<void>(done=>independent.close(()=>done()));rmSync(f.root,{recursive:true,force:true});
-  }
 });

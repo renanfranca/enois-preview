@@ -2,8 +2,11 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Journal } from './publication.js';
 import { inventory, object, PreviewError, privateDir, run, sha, commandRunner, string, verify, writeRecord } from './state.js';
+import { warn } from './warnings.js';
 
-export interface ImageEvidence { seedMediaVerified: true; licenseNoticesVerified: true; designSystemSha256: string; frontendDependency: string; designSystemVersion: string; frontendResolutionSha256: string }
+export interface ImageEvidence { seedMediaVerified: boolean; licenseNoticesVerified: boolean; designSystemSha256: string | null; frontendDependency: string | null; designSystemVersion: string | null; frontendResolutionSha256: string | null }
+async function same(file: string, expected: string): Promise<boolean> { try { return await sha(file) === expected; } catch { return false; } }
+/** Inspects the built image. Every difference is reported as a warning; only an image Docker cannot create or copy from stops here. */
 export async function verifyImage(image: string, journal: Journal, directory: string, signal?: AbortSignal): Promise<ImageEvidence> {
   signal?.throwIfAborted();
   const command=commandRunner(signal);
@@ -13,25 +16,32 @@ export async function verifyImage(image: string, journal: Journal, directory: st
     await command(['docker','create','--name',container,image]);
     temporary = await mkdtemp(join(directory,'.image-')); await privateDir(temporary);
     for (const name of ['seed','media','provenance','licenses']) await command(['docker','cp',`${container}:/opt/render-demo/${name}`,join(temporary,name)]);
+    let licenses = true;
     for (const project of ['enois-backend','enois-frontend','enois-design-system']) {
-      if (await sha(join(temporary,'licenses',`${project}.LICENSE`)) !== await sha(join(directory,'frozen/sources',project,'LICENSE'))) throw new PreviewError('Packaged application license differs from its frozen source notice.');
+      let expected: string | undefined; try { expected = await sha(join(directory,'frozen/sources',project,'LICENSE')); } catch { expected = undefined; }
+      if (expected === undefined || !await same(join(temporary,'licenses',`${project}.LICENSE`),expected)) { licenses = false; warn('image-license-notice', `Packaged ${project} license differs from its frozen source notice.`); }
     }
-    const notices = await inventory(join(directory,'frozen/recipe/licenses'));
-    for (const [path,expected] of Object.entries(notices)) {
-      if (await sha(join(temporary,'licenses',path)) !== expected.sha256) throw new PreviewError('Model license notice missing from image.');
+    for (const [path,expected] of Object.entries(await inventory(join(directory,'frozen/recipe/licenses')))) {
+      if (!await same(join(temporary,'licenses',path),expected.sha256)) { licenses = false; warn('image-license-notice', `Model license notice ${path} is missing from the image.`); }
     }
-    const expected = journal.inputs.dataManifest;
-    for (const mapping of expected.media) await verify(join(temporary,'media',mapping.directory),mapping.inventory);
+    const expected = journal.inputs.dataManifest; let seedMedia = true;
+    for (const mapping of expected.media) { try { await verify(join(temporary,'media',mapping.directory),mapping.inventory); } catch { seedMedia = false; warn('image-media-inventory', `Image media under ${mapping.url} differs from the frozen inventory.`); } }
     for (const [path,file] of Object.entries(expected.files)) {
-      if (path.startsWith('seed/') && await sha(join(temporary,path)) !== file.sha256) throw new PreviewError('Image seed mismatch.');
+      if (path.startsWith('seed/') && !await same(join(temporary,path),file.sha256)) { seedMedia = false; warn('image-seed-inventory', `Image ${path} differs from the frozen seed.`); }
     }
     const ds = join(temporary,'provenance/design-system.tgz');
-    if ((await stat(ds)).size === 0) throw new PreviewError('Fresh design system package missing from image.');
-    const resolution = object(JSON.parse(await readFile(join(temporary,'provenance/frontend-package-lock.json'),'utf8')));
-    const dependency = object(object(resolution.packages)['node_modules/@rede-enois/design-system']);
-    const source = object(JSON.parse(await readFile(join(directory,'frozen/sources/enois-design-system/package.json'),'utf8')));
-    if (dependency.version !== source.version || dependency.resolved !== 'file:../design-system.tgz') throw new PreviewError('Frontend did not consume the freshly built design system package from the captured commit.');
-    const result: ImageEvidence = { seedMediaVerified:true,licenseNoticesVerified:true,designSystemSha256:await sha(ds),frontendDependency:string(dependency.resolved),designSystemVersion:string(dependency.version),frontendResolutionSha256:await sha(join(temporary,'provenance/frontend-package-lock.json')) };
+    let designSystemSha256: string | null = null, frontendDependency: string | null = null, designSystemVersion: string | null = null, frontendResolutionSha256: string | null = null;
+    try {
+      if ((await stat(ds)).size === 0) throw new PreviewError('empty');
+      designSystemSha256 = await sha(ds);
+      const resolution = object(JSON.parse(await readFile(join(temporary,'provenance/frontend-package-lock.json'),'utf8')));
+      const dependency = object(object(resolution.packages)['node_modules/@rede-enois/design-system']);
+      const source = object(JSON.parse(await readFile(join(directory,'frozen/sources/enois-design-system/package.json'),'utf8')));
+      frontendDependency = typeof dependency.resolved === 'string' ? dependency.resolved : null; designSystemVersion = typeof dependency.version === 'string' ? dependency.version : null;
+      frontendResolutionSha256 = await sha(join(temporary,'provenance/frontend-package-lock.json'));
+      if (dependency.version !== source.version || dependency.resolved !== 'file:../design-system.tgz') warn('image-design-system', 'Frontend did not resolve the freshly built design system package from the captured commit.');
+    } catch { warn('image-design-system', 'Fresh design system package or frontend resolution is missing from the image.'); }
+    const result: ImageEvidence = { seedMediaVerified:seedMedia,licenseNoticesVerified:licenses,designSystemSha256,frontendDependency,designSystemVersion,frontendResolutionSha256 };
     await writeRecord(join(directory,'image-evidence.json'),result); return result;
   } finally { try { await run(['docker','rm','-f',container]); } finally { if(temporary)await rm(temporary,{recursive:true,force:true}); } }
 }

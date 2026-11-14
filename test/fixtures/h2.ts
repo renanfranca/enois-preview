@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -27,11 +27,16 @@ INSERT INTO LINKEDIN_CONNECTIONS VALUES('author','integration-marker');
 INSERT INTO POSTS VALUES('post','author','fictional preserved content');
 ${additionalSql}`);
   command('java', '-cp', h2Jar, 'org.h2.tools.RunScript', '-url', `jdbc:h2:file:${root}/live;MODE=MySQL`, '-user', 'sa', '-script', sql);
-  writeFileSync(join(root, 'status'), 'running');
   const media = join(root, 'media'); mkdirSync(media); writeFileSync(join(media, 'image.bin'), 'fictional');
   const config = { format: 'enois-preview-ts-v1', state: join(root, 'private'), database: join(root, 'live.mv.db'), h2Jar,
     accounts: [{ id: 'author', email: 'author@enois.invalid', label: 'Author' }, { id: 'reader', email: 'reader@enois.invalid', label: 'Reader' }],
-    media: [{ root: media, url: '/fixture/' }],
-    service: { ...Object.fromEntries(['status','identity','stop','start','ready','released'].map(action => [action, [process.execPath, resolve('dist/test/fixtures/service.js'), root, action]])), expectedIdentity: 'fixture-backend', timeout: 2 } };
+    media: [{ root: media, url: '/fixture/' }] };
   return { root, config, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+/** A PATH directory whose `fuser` pauses while writing its PID to `barrier`: capture always consults fuser before copying. */
+export function pausingFuser(root: string, barrier: string): NodeJS.ProcessEnv {
+  const bin = join(root, 'pause-bin'); mkdirSync(bin, { recursive: true });
+  const executable = resolve('dist/test/fixtures/infrastructure.js'); chmodSync(executable, 0o755);
+  if (!existsSync(join(bin, 'fuser'))) symlinkSync(executable, join(bin, 'fuser'));
+  return { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, FIXTURE_FUSER_BARRIER: barrier };
 }

@@ -54,7 +54,7 @@ test('transport refuses visitor access, wrong offsets and oversized totals, and 
   const headers={'X-Demo-Upload-Secret':secret,'X-Demo-Upload-Path':uploadPath,'X-Demo-Upload-Offset':'0','X-Demo-Upload-Total':'100'};
   try {
     assert.equal((await fetch(origin+path,{method:'POST',headers:{...headers,'X-Demo-Upload-Secret':'visitor'},body:'x'})).status,403);
-    assert.equal((await fetch(origin+path,{method:'POST',headers:{...headers,'X-Demo-Upload-Total':'20971521'},body:'x'})).status,400);
+    assert.equal((await fetch(origin+path,{method:'POST',headers:{...headers,'X-Demo-Upload-Total':'100000001'},body:'x'})).status,400);
     assert.equal((await fetch(origin+path,{method:'POST',headers:{...headers,'X-Demo-Upload-Offset':'1'},body:'x'})).status,409);
     assert.equal(requests,0);
     assert.equal((await fetch(origin+path,{method:'POST',headers,body:'x'})).status,202);
@@ -64,7 +64,7 @@ test('transport refuses visitor access, wrong offsets and oversized totals, and 
 });
 
 
-test('public 20 MiB request is fragmented below the tunnel limit and reaches one backend upload',async()=>{
+test('a public 50 MB request is fragmented below the tunnel limit and reaches one backend upload, while one above 100 MB is refused',async()=>{
   let uploads=0,bytes=0;const partLengths:number[]=[];
   const backend=http.createServer((request,response)=>{uploads++;request.on('data',data=>bytes+=data.length);request.on('end',()=>response.writeHead(204).end());});
   const backendOrigin=await listen(backend);
@@ -72,11 +72,16 @@ test('public 20 MiB request is fragmented below the tunnel limit and reaches one
   const gateway=http.createServer((request,response)=>{partLengths.push(Number(request.headers['content-length']));handler(request,response);});
   const origin=await listen(gateway);
   try {
-    const headers=new Headers({'Content-Length':'20971520',Origin:'https://preview.example','Content-Type':'audio/wav','X-CSRF-Protection':'1'});
-    const request=new Request('https://preview.example'+uploadPath,{method:'PUT',headers,body:new Uint8Array(20_971_520)});
+    const headers=new Headers({'Content-Length':'50000000',Origin:'https://preview.example','Content-Type':'audio/wav','X-CSRF-Protection':'1'});
+    const request=new Request('https://preview.example'+uploadPath,{method:'PUT',headers,body:new Uint8Array(50_000_000)});
+    const oversized=new Headers({'Content-Length':'100000001'});
+
     const result=await forwardUpload(request,origin,headers,fetch,secret);
-    assert.equal(result.status,204);assert.equal(uploads,1);assert.equal(bytes,20_971_520);
-    assert.deepEqual(partLengths,[8_388_608,8_388_608,4_194_304]);
+    const refused=await forwardUpload(new Request('https://preview.example'+uploadPath,{method:'PUT',headers:oversized,body:new Uint8Array(1)}),origin,oversized,fetch,secret);
+
+    assert.equal(result.status,204);assert.equal(uploads,1);assert.equal(bytes,50_000_000);
+    assert.deepEqual(partLengths,[8_388_608,8_388_608,8_388_608,8_388_608,8_388_608,8_056_960]);
+    assert.equal(refused.status,413);assert.match(await refused.text(),/100 MB/);assert.equal(uploads,1);
   } finally {handler.close();await close(gateway);await close(backend);}
 });
 
@@ -110,4 +115,24 @@ test('the production gateway connects the authenticated Worker fragment transpor
 
     assert.equal(response.status,204);await response.body?.cancel();assert.equal(uploads,1);assert.equal(received,20971520);
   }finally{if(gateway)await close(gateway);await close(backend);await rm(root,{recursive:true,force:true});if(originalSecret===undefined)delete process.env.DEMO_CALLBACK_SECRET;else process.env.DEMO_CALLBACK_SECRET=originalSecret;if(originalTarget===undefined)delete process.env.BACKEND_TARGET;else process.env.BACKEND_TARGET=originalTarget;}
+});
+
+test('the production gateway forwards application routes such as support to the backend and keeps /__demo/ reserved',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'enois-gateway-routes-'));const originalTarget=process.env.BACKEND_TARGET;
+  const received:string[]=[];
+  const backend=http.createServer((request,response)=>{received.push(`${request.method} ${request.url}`);response.writeHead(418,{'Content-Type':'application/json'}).end('{"from":"backend"}');});
+  let gateway:http.Server|undefined;
+  try{
+    const backendOrigin=await listen(backend);process.env.BACKEND_TARGET=backendOrigin;
+    const manifest=join(root,'manifest.json');await writeFile(manifest,JSON.stringify({format:'enois-preview-ts-v1',media:[]}));gateway=createGateway({mediaRoot:root,manifestPath:manifest});const origin=await listen(gateway);
+
+    const support=await fetch(origin+'/api/support/x');
+    const reserved=await fetch(origin+'/__demo/x');
+    const semicolon=await fetch(origin+'/api/me;x');
+
+    assert.equal(support.status,418);assert.deepEqual(await support.json(),{from:'backend'});
+    assert.equal(reserved.status,403);await reserved.body?.cancel();
+    assert.equal(semicolon.status,403);await semicolon.body?.cancel();
+    assert.deepEqual(received,['GET /api/support/x']);
+  }finally{if(gateway)await close(gateway);await close(backend);await rm(root,{recursive:true,force:true});if(originalTarget===undefined)delete process.env.BACKEND_TARGET;else process.env.BACKEND_TARGET=originalTarget;}
 });

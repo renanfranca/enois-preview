@@ -56,13 +56,13 @@ Short name you choose for a preview, such as `my-scenario`. Only lowercase lette
 
 ### Revision
 
-A 64 character sha256 identifier computed over every frozen input: the scenario name, the commits of the three applications, the files exported from those commits, the data version, the image recipe (`recipe/`), the Codespace runtime (`runtime/`), the Worker (`src/`), the compiled `dist` and the `toolCommit` (the tool commit, explained below). The public link uses `<scenario>-<first 16 characters of the revision>`.
+A 64 character sha256 identifier computed over every frozen input: the scenario name, the commits of the three applications, the files exported from those commits, the data version, the image recipe (`recipe/`), the Codespace runtime (`runtime/`), the Worker (`src/`), and the compiled `dist`. The tool commit is recorded, but it is not part of the revision, because those inventories already identify what is built. The public link uses `<scenario>-<first 16 characters of the revision>`.
 
 **Why it matters to you:** if nothing changed, the revision and the link stay the same. Any new commit produces another revision and another link, which you must paste into the PR. To resume a publication, use the **full** 64 character revision.
 
 ### Frozen data and capture
 
-**Capture** stops the local backend (only if it is running), copies the H2 database and the configured media folders, and returns the backend to its previous state. Then it **sanitizes** the copy, that is, removes sessions, tokens and passwords from it: only the selected accounts keep a login. Those logins use invented `@enois.invalid` emails, as [Use my own data](RECIPES.md#8-use-my-own-data) explains. The result lives in `<state>/data/<id>/`, where `<state>` is the `state` field of your configuration.
+**Capture** copies the H2 database and the configured media folders to private state, without stopping, starting or waiting for your backend. If the file looks in use (`fuser` reports it, or `rede.lock.db` sits next to it), the result carries the `database-in-use` warning; if the file changed during the copy, `database-changed-during-copy`. The copy is still used, and a damaged copy shows up as a build or validation failure. Then capture **sanitizes** the copy, that is, removes sessions, tokens and passwords from it: only the selected accounts keep a login. An unrecognized credential-like column does not stop capture: it is named as `TABLE.COLUMN` in the `credential-column` warning. Those logins use invented `@enois.invalid` emails, as [Use my own data](RECIPES.md#8-use-my-own-data) explains. The result lives in `<state>/data/<id>/`, where `<state>` is the `state` field of your configuration.
 
 **Why it matters to you:** capture happens only on a scenario's first `publish` or when you ask for `--refresh-data`. Other publications do not even read the local database. An incomplete capture never replaces the previous complete data.
 
@@ -76,19 +76,21 @@ The file `<state>/operations/<revision>/journal.json`. It records the current st
 
 A lock that prevents two operations from touching the same thing at once. Local leases are files locked with `flock` (for example `<state>/publication.lock`). The remote lease is the ref `refs/heads/enois-preview-publication-lease` in the launcher.
 
-**Why it matters to you:** if a lease is held, another operation may still be alive. Never delete another operation's lease; wait, or use `resume` after its owner finishes.
+**Why it matters to you:** if a lease is held, another operation may still be alive. Wait, or use `resume` after its owner finishes. When you know the other operation is dead, `publish --force-lease` or `resume --force-lease` deletes its remote lease, records the takeover in `journal.intents.remoteLease.forced` and reports the `lease-forced` warning. Without the flag, the tool waits and refuses as before.
 
-### `restoration.json`
+### Tool commit and `install.json`
 
-The file `<state>/restoration.json`, written before capture stops the backend. It says how the backend was (running or stopped) and with which service configuration.
+`install.json` lives inside an installation and records its public commit and the hashes of the source and `dist`. Before `publish` and `resume`, the tool recomputes those hashes. When they match, the journal and the result record that commit as `toolCommit` with `toolVerified: true`. Otherwise, such as in a development checkout or an installation changed by `npm run`, the tool still runs: it records the checkout's Git `HEAD` (or `null`), sets `toolVerified: false` and reports the `unverified-tool` warning.
 
-**Why it matters to you:** if backend restoration fails, this file stays. The next `publish` or `resume` reads it and returns the backend to its previous state before inspecting sources. Do not delete it.
+The configuration no longer has a `toolCommit` field. A 0.3.x configuration that still carries it, or `service` or `installation`, loads normally; those fields are ignored and preserved, with one `ignored-config-fields` warning.
 
-### `toolCommit` and `install.json`
+**Why it matters to you:** if the launcher's `tool.lock.json` or its `enois-preview` dependency pins another commit, publication continues with the `launcher-pin` warning naming both commits. The launcher is never repinned automatically; repin it yourself when you want the Worker to use this version.
 
-`toolCommit` is the full public tool commit, set by you and equal to the one pinned in the launcher's `tool.lock.json`. `install.json` lives inside the installation and records that commit and the hashes of the source and `dist`.
+### Warning
 
-**Why it matters to you:** before `publish` and `resume`, the tool recomputes the hashes. If the installation was changed (for example, someone ran `npm run` inside it) or belongs to another commit, it refuses before any effect.
+A message about something the tool observed that does not stop the operation, such as `source-dirty` or `database-in-use`. The final JSON of `setup`, `publish`, `resume` and `source-digest` always carries `warnings: [{code, message}]`, and each warning is also printed on stderr as `warning: <message>`.
+
+**Why it matters to you:** only three things stop an operation: the application does not build or run, the tool cannot identify the revision it built and published, or a selected account cannot log in. Read the warnings before sharing the link.
 
 ## In one sentence
 
@@ -104,7 +106,7 @@ Code always comes from the **current commits** of the three applications, export
 | Show new data or media | `enois-preview publish <scenario> --refresh-data` | Yes |
 | Finish a failed publication | `enois-preview resume <full-revision>` | Never |
 
-On the first capture, the tool stops only the backend identified in the configuration. The design system package is rebuilt from its commit for every image.
+Capture never stops your backend. The design system package is rebuilt from its commit for every image.
 
 That is why, after the first capture, you can publish new code even with the local H2 unavailable.
 
@@ -126,10 +128,9 @@ The trade off: to change anything, you produce a new revision and update the PR 
 | --- | --- |
 | `~/.local/share/enois-preview/<COMMIT>/` | Immutable tool installation, with `install.json` |
 | `~/.local/share/enois-preview/current` | Link to the installation in use |
-| `~/.config/enois-preview-ts/config.json` | Private configuration and initial Free plan confirmation. Change the directory with `ENOIS_PREVIEW_HOME` or `--home` |
+| `~/.config/enois-preview-ts/config.json` | Private configuration. Change the directory with `ENOIS_PREVIEW_HOME` or `--home` |
 | `<state>/scenarios/<scenario>.json` | Which data version the scenario uses |
 | `<state>/data/<id>/` | Frozen, sanitized data |
 | `<state>/operations/<revision>/` | Journal, frozen files and evidence for each revision |
-| `<state>/restoration.json` | Pending backend restoration, when present |
 | Launcher: `catalog/scenarios.json` | Catalog of published revisions |
 | Launcher: `.devcontainer/<slug>/` | Codespace configuration for each revision |

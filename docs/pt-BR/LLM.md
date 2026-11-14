@@ -6,20 +6,19 @@ Este guia descreve como um assistente deve ajudar o operador; ele não garante c
 
 ## Como orientar
 
-- Use exatamente os comandos públicos: `enois-preview setup`, `enois-preview publish <cenario>`, `enois-preview publish <cenario> --refresh-data`, `enois-preview resume <revisao>` e `enois-preview source-digest` (que só lê). “Publicar de novo” significa `publish` sem refresh.
+- Use exatamente os comandos públicos: `enois-preview setup`, `enois-preview publish <cenario>`, `enois-preview publish <cenario> --refresh-data`, `enois-preview publish <cenario> --accounts ID[,ID...]`, `enois-preview resume <revisao>` e `enois-preview source-digest` (que só lê). O `--force-lease` no `publish` ou no `resume` apaga a lease remota de outra operação; sugira só quando o operador confirmar que essa operação morreu. “Publicar de novo” significa `publish` sem refresh.
 - Para cada situação, siga a receita correspondente em [Receitas](RECIPES.md) e copie a mensagem de erro real do CLI ao procurar a causa.
 - Instalação, autenticação, preparação, `publish` e `resume` acontecem no terminal local. O Codespace deve iniciar sozinho; precisar abrir o terminal dele para copiar arquivos ou iniciar processos é uma falha de boot, não uma etapa normal.
-- Só apresente um link como validado se o CLI terminar com status zero e um relatório com saúde pública, identidades, mídia e revisão correspondentes. Relate falhas e lacunas.
+- Só apresente um link como validado se o CLI terminar com status zero e um relatório com prontidão pública, identidade da revisão e login de cada conta selecionada. Leia `warnings: [{code, message}]` no JSON final e relate cada aviso ao operador; um aviso nunca para o comando, mas pode importar para o PR. Relate falhas e lacunas.
 - Oriente o operador a atualizar o link no pull request (PR) e a testar a funcionalidade específica. O link imutável não promete disponibilidade permanente, e os visitantes compartilham estado e contas.
-- Numa captura incompleta, informe o estado da restauração e a ação de repetição. Numa interrupção, siga a [receita de Ctrl+C e SIGTERM](RECIPES.md#6-ctrlc-sigterm-ou-processo-morto): espere a restauração, preserve `restoration.json` e use `resume` para uma revisão já congelada.
+- Numa captura incompleta, informe o motivo e a ação de repetição. Numa interrupção, siga a [receita de Ctrl+C e SIGTERM](RECIPES.md#6-ctrlc-sigterm-ou-processo-morto): use `resume` para uma revisão já congelada. A captura nunca para o backend do operador.
 
 ## Proibições
 
-- Não peça ao operador que cole tokens, senhas, cookies ou arquivos privados na conversa. Autenticação e confirmação financeira inicial acontecem diretamente no terminal ou na interface oficial da plataforma.
-- Não renove a conferência financeira em `publish`, `resume` ou porque o tempo passou.
+- Não peça ao operador que cole tokens, senhas, cookies ou arquivos privados na conversa. Autenticação acontece diretamente no terminal ou na interface oficial da plataforma.
 - Não substitua os comandos públicos por uma sequência manual de Docker, Git, GHCR e Wrangler.
-- Não comite automaticamente as mudanças do operador. Antes de publicar, confira que as três aplicações têm commits e fontes limpas; o CLI exporta os commits e prepara a demo fora das aplicações.
-- Não apague arquivos privados, journals, `restoration.json` nem leases de outra operação.
+- Não comite automaticamente as mudanças do operador. Antes de publicar, lembre o operador de que só o `HEAD` comitado é publicado e de que o aviso `source-dirty` indica mudanças deixadas de fora; o CLI exporta os commits e prepara a demo fora das aplicações.
+- Não apague à mão arquivos privados, journals nem leases de outra operação.
 - `resume` nunca deve recapturar dados sob uma identidade antiga.
 - Não edite o PR automaticamente.
 - Não sugira raspar nem importar conteúdo de outras pessoas para reproduzir um problema. Recomende dados fictícios moldados no caso, como em [Mostrar no PR que o problema foi resolvido](RECIPES.md#9-mostrar-no-pr-que-o-problema-foi-resolvido).
@@ -30,4 +29,4 @@ Este guia descreve como um assistente deve ajudar o operador; ele não garante c
 
 ## Cadeia de ferramentas
 
-A cadeia própria é TypeScript: use Node 24.x (`>=24 <25`) e compile com `npm run build` após `npm ci --ignore-scripts`. Publicação e retomada usam só a instalação verificada criada por `install-tool` (veja [`toolCommit` e `install.json`](CONCEPTS.md#toolcommit-e-installjson)). O lançador privado também compila a dependência explicitamente e usa `launcher.ts`.
+A cadeia própria é TypeScript: use Node 24.x (`>=24 <25`) e compile com `npm run build` após `npm ci --ignore-scripts`. Publicação e retomada registram se rodam de uma instalação verificada criada por `install-tool`; qualquer outra ferramenta roda com o aviso `unverified-tool` (veja [commit da ferramenta e `install.json`](CONCEPTS.md#commit-da-ferramenta-e-installjson)). O lançador privado também compila a dependência explicitamente e usa `launcher.ts`.

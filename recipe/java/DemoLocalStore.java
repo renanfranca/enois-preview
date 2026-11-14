@@ -8,16 +8,13 @@ import com.socialcoisa.rede.media.application.port.out.MediaStorageGateway;
 import com.socialcoisa.rede.media.domain.MediaAsset;
 import com.socialcoisa.rede.shared.web.ApiException;
 
-/** One store per boot. Reservations include processing time and are shared by all users. */
+/** One store per boot. One per file limit (the Cloudflare Free plan request body ceiling); the Codespace disk is the only capacity limit. */
 public final class DemoLocalStore implements MediaObjectStore, MediaStorageGateway {
-    public static final long FILE_LIMIT = 20L * 1024 * 1024;
-    public static final long TOTAL_LIMIT = 256L * 1024 * 1024;
+    public static final long FILE_LIMIT = 100_000_000L;
     private final Path root;
-    private final java.util.concurrent.Semaphore processing = new java.util.concurrent.Semaphore(2, true);
-    private final Map<String, Long> reservations = new HashMap<>();
+    private final Set<String> writing = new HashSet<>();
     private final Map<String, Long> sizes = new HashMap<>();
     private final Map<String, Path> seeds = new HashMap<>();
-    private long stored = 0, reserved = 0;
     public DemoLocalStore(Path root) throws IOException {
         this.root = root.toAbsolutePath().normalize();
         Files.createDirectories(this.root);
@@ -39,35 +36,13 @@ public final class DemoLocalStore implements MediaObjectStore, MediaStorageGatew
         if (!result.startsWith(root)) throw new ApiException(400, "MEDIA_INVALID_KEY", "Chave de midia invalida.");
         return result;
     }
-    public interface Reservation extends AutoCloseable { @Override void close(); }
-    public Reservation reserve(String key, long length) {
-        synchronized (this) {
-            path(key);
-            if (length <= 0 || length > FILE_LIMIT) throw new ApiException(413, "MEDIA_TOO_LARGE", "Limite de 20 MiB por arquivo.");
-            if (reservations.containsKey(key) || sizes.containsKey(key)) throw new ApiException(409, "MEDIA_ALREADY_STORED", "Esta midia ja foi enviada.");
-            if (stored + reserved + length > TOTAL_LIMIT) throw new ApiException(507, "MEDIA_CAPACITY_EXCEEDED", "Capacidade compartilhada de 256 MiB esgotada.");
-            reservations.put(key, length); reserved += length;
-        }
-        try { processing.acquire(); }
-        catch (InterruptedException interrupted) {
-            Thread.currentThread().interrupt();
-            synchronized (this) { reserved -= reservations.remove(key); }
-            throw new ApiException(503, "MEDIA_UPLOAD_INTERRUPTED", "Envio interrompido.");
-        }
-        var closed = new java.util.concurrent.atomic.AtomicBoolean();
-        return () -> {
-            if (closed.compareAndSet(false, true)) {
-                synchronized (this) { Long removed = reservations.remove(key); if (removed != null) reserved -= removed; }
-                processing.release();
-            }
-        };
-    }
-    @Override public synchronized void write(String key, String mime, long length, InputStream body) {
+    /** Concurrent uploads write separate temporary files outside the lock; only a complete file is moved into place. */
+    @Override public void write(String key, String mime, long length, InputStream body) {
         Path destination = path(key);
-        Long reservation = reservations.get(key);
-        if (reservation == null) throw new ApiException(409, "MEDIA_RESERVATION_REQUIRED", "Envio sem reserva.");
-        if (length <= 0 || length > FILE_LIMIT) throw new ApiException(413, "MEDIA_TOO_LARGE", "Resultado excede 20 MiB.");
-        if (stored + reserved - reservation + length > TOTAL_LIMIT) throw new ApiException(507, "MEDIA_CAPACITY_EXCEEDED", "Resultado excede a capacidade disponivel.");
+        if (length <= 0 || length > FILE_LIMIT) throw new ApiException(413, "MEDIA_TOO_LARGE", "Limite de 100 MB por arquivo.");
+        synchronized (this) {
+            if (sizes.containsKey(key) || !writing.add(key)) throw new ApiException(409, "MEDIA_ALREADY_STORED", "Esta midia ja foi enviada.");
+        }
         Path temporary = null;
         try {
             Files.createDirectories(destination.getParent());
@@ -82,10 +57,12 @@ public final class DemoLocalStore implements MediaObjectStore, MediaStorageGatew
                 if (count != length) throw new IOException("Body length mismatch");
             }
             Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE);
-            sizes.put(key, length); stored += length;
-            reserved -= reservations.remove(key);
+            synchronized (this) { sizes.put(key, length); }
         } catch (IOException failure) { throw new ApiException(400, "MEDIA_UPLOAD_FAILED", "Nao foi possivel guardar o envio."); }
-        finally { if (temporary != null) try { Files.deleteIfExists(temporary); } catch (IOException failure) { throw new IllegalStateException("Partial upload cleanup failed", failure); } }
+        finally {
+            synchronized (this) { writing.remove(key); }
+            if (temporary != null) try { Files.deleteIfExists(temporary); } catch (IOException failure) { throw new IllegalStateException("Partial upload cleanup failed", failure); }
+        }
     }
     @Override public synchronized StoredObject read(String key, String range) {
         Path file = path(key);
@@ -117,7 +94,7 @@ public final class DemoLocalStore implements MediaObjectStore, MediaStorageGatew
             if (seed != null) try { Files.deleteIfExists(seed); } catch (IOException failure) { throw new IllegalStateException("Seed media deletion failed", failure); }
             return;
         }
-        try { Files.deleteIfExists(path(key)); stored -= sizes.remove(key); }
+        try { Files.deleteIfExists(path(key)); sizes.remove(key); }
         catch (IOException failure) { throw new IllegalStateException("Media deletion failed", failure); }
     }
 }

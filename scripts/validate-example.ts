@@ -23,7 +23,7 @@ export async function check(image:string,directoryInput:string):Promise<void>{
     const feed=object(await author.json('/api/feed?tab=ALL&limit=20'));require(Array.isArray(feed.items),'Reset feed missing.');
     const ids=feed.items.map((item:unknown)=>string(object(item).id));require(ids.filter(id=>id.startsWith('example_post_')).length===8,'Seed posts were not restored.');
     require(!ids.includes(string(media.post)),'Runtime post survived boot.');await denied(()=>author.json(`/api/feed/posts/${string(media.post)}`),404);
-    const oldUrl=string(media.boundaryUploadUrl);await denied(()=>author.request(oldUrl),404);
+    const oldUrl=string(media.newUploadUrl);await denied(()=>author.request(oldUrl),404);
     const raw=png();const allocated=object(await author.json('/api/media/uploads',{body:{fileName:'new.png',mimeType:'image/png',size:raw.length,purpose:'POST_IMAGE'}}));
     const uploaded=await author.request(string(allocated.uploadUrl),{method:'PUT',raw,contentType:'image/png'});await uploaded.body?.cancel();
     require(allocated.cdnUrl!==oldUrl,'New boot reused the previous upload namespace.');await denied(()=>author.request(oldUrl),404);
@@ -36,7 +36,7 @@ export async function check(image:string,directoryInput:string):Promise<void>{
     const flows=await exercise({origin,credentials,local:true,evidence});await writeRecord(join(evidence,'example-flows.json'),flows);
     await writeRecord(join(evidence,'first-boot-credentials.json'),credentials);
     const orphan=join(evidence,'orphan.partial');await writeFile(orphan,'controlled orphan',{mode:0o600});
-    await run(['docker','cp',orphan,`${container}:/tmp/demo-uploads/.processing/orphan.partial`]);
+    await run(['docker','cp',orphan,`${container}:/tmp/demo-uploads/.upload-orphan.partial`]);
     await run(['docker','restart',container],{timeout:120});
     const file=join(evidence,'restart-credentials.json');const deadline=Date.now()+180000;let current:ReturnType<typeof credentialRecord>|undefined;
     do{
@@ -45,7 +45,7 @@ export async function check(image:string,directoryInput:string):Promise<void>{
     }while(Date.now()<deadline);
     require(current,'Runtime restart did not rotate all selected credentials.');
     await validate(origin,journal,{credentials:current,local:true,evidence});const restarted=await resetChecks(origin,current,evidence);
-    await run(['docker','exec',container,'test','!','-e','/tmp/demo-uploads/.processing/orphan.partial']);restarted.orphanedProcessingFileRemoved=true;
+    await run(['docker','exec',container,'test','!','-e','/tmp/demo-uploads/.upload-orphan.partial']);restarted.orphanedProcessingFileRemoved=true;
     await writeRecord(join(evidence,'runtime-restart-validation.json'),restarted);
     return {localOnly:true,devices,flows,runtimeRestart:restarted};
   });

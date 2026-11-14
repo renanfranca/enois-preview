@@ -56,15 +56,12 @@ sequenceDiagram
   participant W as Worker
 
   Op->>CLI: enois-preview publish scenario
-  CLI->>CLI: reads config.json and checks the initial confirmation
-  opt restoration.json exists
-    CLI->>Apps: restores the backend to its previous state
-  end
+  CLI->>CLI: reads config.json
   CLI->>CLI: locks publication.lock
-  CLI->>Apps: refuses a dirty tree and reads the commits
-  CLI->>CLI: checks install.json and toolCommit
+  CLI->>Apps: reads the commits and warns about uncommitted changes
+  CLI->>CLI: records the tool commit from install.json or Git
   opt first time or refresh-data
-    CLI->>Apps: stops the backend, copies H2 and media, restores
+    CLI->>Apps: copies H2 and media without touching the backend
     CLI->>CLI: sanitizes and stores in data/id
   end
   CLI->>Apps: exports each commit with git archive
@@ -75,36 +72,35 @@ sequenceDiagram
   CLI->>L: 4 configuration - push .devcontainer and provenance
   CLI->>L: 5 catalog - push the catalog entry
   CLI->>W: 6 deploy - launcher build and wrangler deploy
-  CLI->>W: 7 validatePublic - opens the link and checks everything
+  CLI->>W: 7 validatePublic - opens the link, checks gates and records warnings
   CLI->>L: 8 releaseRemoteLease - deletes the lease ref
   alt success
-    CLI->>Op: JSON with status validated and url
+    CLI->>Op: JSON with status validated, url and warnings
   else a stage fails
     CLI->>CLI: writes failure.json
     CLI->>Op: message with the revision and the resume command
   end
 ```
 
-1. **Configuration:** the CLI reads `config.json` from your private installation. Without the initial `setup` confirmation, it stops here.
-2. **Pending recovery:** if an earlier command left `restoration.json`, the CLI first returns the backend to the recorded state.
-3. **Local lock:** `publication.lock` prevents two `publish` or `resume` runs at once on the same `state`.
-4. **Clean tree:** if any of the three applications has staged, unstaged or untracked changes, the CLI refuses without stopping any service.
-5. **Verified installation:** the CLI recomputes the installation hashes and checks that it belongs to the configured `toolCommit`.
-6. **Capture:** only on the scenario's first publication or with `--refresh-data`. The backend is stopped only if it was running and returns to its previous state right after the copy. If no accounts are configured, the CLI asks in the terminal which IDs to use.
-7. **Export:** each application is exported from its current commit with `git archive`, outside your checkouts.
-8. **Freezing:** the CLI computes the revision and, if it does not exist yet, copies data, sources, recipe, runtime, Worker and `dist` into `operations/<revision>/frozen` and creates the journal.
-9. **The publisher's eight stages** (`Publisher` in `preview/remote.ts`), in this order:
-   1. `buildAndValidate`: builds the image locally and validates boot in a local container.
-   2. `acquireRemoteLease`: creates the ref `refs/heads/enois-preview-publication-lease` in the launcher. If another operation holds it, waits up to `leaseWaitSeconds`.
+1. **Configuration:** the CLI reads `config.json` from your private installation. Without `setup`, it stops here. Fields no longer used, such as `service`, `toolCommit` or `installation`, produce the `ignored-config-fields` warning.
+2. **Local lock:** `publication.lock` prevents two `publish` or `resume` runs at once on the same `state`.
+3. **Sources:** the CLI reads the committed `HEAD` of each application. Staged, unstaged or untracked changes produce the `source-dirty` warning and are left out.
+4. **Tool commit:** the CLI recomputes the installation hashes and records its commit with `toolVerified: true`. A development checkout or a changed installation records its Git `HEAD` (or `null`) with the `unverified-tool` warning.
+5. **Capture:** only on the scenario's first publication, with `--refresh-data`, or when `--accounts` selects other accounts than the frozen data. The CLI copies H2 and media without stopping, starting or waiting for the backend; a file in use or changed during the copy produces a warning. If no accounts are configured, `--accounts` selects them, or the CLI asks in the terminal.
+6. **Export:** each application is exported from its current commit with `git archive`, outside your checkouts.
+7. **Freezing:** the CLI computes the revision and, if it does not exist yet, copies data, sources, recipe, runtime, Worker and `dist` into `operations/<revision>/frozen` and creates the journal.
+8. **The publisher's eight stages** (`Publisher` in `preview/remote.ts`), in this order:
+   1. `buildAndValidate`: builds the image locally, without running application tests, and validates boot in a local container.
+   2. `acquireRemoteLease`: creates the ref `refs/heads/enois-preview-publication-lease` in the launcher. If another operation holds it, waits up to `leaseWaitSeconds`; with `--force-lease`, deletes it, records the takeover and reports `lease-forced`.
    3. `registry`: pushes the image to GHCR with the tag `preview-<revision>` and from then on uses it by digest.
    4. `configuration`: pushes `.devcontainer/<slug>/` and the provenance to the launcher.
    5. `catalog`: pushes the new entry in `catalog/scenarios.json`.
-   6. `deploy`: in the launcher checkout, runs `npm ci`, `npm run build`, `npm test`, `npm run check` and `wrangler deploy`.
-   7. `validatePublic`: opens the public link and checks image, boot, health, accounts, media and revision.
+   6. `deploy`: in the launcher checkout, runs `npm ci --ignore-scripts`, `npm run build` and `wrangler deploy`. A launcher pinned to another tool commit produces the `launcher-pin` warning and is not repinned.
+   7. `validatePublic`: opens the public link. Readiness, revision identity and the login of each selected account are gates; media, decoding, permissions and cookies become warnings.
    8. `releaseRemoteLease`: deletes the lease ref.
-10. **Result:** on success, the CLI prints JSON with `status: "validated"` and the `url`. On failure, it writes `failure.json` and reports the stage, the full revision and the command `enois-preview resume <revision>`.
+9. **Result:** on success, the CLI prints JSON with `status: "validated"`, the `url` and `warnings`. On failure, it writes `failure.json` and reports the stage, the full revision and the command `enois-preview resume <revision>`.
 
-`resume` runs steps 1, 2, 3 and 5 and skips the clean tree check, capture, export and freezing (steps 4, 6, 7 and 8): it reads the revision's journal, checks the frozen files and continues the eight stages from what was already recorded. It never recaptures data.
+`resume` runs steps 1, 2 and 4 and skips sources, capture, export and freezing (steps 3, 5, 6 and 7): it reads the revision's journal, checks the frozen files and continues the eight stages from what was already recorded. It never recaptures data.
 
 ## What happens when someone opens the link
 

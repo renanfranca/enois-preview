@@ -9,7 +9,7 @@ import { readFile } from 'node:fs/promises';
 
 async function validationFixture(failure='',raw=Buffer.from('DATA'),mime='application/octet-stream'){
   const accounts=[{id:'author',email:'author@enois.invalid',label:'Author'},{id:'reader',email:'reader@enois.invalid',label:'Reader'}];
-  const journal:Journal={format:'enois-preview-ts-v1',revision:'a'.repeat(64),slug:'fixture-abc',operation:'a'.repeat(32),target:{},frozenFiles:{},checkpoints:{},stage:'publicValidation',intents:{},inputs:{format:'enois-preview-ts-v1',scenario:'fixture',toolCommit:'1'.repeat(40),commits:{'enois-backend':'c'.repeat(40)},data:'b'.repeat(64),recipe:{},sourceFiles:{},dataManifest:{format:'enois-preview-ts-v1',id:'b'.repeat(64),accounts,permissions:{author:{admin:true,moderator:false},reader:{admin:false,moderator:false}},externalReads:[],logicalSeedSha256:'d'.repeat(64),sanitizerSha256:'e'.repeat(64),files:{},media:[{directory:'0',url:'/fixture/',inventory:{'image.bin':{bytes:raw.length,sha256:createHash('sha256').update(raw).digest('hex')}}}]}}};
+  const journal:Journal={format:'enois-preview-ts-v1',revision:'a'.repeat(64),slug:'fixture-abc',operation:'a'.repeat(32),target:{},frozenFiles:{},checkpoints:{},stage:'publicValidation',intents:{},tool:{commit:null,verified:false},inputs:{format:'enois-preview-ts-v1',scenario:'fixture',commits:{'enois-backend':'c'.repeat(40)},data:'b'.repeat(64),recipe:{},sourceFiles:{},dataManifest:{format:'enois-preview-ts-v1',id:'b'.repeat(64),accounts,permissions:{author:{admin:true,moderator:false},reader:{admin:false,moderator:false}},externalReads:[],logicalSeedSha256:'d'.repeat(64),sanitizerSha256:'e'.repeat(64),files:{},media:[{directory:'0',url:'/fixture/',inventory:{'image.bin':{bytes:raw.length,sha256:createHash('sha256').update(raw).digest('hex')}}}]}}};
   let healthRequests=0;
   const credentials={format:'enois-preview-ts-v1',accounts:accounts.map((account,index)=>({...account,password:(index?'r':'a').repeat(32)}))};
   const server=createServer(async(request,response)=>{
@@ -81,7 +81,7 @@ test('HTTP failures expose safe status and response kind without query, cookie, 
 test('runtime validation authenticates the selected identity and reports nonimages without exposing credentials', async () => {
   const password='p'.repeat(32);
   const selected={id:'author',email:'author@enois.invalid',label:'Author'};
-  const journal: Journal={format:'enois-preview-ts-v1',revision:'a'.repeat(64),slug:'fixture-abc',operation:'a'.repeat(32),target:{},frozenFiles:{},checkpoints:{},stage:'publicValidation',intents:{},inputs:{format:'enois-preview-ts-v1',scenario:'fixture',toolCommit:'1'.repeat(40),commits:{'enois-backend':'c'.repeat(40)},data:'b'.repeat(64),recipe:{},sourceFiles:{},dataManifest:{format:'enois-preview-ts-v1',id:'b'.repeat(64),accounts:[selected],permissions:{author:{admin:true,moderator:false}},externalReads:[],logicalSeedSha256:'d'.repeat(64),sanitizerSha256:'e'.repeat(64),files:{},media:[{directory:'0',url:'/fixture/',inventory:{'binary.bin':{bytes:4,sha256:'c97c29c7a71b392b437ee03fd17f09bb10b75e879466fc0eb757b2c4a78ac938'}}}]}}};
+  const journal: Journal={format:'enois-preview-ts-v1',revision:'a'.repeat(64),slug:'fixture-abc',operation:'a'.repeat(32),target:{},frozenFiles:{},checkpoints:{},stage:'publicValidation',intents:{},tool:{commit:null,verified:false},inputs:{format:'enois-preview-ts-v1',scenario:'fixture',commits:{'enois-backend':'c'.repeat(40)},data:'b'.repeat(64),recipe:{},sourceFiles:{},dataManifest:{format:'enois-preview-ts-v1',id:'b'.repeat(64),accounts:[selected],permissions:{author:{admin:true,moderator:false}},externalReads:[],logicalSeedSha256:'d'.repeat(64),sanitizerSha256:'e'.repeat(64),files:{},media:[{directory:'0',url:'/fixture/',inventory:{'binary.bin':{bytes:4,sha256:'c97c29c7a71b392b437ee03fd17f09bb10b75e879466fc0eb757b2c4a78ac938'}}}]}}};
   const server=createServer(async(request,response)=>{
     response.setHeader('Content-Type','application/json');
     if(request.url==='/api/actuator/health/readiness')response.end('{"status":"UP"}');
@@ -100,7 +100,8 @@ test('runtime validation authenticates the selected identity and reports nonimag
     const result=await validate(`http://127.0.0.1:${address.port}`,journal,{local:true,credentials:{format:'enois-preview-ts-v1',accounts:[{...selected,password}]},timeout:10});
 
     assert.equal(result.readiness,'UP');
-    assert.deepEqual(result.accounts,[{id:'author',authenticated:true,permissions:{admin:true,moderator:false}}]);
+    assert.deepEqual(result.accounts,[{id:'author',authenticated:true,permissions:{admin:true,moderator:false},permissionsMatch:true,secureCookies:true}]);
+    assert.deepEqual(result.warnings,[]);
     assert.deepEqual(result.imageDecoding,[{width:1280,mobileEmulation:false,images:[]},{width:390,mobileEmulation:true,images:[]}]);
     assert.equal(result.media[0]?.imageClassification,'unclassified');
     assert.doesNotMatch(JSON.stringify(result),new RegExp(password));
@@ -108,28 +109,42 @@ test('runtime validation authenticates the selected identity and reports nonimag
   }finally{await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
 });
 
-test('health, runtime, each selected account, permissions, secure cookies and media can independently prevent validation success',async()=>{
-  for(const [failure,message]of [['html',/readiness timed out/],['health',/Readiness is not UP/],['runtime',/input identity mismatch/],['reader',/HTTP 401/],['identity',/account identity mismatch/],['permissions',/permissions differ/],['cookies',/Secure HttpOnly/],['media',/media bytes differ/]] as const){
+test('readiness, revision identity and each selected account login independently prevent validation success',async()=>{
+  for(const [failure,message]of [['html',/readiness timed out/],['health',/Readiness is not UP/],['runtime',/input identity mismatch/],['reader',/HTTP 401/],['identity',/account identity mismatch/]] as const){
     const fixture=await validationFixture(failure);
     try{await assert.rejects(validate(fixture.origin,fixture.journal,{local:true,credentials:fixture.credentials,timeout:0}),message,failure);}
     finally{await fixture.close();}
   }
 });
 
-test('a recognized image with the recorded hash and correct MIME still fails validation when real Chromium cannot decode its body',async()=>{
+test('different permissions, missing secure cookies and different media bytes validate with warnings',async()=>{
+  for(const [failure,code]of [['permissions','permissions-differ'],['cookies','session-cookies-missing'],['media','media-bytes-differ']] as const){
+    const fixture=await validationFixture(failure);
+    try{
+      const result=await validate(fixture.origin,fixture.journal,{local:true,credentials:fixture.credentials,timeout:10});
+
+      assert.equal(result.readiness,'UP',failure);assert.equal(result.identityVerified,true,failure);
+      assert.ok(result.warnings.some(warning=>warning.code===code),`${failure}: ${JSON.stringify(result.warnings)}`);
+    }finally{await fixture.close();}
+  }
+});
+
+test('a recognized image that real Chromium cannot decode validates with a decoding warning',async()=>{
   const fixture=await validationFixture('',Buffer.from('\x89PNG\r\n\x1a\ninvalid image body','latin1'),'image/png');
   try{
-    await assert.rejects(validate(fixture.origin,fixture.journal,{local:true,credentials:fixture.credentials,timeout:10}),/Recognized frozen image decoding failed/);
+    const result=await validate(fixture.origin,fixture.journal,{local:true,credentials:fixture.credentials,timeout:10});
+
+    assert.ok(result.warnings.some(warning=>/^image-decoding-/.test(warning.code)),JSON.stringify(result.warnings));
   }finally{await fixture.close();}
 });
 
-test('AVIF validation requires the matching MIME and decodes the recorded bytes at both actual browser viewports',async()=>{
+test('AVIF validation warns about a different MIME and decodes the recorded bytes at both actual browser viewports',async()=>{
   const raw=await readFile('test/fixtures/images/valid.avif');
   for(const mime of ['application/octet-stream','image/png','IMAGE/AVIF; fixture=1']){
     const fixture=await validationFixture('',raw,mime);
     try{
       const result=validate(fixture.origin,fixture.journal,{local:true,credentials:fixture.credentials,timeout:10});
-      if(mime!=='IMAGE/AVIF; fixture=1')await assert.rejects(result,/MIME mismatch.*image\/avif/);
+      if(mime!=='IMAGE/AVIF; fixture=1')assert.ok((await result).warnings.some(warning=>warning.code==='media-mime-differs'&&/image\/avif/.test(warning.message)),mime);
       else{
         const proof=await result;assert.equal(proof.media[0]?.expectedContentType,'image/avif');assert.deepEqual(proof.imageDecoding,[{width:1280,mobileEmulation:false,images:[{path:'/fixture/image.bin',width:64,height:64}]},{width:390,mobileEmulation:true,images:[{path:'/fixture/image.bin',width:64,height:64}]}]);assert.deepEqual(proof.accounts.map(account=>account.id),['author','reader']);
       }

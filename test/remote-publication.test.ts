@@ -9,14 +9,15 @@ import { GitHub, RemoteFailure } from '../preview/remote_http.js';
 import type { Journal } from '../preview/publication.js';
 import { validateConfig } from '../preview/config.js';
 import { workspace, git } from './fixtures/workspace.js';
+import { collectWarnings } from '../preview/warnings.js';
 
 function command(directory: string, args: string[], input?: string): string {
   const result = spawnSync('git', ['-C', directory, ...args], { encoding: 'utf8', ...(input === undefined ? {} : { input }) });
   assert.equal(result.status, 0, result.stderr); return result.stdout.trim();
 }
 function journal(letter: string): Journal {
-  return { format: 'enois-preview-ts-v1', revision: letter.repeat(64), slug: `fixture-${letter.repeat(16)}`, operation: letter.repeat(32), target: {}, frozenFiles: {}, checkpoints: {}, intents: {}, stage: 'frozenInputs', inputs: {
-    format: 'enois-preview-ts-v1', scenario: 'fixture', commits: { 'enois-backend':'1'.repeat(40), 'enois-frontend':'2'.repeat(40), 'enois-design-system':'3'.repeat(40) }, data: 'b'.repeat(64), toolCommit: '1'.repeat(40), recipe: {}, sourceFiles: {},
+  return { format: 'enois-preview-ts-v1', revision: letter.repeat(64), slug: `fixture-${letter.repeat(16)}`, operation: letter.repeat(32), target: {}, frozenFiles: {}, checkpoints: {}, intents: {}, stage: 'frozenInputs', tool: { commit: '1'.repeat(40), verified: true }, inputs: {
+    format: 'enois-preview-ts-v1', scenario: 'fixture', commits: { 'enois-backend':'1'.repeat(40), 'enois-frontend':'2'.repeat(40), 'enois-design-system':'3'.repeat(40) }, data: 'b'.repeat(64), recipe: {}, sourceFiles: {},
     dataManifest: { format: 'enois-preview-ts-v1', id: 'b'.repeat(64), accounts: [{ id:'author',email:'author@enois.invalid',label:'Author' }], permissions: { author: { admin:false,moderator:false } }, externalReads: [], media: [], files: {}, logicalSeedSha256:'c'.repeat(64),sanitizerSha256:'d'.repeat(64) }
   } };
 }
@@ -71,6 +72,33 @@ test('independent publishers serialize through an owned remote Git lease and nev
   } finally { rmSync(root,{recursive:true,force:true}); }
 });
 
+test('--force-lease removes a lease held by another operation, records the takeover and continues', async context => {
+  const root = mkdtempSync(join(tmpdir(),'enois-force-lease-'));
+  try {
+    const config = validateConfig({ ...workspace(root), leaseWaitSeconds: 0 });
+    const bare = join(root,'remote.git'); mkdirSync(bare); git(bare,'init','--bare','-q');
+    const seed = join(root,'launcher'); mkdirSync(seed); git(seed,'init','-q','-b','preview'); writeFileSync(join(seed,'source'),'fixture');
+    git(seed,'add','.'); git(seed,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture');
+    git(seed,'remote','add','origin',bare); git(seed,'push','-q','origin','preview');
+    simulateGitHub(context,bare);
+    const stale = new Publisher(config, journal('a'), join(root,'stale'));
+    await stale.acquireRemoteLease();
+    const staleCommit = (stale.journal.checkpoints.remoteLease as { commit: string }).commit;
+    const forcing = new Publisher(config, journal('c'), join(root,'forcing'), undefined, { forceLease: true });
+
+    const { warnings } = await collectWarnings(() => forcing.acquireRemoteLease());
+
+    const owned = (forcing.journal.checkpoints.remoteLease as { commit: string }).commit;
+    assert.equal(command(bare,['show-ref','--verify',forcing.leaseRef]).split(' ')[0], owned); assert.notEqual(owned, staleCommit);
+    const forced = forcing.journal.intents.remoteLease?.forced as { operation: string; commit: string }[];
+    assert.deepEqual(forced.map(entry => ({ operation: entry.operation, commit: entry.commit })), [{ operation: 'a'.repeat(32), commit: staleCommit }]);
+    assert.deepEqual(JSON.parse(readFileSync(join(root,'forcing','journal.json'),'utf8')).intents.remoteLease.forced.length, 1);
+    assert.deepEqual(warnings, [{ code: 'lease-forced', message: `Removed the remote publication lease held by operation ${'a'.repeat(32)} (--force-lease).` }]);
+    await assert.rejects(stale.releaseRemoteLease(), /ownership/);
+    await forcing.releaseRemoteLease();
+  } finally { rmSync(root,{recursive:true,force:true}); }
+});
+
 test('configuration push acknowledgement loss reuses the retained Git commit and immutable provenance', async () => {
   const root = mkdtempSync(join(tmpdir(),'enois-config-'));
   const keys = ['PATH','GIT_CONFIG_COUNT','GIT_CONFIG_KEY_0','GIT_CONFIG_VALUE_0','FIXTURE_LOST_GIT_ACK'];
@@ -80,8 +108,8 @@ test('configuration push acknowledgement loss reuses the retained Git commit and
     const bare = join(root,'remote.git'); mkdirSync(bare); git(bare,'init','--bare','-q');
     const seed = join(root,'launcher'); mkdirSync(seed); git(seed,'init','-q','-b','preview');
     writeFileSync(join(seed,'wrangler.jsonc'),JSON.stringify({ main:'launcher.ts', vars:{GITHUB_REPOSITORY:'fixture/launcher',GITHUB_OWNER:'fixture'} }));
-    writeFileSync(join(seed,'tool.lock.json'),JSON.stringify({format:'enois-preview-ts-v1',repository:'renanfranca/enois-preview',commit:config.toolCommit}));
-    writeFileSync(join(seed,'package.json'),JSON.stringify({devDependencies:{'enois-preview':`https://codeload.github.com/renanfranca/enois-preview/tar.gz/${config.toolCommit}`}}));
+    writeFileSync(join(seed,'tool.lock.json'),JSON.stringify({format:'enois-preview-ts-v1',repository:'renanfranca/enois-preview',commit:'1'.repeat(40)}));
+    writeFileSync(join(seed,'package.json'),JSON.stringify({devDependencies:{'enois-preview':`https://codeload.github.com/renanfranca/enois-preview/tar.gz/${'1'.repeat(40)}`}}));
     git(seed,'add','.'); git(seed,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture');
     git(seed,'remote','add','origin',bare); git(seed,'push','-q','origin','preview');
     process.env.GIT_CONFIG_COUNT='1'; process.env.GIT_CONFIG_KEY_0=`url.${bare}.insteadOf`; process.env.GIT_CONFIG_VALUE_0='https://github.com/fixture/launcher.git';
@@ -139,8 +167,8 @@ test('catalog acknowledgement loss is reconciled and later publication preserves
     const bare = join(root,'remote.git'); mkdirSync(bare); git(bare,'init','--bare','-q');
     const seed = join(root,'launcher'); mkdirSync(seed); git(seed,'init','-q','-b','preview');
     writeFileSync(join(seed,'wrangler.jsonc'),JSON.stringify({ main:'launcher.ts', vars:{GITHUB_REPOSITORY:'fixture/launcher',GITHUB_OWNER:'fixture'} }));
-    writeFileSync(join(seed,'tool.lock.json'),JSON.stringify({format:'enois-preview-ts-v1',repository:'renanfranca/enois-preview',commit:config.toolCommit}));
-    writeFileSync(join(seed,'package.json'),JSON.stringify({devDependencies:{'enois-preview':`https://codeload.github.com/renanfranca/enois-preview/tar.gz/${config.toolCommit}`}}));
+    writeFileSync(join(seed,'tool.lock.json'),JSON.stringify({format:'enois-preview-ts-v1',repository:'renanfranca/enois-preview',commit:'1'.repeat(40)}));
+    writeFileSync(join(seed,'package.json'),JSON.stringify({devDependencies:{'enois-preview':`https://codeload.github.com/renanfranca/enois-preview/tar.gz/${'1'.repeat(40)}`}}));
     mkdirSync(join(seed,'catalog'));writeFileSync(join(seed,'catalog/scenarios.json'),JSON.stringify({format:'enois-preview-ts-v1',scenarios:{}}));
     git(seed,'add','.'); git(seed,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture');
     git(seed,'remote','add','origin',bare); git(seed,'push','-q','origin','preview');
@@ -231,8 +259,8 @@ test('deployment acknowledgement loss reconciles the current catalog and retains
     const bare = join(root,'remote.git'); mkdirSync(bare); git(bare,'init','--bare','-q');
     const seed = join(root,'launcher'); mkdirSync(seed); git(seed,'init','-q','-b','preview');
     writeFileSync(join(seed,'wrangler.jsonc'),JSON.stringify({ main:'launcher.ts', vars:{GITHUB_REPOSITORY:'fixture/launcher',GITHUB_OWNER:'fixture'} }));
-    writeFileSync(join(seed,'tool.lock.json'),JSON.stringify({format:'enois-preview-ts-v1',repository:'renanfranca/enois-preview',commit:config.toolCommit}));
-    writeFileSync(join(seed,'package.json'),JSON.stringify({devDependencies:{'enois-preview':`https://codeload.github.com/renanfranca/enois-preview/tar.gz/${config.toolCommit}`}}));
+    writeFileSync(join(seed,'tool.lock.json'),JSON.stringify({format:'enois-preview-ts-v1',repository:'renanfranca/enois-preview',commit:'1'.repeat(40)}));
+    writeFileSync(join(seed,'package.json'),JSON.stringify({devDependencies:{'enois-preview':`https://codeload.github.com/renanfranca/enois-preview/tar.gz/${'1'.repeat(40)}`}}));
     mkdirSync(join(seed,'catalog'));writeFileSync(join(seed,'catalog/scenarios.json'),JSON.stringify({format:'enois-preview-ts-v1',scenarios:{}}));
     git(seed,'add','.'); git(seed,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture');
     git(seed,'remote','add','origin',bare); git(seed,'push','-q','origin','preview');

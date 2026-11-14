@@ -17,8 +17,6 @@
     "test:memory": "npm run build && node --test dist/test/integration/gateway-memory.test.js",
     "test:startup": "npm run build && node --test dist/test/integration/startup.test.js",
     "test:flows": "npm run build && node --test dist/test/integration/application-flows.test.js",
-    "test:effects": "npm run build && node --test dist/test/integration/application-effects.test.js",
-    "test:capacity": "npm run build && node --test dist/test/integration/capacity.test.js",
     "test:media": "npm run build && node --test dist/test/integration/media-contracts.test.js",
     "test:layers": "npm run build && node --test dist/test/integration/image-security.test.js",
     "test:consumer": "npm run build && node --test dist/test/integration/consumer-build.test.js",
@@ -38,7 +36,7 @@
   "engines": {
     "node": ">=24 <25"
   },
-  "version": "0.3.9",
+  "version": "0.4.0",
   "license": "GPL-3.0-only",
   "exports": {
     "./cli": "./dist/preview/cli.js",

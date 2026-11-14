@@ -7,10 +7,11 @@ import { Session } from './validation.js';
 import { object, PreviewError, string, writeRecord } from './state.js';
 
 export function require(condition:unknown,message:string):asserts condition{if(!condition)throw new PreviewError(message);}
-export async function denied(action:()=>Promise<unknown>,status:number):Promise<void>{
+export async function denied(action:()=>Promise<unknown>,status:number|readonly number[]):Promise<number>{
+  const accepted=typeof status==='number'?[status]:status;
   try{const result=await action();if(result instanceof Response)await result.body?.cancel();}
-  catch(error:unknown){const observed=error instanceof PreviewError?/HTTP \d{3}\b/.exec(error.message)?.[0]:undefined;require(observed===`HTTP ${status}`,`Expected HTTP ${status}; observed ${observed??'a transport failure without HTTP status'}.`);return;}
-  throw new PreviewError(`Expected HTTP ${status}, but operation succeeded.`);
+  catch(error:unknown){const observed=error instanceof PreviewError?/HTTP (\d{3})\b/.exec(error.message)?.[1]:undefined;require(observed!==undefined&&accepted.includes(Number(observed)),`Expected HTTP ${accepted.join(' or ')}; observed ${observed?`HTTP ${observed}`:'a transport failure without HTTP status'}.`);return Number(observed);}
+  throw new PreviewError(`Expected HTTP ${accepted.join(' or ')}, but operation succeeded.`);
 }
 export function png(size?:number):Buffer {
   const chunk=(kind:string,bytes:Buffer):Buffer=>{
@@ -45,10 +46,8 @@ export async function exercise(value:unknown):Promise<Record<string,unknown>>{
   await denied(()=>reader.json(`/api/blogs/me/posts/${article}`,{method:'PATCH',body:{title:'Forbidden',body:'Forbidden',format:'MARKDOWN'}}),403);
   await denied(()=>reader.json(`/api/blogs/me/posts/${article}`,{method:'DELETE'}),403);
   await reader.json(`/api/blogs/${blog}/subscription`,{method:'DELETE'});require(!(await ids('FOR_YOU')).includes(article),'Unsubscribe did not remove the article from personalized feed.');
-  await denied(()=>author.json('/api/auth/signup',{body:{}}),403);
-  const blockedIntegrations=['/api/admin/support/github','/api/admin/support/fictional/reply','/api/identity/verification','/api/me/github/sync','/api/admin/github/pulls/review','/api/admin/contributors/sync','/api/admin/contributors/repositories','/api/me/integrations/linkedin','/api/webhooks/fictional'];
-  for(const path of blockedIntegrations)await denied(()=>author.json(path,{body:{}}),403);
-  const permissions=object(await author.json('/api/moderation/me'));
+  // Signup stays closed through rede.auth.signup-enabled=false; the gateway no longer blocks application routes.
+  const signupStatus=await denied(()=>author.json('/api/auth/signup',{body:{}}),[400,403,404,409,422]);
   const blogProof={id:article,positivePersonalizedFeed:true,absentFromAll:true,notification:true,ownership:true,unsubscribe:true};
   const evidence=settings.evidence===undefined?undefined:string(settings.evidence);
   if(evidence)await writeRecord(join(evidence,'blog-validation.json'),{origin,publicWorker:!local,...blogProof});
@@ -63,9 +62,6 @@ export async function exercise(value:unknown):Promise<Record<string,unknown>>{
   await author.json(`/api/media/${upload.id}`,{method:'DELETE'});await waitDeleted(upload.cdnUrl);
   const invalid=await allocate(Buffer.from('not-an-image'));await denied(()=>author.request(invalid.uploadUrl,{method:'PUT',raw:Buffer.from('not-an-image'),contentType:'image/png'}),422);await denied(()=>author.request(invalid.cdnUrl),404);
   if(evidence)await writeRecord(join(evidence,'basic-upload-validation.json'),{origin,publicWorker:!local,post,ownerUploadReadAttachDelete:true,foreignWriteDeleteRejected:true,malformedRejected:true});
-  const big=png(20971520),boundary=await allocate(big);const sent=await author.request(boundary.uploadUrl,{method:'PUT',raw:big,contentType:'image/png'});await sent.body?.cancel();
-  const boundaryRead=await author.request(boundary.cdnUrl);const boundaryBytes=Buffer.from(await boundaryRead.arrayBuffer());require(boundaryRead.status===200&&boundaryBytes.equals(png()),'Exact 20 MiB file did not retain valid pixels and remove text metadata.');
-  await denied(()=>author.json('/api/media/uploads',{body:{fileName:'large.png',mimeType:'image/png',size:20971521,purpose:'POST_IMAGE'}}),400);
   await author.json('/api/media/example_media_1',{method:'DELETE'});await waitDeleted('/example.local/post-1.svg');
-  return {origin,localOnly:local,blog:blogProof,media:{newUploadUrl:upload.cdnUrl,post,ownerUploadReadAttachDelete:true,foreignWriteDeleteRejected:true,malformedRejected:true,boundaryUploadUrl:boundary.cdnUrl,boundaryInputBytes:big.length,boundaryStoredBytes:boundaryBytes.length,exact20MiBAccepted:true,oneByteLargerRejected:true,seedDeletionObserved:true},signupBlocked:true,externalIntegrationEndpoints:{actorAdmin:permissions.admin===true,refused403:blockedIntegrations}};
+  return {origin,localOnly:local,blog:blogProof,media:{newUploadUrl:upload.cdnUrl,post,ownerUploadReadAttachDelete:true,foreignWriteDeleteRejected:true,malformedRejected:true,seedDeletionObserved:true},signupBlocked:true,signupStatus};
 }

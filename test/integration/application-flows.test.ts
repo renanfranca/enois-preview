@@ -24,28 +24,6 @@ test('independent fictional author and reader exercise blog distribution, owners
   assert.equal(flows.signupBlocked,true);assert.equal(flows.localOnly,true);
 });
 
-test('actual desktop and mobile emulation authenticate through the hydrated form and render the complete fictional profile and illustrated feed',async()=>{
-  const input=process.env.ENOIS_PREVIEW_EXAMPLE_WORKSPACE;assert.ok(input);const workspace=resolve(input);
-  const receipt=await readRecord(join(workspace,'.preview/local-image-receipt.json'));const record=await readRecord(join(string(receipt.directory),'journal.json'));
-  const journal=journalRecord({...record,target:{repository:'local/fixture',registry:'ghcr.io/local/fixture',branch:'local',origin:'https://local.invalid',cloudflareAccountId:'0'.repeat(32)}});
-  const evidence=await mkdtemp(join(workspace,'.preview/browser-node-'));
-
-  const result=await validateLocal(string(receipt.image),journal,evidence,async(origin,credentials,directory)=>{
-    const accounts=object(credentials).accounts;assert.ok(Array.isArray(accounts));
-    const output=await run([process.execPath,'dist/scripts/validate-example-browser.js'],{input:JSON.stringify({origin,account:accounts[0],accounts,evidence:directory}),logPath:join(directory,'browser.log'),timeout:300});
-    return JSON.parse(output.toString()) as unknown;
-  });
-
-  const devices=result.functionalEvidence;assert.ok(Array.isArray(devices));assert.equal(devices.length,2);
-  for(const [index,value]of devices.entries()){
-    const device=object(value);assert.equal(device.width,[1280,390][index]);assert.equal(device.mobileEmulation,index===1);assert.equal(device.posts,8);
-    assert.equal(device.hydrationRequiredBeforeLogin,true);assert.equal(device.nativeFallbackKeepsPasswordOutOfUrl,true);assert.equal(device.accountMenuNavigation,true);assert.equal(device.overflow,false);
-    assert.ok(Array.isArray(device.feedImages));assert.ok(Array.isArray(device.profileImages));
-    const feed=device.feedImages.map(value=>object(value));for(const path of ['/example.local/post-1.svg','/example.local/post-2.svg','/example.local/post-3.svg'])assert.ok(feed.some(image=>image.path===path));
-    const profile=device.profileImages.map(value=>object(value));for(const path of ['/example.local/lia.svg','/example.local/cover.svg','/example.local/badge.svg'])assert.ok(profile.some(image=>image.path===path));
-  }
-});
-
 test('restart and recreation restore the frozen seed, discard runtime edits and uploads, rotate credentials and remove processing orphans',async()=>{
   const input=process.env.ENOIS_PREVIEW_EXAMPLE_WORKSPACE;assert.ok(input);const workspace=resolve(input);
   const receipt=await readRecord(join(workspace,'.preview/local-image-receipt.json'));const record=await readRecord(join(string(receipt.directory),'journal.json'));

@@ -6,7 +6,7 @@ import { validateLocal } from '../../preview/build.js';
 import { journalRecord } from '../../preview/publication.js';
 import { object,readRecord,run,string } from '../../preview/state.js';
 
-test('the actual application accepts its supported media formats and a 50 MB audio upload, and refuses active SVG and path traversal',async()=>{
+test('the actual application accepts its supported media formats and a 50 MB audio upload, leaves nothing readable for an interrupted body, and refuses active SVG and path traversal',async()=>{
   const input=process.env.ENOIS_PREVIEW_EXAMPLE_WORKSPACE;assert.ok(input);const workspace=resolve(input);
   const receipt=await readRecord(join(workspace,'.preview/local-image-receipt.json'));const record=await readRecord(join(string(receipt.directory),'journal.json'));
   const journal=journalRecord({...record,target:{repository:'local/fixture',registry:'ghcr.io/local/fixture',branch:'local',origin:'https://local.invalid',cloudflareAccountId:'0'.repeat(32)}});
@@ -21,5 +21,8 @@ test('the actual application accepts its supported media formats and a 50 MB aud
   for(const value of proof.formats){const format=object(value);assert.equal(format.readable,true);assert.equal(format.metadataMarkerRemoved,true);assert.equal(format.decoded,format.mime!=='application/pdf');}
   for(const key of ['activeSvgUploadRejected400','traversalRefused'])assert.equal(proof[key],true,key);
   const large=object(proof.largeUpload);assert.equal(large.inputBytes,50_000_000);assert.equal(large.readable,true);assert.ok(typeof large.storedBytes==='number'&&large.storedBytes>0);
+  const incomplete=object(proof.incompleteBody);assert.equal(incomplete.declaredBytes,45_000_000);
+  assert.ok(typeof incomplete.sentBytes==='number'&&incomplete.sentBytes<45_000_000);
+  assert.notEqual(incomplete.readAfterAbortStatus,200);assert.equal(incomplete.freshUploadReadable,true);
   assert.equal(proof.localOnly,true);assert.equal(proof.publicWorker,false);
 });

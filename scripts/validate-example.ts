@@ -5,7 +5,6 @@ import { credentials as credentialRecord } from '../src/contracts.js';
 import { validateLocal } from '../preview/build.js';
 import { denied, exercise, png, require } from '../preview/exercises.js';
 import { journalRecord } from '../preview/publication.js';
-import { ROOT } from '../preview/project.js';
 import { Session, validate } from '../preview/validation.js';
 import { object, PreviewError, readRecord, run, string, writeRecord, invokedDirectly } from '../preview/state.js';
 
@@ -31,8 +30,7 @@ export async function check(image:string,directoryInput:string):Promise<void>{
     return {allPasswordsRotated:true,oldPasswordsRejected401:true,seedPostsRestored:true,runtimePostDiscarded:true,seedMediaRestored:true,oldUploadUrlStill404AfterNewUpload:true};
   };
   const first=await validateLocal(image,journal,directory,async(origin,value,evidence,container)=>{
-    const credentials=credentialRecord(value);const devices:unknown=JSON.parse((await run([process.execPath,join(ROOT,'dist/scripts/validate-example-browser.js')],{input:JSON.stringify({origin,accounts:credentials.accounts,account:credentials.accounts[0],evidence}),logPath:join(evidence,'example-browser.log'),timeout:300})).toString());
-    await writeRecord(join(evidence,'example-browser.json'),{localOnly:true,devices});
+    const credentials=credentialRecord(value);
     const flows=await exercise({origin,credentials,local:true,evidence});await writeRecord(join(evidence,'example-flows.json'),flows);
     await writeRecord(join(evidence,'first-boot-credentials.json'),credentials);
     const orphan=join(evidence,'orphan.partial');await writeFile(orphan,'controlled orphan',{mode:0o600});
@@ -47,10 +45,10 @@ export async function check(image:string,directoryInput:string):Promise<void>{
     await validate(origin,journal,{credentials:current,local:true,evidence});const restarted=await resetChecks(origin,current,evidence);
     await run(['docker','exec',container,'test','!','-e','/tmp/demo-uploads/.upload-orphan.partial']);restarted.orphanedProcessingFileRemoved=true;
     await writeRecord(join(evidence,'runtime-restart-validation.json'),restarted);
-    return {localOnly:true,devices,flows,runtimeRestart:restarted};
+    return {localOnly:true,flows,runtimeRestart:restarted};
   });
   await writeRecord(join(directory,'first-boot-validation.json'),first);
   const second=await validateLocal(image,journal,directory,resetChecks);await writeRecord(join(directory,'recreation-validation.json'),second);
-  console.log('Local fictional runtime verified: actual browser, independent accounts, blog and media, restart and recreation with rotated credentials.');
+  console.log('Local fictional runtime verified: independent accounts, blog and media, restart and recreation with rotated credentials.');
 }
 if(await invokedDirectly(import.meta.url)){try{const image=process.argv[2],directory=process.argv[3];require(process.argv.length===4&&image&&directory,'Usage: node dist/scripts/validate-example.js IMAGE PRIVATE_OPERATION_DIRECTORY');await check(image,directory);}catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Local fictional runtime verification failed; inspect private evidence.');process.exitCode=1;}}

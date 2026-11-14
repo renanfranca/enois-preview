@@ -1,4 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { setTimeout as delay } from 'node:timers/promises';
 import { chmod,readFile,writeFile } from 'node:fs/promises';
 import { basename,join,resolve } from 'node:path';
 import { credentials as credentialRecord } from '../src/contracts.js';
@@ -24,6 +28,21 @@ export async function fixtures(image:string,root:string):Promise<void>{
   for(const [name,extra]of [['mp3.mp3',['-c:a','libmp3lame']],['ogg.ogg',['-c:a','libvorbis']],['wav.wav',['-c:a','pcm_s16le']],['audio.weba',['-c:a','libopus','-f','webm']]] as [string,string[]][])await ffmpeg(name,'sine=frequency=440:duration=0.2',extra);
   await writeFile(join(root,'png.png'),png(),{mode:0o600});await writeFile(join(root,'document.pdf'),pdf(),{mode:0o600});
 }
+/** Sends only the first `sent` bytes of a body declared as `body.length`, then drops the connection, as an interrupted client would. */
+async function interruptedPut(session:Session,path:string,body:Buffer,sent:number,mime:string):Promise<void>{
+  const url=new URL(path,session.origin);require(url.origin===session.origin,'Interrupted upload must stay within the configured origin.');
+  const cookies=[session.options.slug?`__Host-demo-scenario=${session.options.slug}`:'',await session.cookies.getCookieString(url.href)].filter(Boolean).join('; ');
+  const headers:Record<string,string|number>={'User-Agent':'enois-preview/0.3.1',Origin:session.origin,'X-Client-Origin':session.origin,'X-CSRF-Protection':'1','Sec-Fetch-Site':'same-origin','Idempotency-Key':randomUUID(),'Content-Type':mime,'Content-Length':body.length,...(cookies?{Cookie:cookies}:{})};
+  await new Promise<void>(done=>{
+    const outgoing=(url.protocol==='https:'?httpsRequest:httpRequest)(url,{method:'PUT',headers});
+    outgoing.on('error',()=>done());outgoing.on('close',()=>done());outgoing.on('response',response=>{response.resume();});
+    outgoing.write(body.subarray(0,sent),()=>setTimeout(()=>outgoing.destroy(),200));
+  });
+}
+async function status(session:Session,path:string):Promise<number>{
+  try{const response=await session.request(path);await response.body?.cancel();return response.status;}
+  catch(error:unknown){const code=error instanceof PreviewError?/HTTP (\d{3})\b/.exec(error.message)?.[1]:undefined;if(code)return Number(code);throw error;}
+}
 export async function check(value:unknown,local=false):Promise<Record<string,unknown>>{
   const settings=object(value),origin=string(settings.origin),revision=string(settings.revision),image=string(settings.image);
   const slug=settings.slug===undefined?undefined:string(settings.slug),credentials=credentialRecord(settings.credentials);require(credentials.accounts.every(account=>account.id.startsWith('example_')),'Media contract checks require fictional identities.');
@@ -47,12 +66,21 @@ export async function check(value:unknown,local=false):Promise<Record<string,unk
   const head=await session.request(string(audio.cdnUrl),{range:'bytes=0-77'});const prefix=Buffer.from(await head.arrayBuffer());const total=Number(/\/(\d+)$/.exec(head.headers.get('Content-Range')??'')?.[1]);
   require(head.status===206&&prefix.toString('ascii',0,4)==='RIFF'&&Number.isSafeInteger(total)&&total>0,'A 50 MB audio upload was not stored readably.');
   await session.json(`/api/media/${string(audio.id)}`,{method:'DELETE'});
+  const declared=45_000_000,partialBytes=10_000_000,incomplete=wav(declared);
+  const aborted=object(await session.json('/api/media/uploads',{body:{fileName:'interrupted.wav',mimeType:'audio/wav',size:declared,purpose:'POST_AUDIO'}}));
+  await interruptedPut(session,string(aborted.uploadUrl),incomplete,partialBytes,'audio/wav');await delay(2000);
+  const readAfterAbortStatus=await status(session,string(aborted.cdnUrl));
+  const fresh=object(await session.json('/api/media/uploads',{body:{fileName:'fresh.wav',mimeType:'audio/wav',size:declared,purpose:'POST_AUDIO'}}));
+  const completed=await session.request(string(fresh.uploadUrl),{method:'PUT',raw:incomplete,contentType:'audio/wav'});await completed.body?.cancel();
+  const freshHead=await session.request(string(fresh.cdnUrl),{range:'bytes=0-77'});const freshPrefix=Buffer.from(await freshHead.arrayBuffer());
+  const freshUploadReadable=freshHead.status===206&&freshPrefix.toString('ascii',0,4)==='RIFF';
+  await session.json(`/api/media/${string(fresh.id)}`,{method:'DELETE'});
   for(const path of ['/api/storage/uploads/%2e%2e/private','/api/storage/%2e%2e/%2e%2e/etc/passwd']){
     let refused=false;try{const response=await session.request(path);await response.body?.cancel();}catch(error:unknown){require(error instanceof PreviewError&&/HTTP (400|403|404)\b/.test(error.message),'Unexpected traversal response.');refused=true;}require(refused,'Traversal returned a readable object.');
   }
-  const proof={localOnly:local,publicWorker:!local,revision,formats:results,activeSvgUploadRejected400:true,largeUpload:{inputBytes:large.length,storedBytes:total,readable:true},traversalRefused:true};await writeRecord(join(evidence,'validation.json'),proof);return proof;
+  const proof={localOnly:local,publicWorker:!local,revision,formats:results,activeSvgUploadRejected400:true,largeUpload:{inputBytes:large.length,storedBytes:total,readable:true},incompleteBody:{declaredBytes:declared,sentBytes:partialBytes,readAfterAbortStatus,freshUploadReadable},traversalRefused:true};await writeRecord(join(evidence,'validation.json'),proof);return proof;
 }
 if(await invokedDirectly(import.meta.url)){try{
   if(process.argv.length===3&&process.argv[2]==='--local'){const value:unknown=JSON.parse(readFileSync(0,'utf8'));console.log(JSON.stringify(await check(value,true)));}
-  else{const input=process.argv[2];require(process.argv.length===3&&input,'Usage: node dist/scripts/validate-media-contracts.js PRIVATE_OPERATION_DIRECTORY_OR_--local');const directory=resolve(input),journal=journalRecord(await readRecord(join(directory,'journal.json'))),origin=journal.target.origin;require(origin,'Missing public origin.');const credentials=await new Session(origin,{slug:journal.slug}).json('/__demo/access.json');await check({origin,slug:journal.slug,credentials,image:object(journal.checkpoints.registry).image,revision:journal.revision,evidence:join(directory,'media-contract-evidence')});console.log('Public media MIME and metadata matrix and a 50 MB audio upload verified; SVG and traversal refused.');}
+  else{const input=process.argv[2];require(process.argv.length===3&&input,'Usage: node dist/scripts/validate-media-contracts.js PRIVATE_OPERATION_DIRECTORY_OR_--local');const directory=resolve(input),journal=journalRecord(await readRecord(join(directory,'journal.json'))),origin=journal.target.origin;require(origin,'Missing public origin.');const credentials=await new Session(origin,{slug:journal.slug}).json('/__demo/access.json');await check({origin,slug:journal.slug,credentials,image:object(journal.checkpoints.registry).image,revision:journal.revision,evidence:join(directory,'media-contract-evidence')});console.log('Public media MIME and metadata matrix a 50 MB audio upload and an interrupted upload verified; SVG and traversal refused.');}
 }catch(error:unknown){console.error(error instanceof PreviewError?error.message:'Media contract verification failed; inspect private evidence.');process.exitCode=1;}}

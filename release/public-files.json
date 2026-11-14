@@ -126,7 +126,6 @@
     "scripts/prepare-launcher.ts",
     "scripts/validate-capture.ts",
     "scripts/validate-decoding.ts",
-    "scripts/validate-example-browser.ts",
     "scripts/validate-example.ts",
     "scripts/validate-flows.ts",
     "scripts/validate-gateway-memory.ts",

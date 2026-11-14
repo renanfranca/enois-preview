@@ -259,6 +259,7 @@ Attention:
 | --- | --- |
 | `Unsupported record format. Expected enois-preview-ts-v1.` | The file comes from an older version. Preserve the old files and create a fresh installation with `--home NEW_DIRECTORY`. |
 | `Configuration missing. Run enois-preview setup --config PRIVATE_JSON first.` | Run `setup` first. |
+| `Revision ... was created by an earlier enois-preview version and cannot be resumed by this version. ...` | `resume` received a revision whose journal records `inputs.toolCommit`, the 0.3.x format. The journal is intact; it only belongs to another version. Run `enois-preview publish SCENARIO` to create a new revision, or resume it with the version that created it. |
 | `Select stable account IDs with enois-preview publish SCENARIO --accounts ID[,ID...], ...` | No accounts are configured and there is no terminal to ask. Pass `--accounts` (recipe 8). |
 | `Stage localImage incomplete: docker failed (exit 1); …` | An application does not build at the published commits. Read the operation's `build.log`. Nothing remote was changed. |
 | `Stage publicValidation incomplete: ...` with `Readiness is not UP`, `input identity mismatch` or `HTTP 401` | The app did not start, runs another revision, or a selected account cannot log in. These are the only validation failures. See [diagnostics](../diagnostics/README.md). |

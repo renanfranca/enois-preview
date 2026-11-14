@@ -58,6 +58,11 @@ export function dataManifest(value: unknown): DataManifest {
 export function journalRecord(value: unknown): Journal {
   requireFormat(value);
   const raw = object(value.inputs); requireFormat(raw);
+  if (Object.hasOwn(raw, 'toolCommit')) {
+    const revision = typeof value.revision === 'string' && /^[a-f0-9]{64}$/.test(value.revision) ? `Revision ${value.revision}` : 'This revision';
+    const scenario = typeof raw.scenario === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(raw.scenario) ? raw.scenario : 'the scenario';
+    throw new PreviewError(`${revision} was created by an earlier enois-preview version and cannot be resumed by this version. Run enois-preview publish ${scenario} to create a new revision, or resume it with the version that created it.`);
+  }
   const manifest = dataManifest(raw.dataManifest);
   const commits: Record<string, string> = {};
   for (const [name, sha] of Object.entries(object(raw.commits))) {

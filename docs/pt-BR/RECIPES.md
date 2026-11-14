@@ -259,6 +259,7 @@ Atenção:
 | --- | --- |
 | `Unsupported record format. Expected enois-preview-ts-v1.` | O arquivo vem de uma versão antiga. Preserve os arquivos antigos e crie uma instalação nova com `--home NOVO_DIRETORIO`. |
 | `Configuration missing. Run enois-preview setup --config PRIVATE_JSON first.` | Rode o `setup` antes. |
+| `Revision ... was created by an earlier enois-preview version and cannot be resumed by this version. ...` | O `resume` recebeu uma revisão cujo journal grava `inputs.toolCommit`, o formato da 0.3.x. O journal está íntegro; ele só pertence a outra versão. Rode `enois-preview publish CENARIO` para criar uma revisão nova, ou retome com a versão que a criou. |
 | `Select stable account IDs with enois-preview publish SCENARIO --accounts ID[,ID...], ...` | Não há contas configuradas nem terminal para perguntar. Passe `--accounts` (receita 8). |
 | `Stage localImage incomplete: docker failed (exit 1); …` | Uma aplicação não compila nos commits publicados. Leia o `build.log` da operação. Nada remoto foi alterado. |
 | `Stage publicValidation incomplete: ...` com `Readiness is not UP`, `input identity mismatch` ou `HTTP 401` | O app não subiu, roda outra revisão, ou uma conta selecionada não consegue entrar. Essas são as únicas falhas da validação. Veja o [diagnóstico](../diagnostics/README.md). |

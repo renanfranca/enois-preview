@@ -263,6 +263,34 @@ test('CLI resume refuses tampered frozen inputs even when the mutable journal in
   }
 });
 
+test('CLI resume of a revision recorded by 0.3.x explains that the revision belongs to an earlier version and points to publish',()=>{
+  const f=prepared();
+  try{
+    assert.equal(f.invoke('publish','fixture').status,1);
+    const operations=join(f.config.state,'operations');const revision=readdirSync(operations).find(name=>!name.startsWith('.'));assert.ok(revision);
+    const file=join(operations,revision,'journal.json');const journal=JSON.parse(readFileSync(file,'utf8'));
+    journal.inputs.toolCommit='c'.repeat(40);writeFileSync(file,JSON.stringify(journal));
+    const before=readFileSync(file);const state=readdirSync(f.config.state,{recursive:true}).sort();
+
+    const resumed=f.invoke('resume',revision);
+
+    assert.equal(resumed.status,1);assert.equal(resumed.stdout,'');
+    assert.match(resumed.stderr,new RegExp(`Revision ${revision} was created by an earlier enois-preview version`));
+    assert.match(resumed.stderr,/Run enois-preview publish fixture to create a new revision/);
+    assert.doesNotMatch(resumed.stderr,/restore the original record/);
+    assert.deepEqual(readFileSync(file),before);
+    assert.deepEqual(readdirSync(f.config.state,{recursive:true}).sort(),state);
+
+    delete journal.inputs.toolCommit;journal.inputs.unexpected='tampered';writeFileSync(file,JSON.stringify(journal));
+
+    const tampered=f.invoke('resume',revision);
+
+    assert.equal(tampered.status,1);
+    assert.match(tampered.stderr,/Journal revision identity mismatch; restore the original record\./);
+    assert.doesNotMatch(tampered.stderr,/earlier enois-preview version/);
+  }finally{rmSync(f.root,{recursive:true,force:true});}
+});
+
 test('a development checkout publishes and resumes with an unverified tool warning and records its own commit',async()=>{
   const f=prepared();
   try{

@@ -94,10 +94,10 @@ This file records what changed in each release, newest first. The guides ([READM
 
 On 7 November 2026, the tutorial was exercised on the existing infrastructure with public tool `a95d9862bea0b5076b311600d6f0ebec939cfbd5`, without billing or secret changes. These temporary previews automatically boot another environment after inactivity deletion.
 
-| Step | Validated public revision | Data |
-| --- | --- | --- |
-| First publication and frozen resume | [997ebbd9399555cf](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-en-997ebbd9399555cf) | D1, including six additional frozen MIME fixtures |
-| Code update | [c1679b51e8c5b536](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-en-c1679b51e8c5b536) | Same D1, with live H2/media unavailable for the command |
-| Explicit refresh | [a6ed69fba999af5c](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-en-a6ed69fba999af5c) | D2, same three code commits as the previous step |
+| Step                                | Validated public revision                                                                                                      | Data                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| First publication and frozen resume | [997ebbd9399555cf](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-en-997ebbd9399555cf) | D1, including six additional frozen MIME fixtures       |
+| Code update                         | [c1679b51e8c5b536](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-en-c1679b51e8c5b536) | Same D1, with live H2/media unavailable for the command |
+| Explicit refresh                    | [a6ed69fba999af5c](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-en-a6ed69fba999af5c) | D2, same three code commits as the previous step        |
 
 The initial configuration push failed when the native Git HTTPS transport received signal 11. Its cause is unknown. Canonical resume completed the same revision with all three fictional repositories and live data unavailable, preserving frozen inputs and the confirmed image. Independent public HTML/post/media checks distinguish the new code with D1 from explicit D2; [receipts and limits](../../VALIDATION.md) also include six MIME/byte/hash and Chromium 64x64 checks at desktop 1280 and 390 mobile emulation. The prepared example still has nine SVG assets; six operator supplied frozen fixtures bring this initial published snapshot to 15, and the D2 marker brings refresh to 16.

@@ -100,11 +100,11 @@ You point enois-preview at commits of the three Énóis applications and at a co
 
 Code always comes from the **current commits** of the three applications, exported with `git archive`. Data comes from the scenario's **last capture** and stays frozen until you ask for `--refresh-data`.
 
-| You want to | Command | Captures data? |
-| --- | --- | --- |
-| Show new code with the same data | `enois-preview publish <scenario>` | No |
-| Show new data or media | `enois-preview publish <scenario> --refresh-data` | Yes |
-| Finish a failed publication | `enois-preview resume <full-revision>` | Never |
+| You want to                      | Command                                           | Captures data? |
+| -------------------------------- | ------------------------------------------------- | -------------- |
+| Show new code with the same data | `enois-preview publish <scenario>`                | No             |
+| Show new data or media           | `enois-preview publish <scenario> --refresh-data` | Yes            |
+| Finish a failed publication      | `enois-preview resume <full-revision>`            | Never          |
 
 Capture never stops your backend. The design system package is rebuilt from its commit for every image.
 
@@ -124,13 +124,13 @@ The trade off: to change anything, you produce a new revision and update the PR 
 
 ## Where files live
 
-| Path | What it is |
-| --- | --- |
-| `~/.local/share/enois-preview/<COMMIT>/` | Immutable tool installation, with `install.json` |
-| `~/.local/share/enois-preview/current` | Link to the installation in use |
+| Path                                     | What it is                                                                        |
+| ---------------------------------------- | --------------------------------------------------------------------------------- |
+| `~/.local/share/enois-preview/<COMMIT>/` | Immutable tool installation, with `install.json`                                  |
+| `~/.local/share/enois-preview/current`   | Link to the installation in use                                                   |
 | `~/.config/enois-preview-ts/config.json` | Private configuration. Change the directory with `ENOIS_PREVIEW_HOME` or `--home` |
-| `<state>/scenarios/<scenario>.json` | Which data version the scenario uses |
-| `<state>/data/<id>/` | Frozen, sanitized data |
-| `<state>/operations/<revision>/` | Journal, frozen files and evidence for each revision |
-| Launcher: `catalog/scenarios.json` | Catalog of published revisions |
-| Launcher: `.devcontainer/<slug>/` | Codespace configuration for each revision |
+| `<state>/scenarios/<scenario>.json`      | Which data version the scenario uses                                              |
+| `<state>/data/<id>/`                     | Frozen, sanitized data                                                            |
+| `<state>/operations/<revision>/`         | Journal, frozen files and evidence for each revision                              |
+| Launcher: `catalog/scenarios.json`       | Catalog of published revisions                                                    |
+| Launcher: `.devcontainer/<slug>/`        | Codespace configuration for each revision                                         |

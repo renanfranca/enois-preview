@@ -42,11 +42,13 @@ A revisão do commit `093f958` (branch `feat/remove-preview-restrictions`, ainda
 ## Milestones
 
 ### R0. Baseline
+
 - Confira a branch `feat/remove-preview-restrictions`, o `HEAD` em `093f958` e que a única pendência é este plano.
 - Rode `npm ci --ignore-scripts && npm run build && npm test`. O esperado é 118 passando.
 - Grave em `review-followups/baseline.json`.
 
 ### R1. Mensagem para revisões da 0.3.x (critério A1)
+
 - **Teste primeiro**, em `test/cli-journey.test.ts`, no teste de journals históricos ou num teste vizinho:
   - **Contexto:** um journal válido no formato atual, mais o campo `inputs.toolCommit` com 40 hex.
   - **Ação:** `enois-preview resume <revision>`.
@@ -62,10 +64,12 @@ A revisão do commit `093f958` (branch `feat/remove-preview-restrictions`, ainda
   `Revision REVISION was created by an earlier enois-preview version and cannot be resumed by this version. Run enois-preview publish SCENARIO to create a new revision, or resume it with the version that created it.`
 
   Troque `REVISION` e `SCENARIO` pelos valores do journal, mas só depois de validar o formato deles, usando as mesmas regex que já existem. Se não forem válidos, use os textos genéricos `this revision` e `the scenario`.
+
 - **O que não muda:** um journal sem `toolCommit` e com inventário adulterado continua recebendo `Journal revision identity mismatch; restore the original record.` Rode o teste existente de adulteração (`test/publication-journey.test.ts`, "CLI resume refuses tampered frozen inputs …") para conferir.
 - **Documentação:** em `docs/pt-BR/RECIPES.md` e `docs/en/RECIPES.md`, onde a tabela de erros cita revisões da 0.3.x ou `resume`, acrescente uma linha com a mensagem nova e o remédio (`publish`). Na seção `## 0.4.0` do `CHANGELOG.md` e do `docs/en/CHANGELOG.md`, no item "Configuração da 0.3.x", diga que o `resume` de uma revisão da 0.3.x responde com essa mensagem.
 
 ### R2. Upload com corpo incompleto não deixa objeto (critério A2)
+
 - **Teste primeiro**, em `scripts/validate-media-contracts.ts` (função `check`), com a asserção em `test/integration/media-contracts.test.ts`:
   1. o autor fictício aloca um upload `audio/wav` de 45 000 000 bytes, acima do limite em memória de 40 MiB do backend, para passar pelo caminho de arquivo temporário;
   2. o script envia `PUT` para o `uploadUrl` com `Content-Length: 45000000` e interrompe a conexão depois de cerca de 10 MB. Use `node:http` ou `node:net` direto contra a origem local, porque o `Session` envia o corpo inteiro;
@@ -83,6 +87,7 @@ A revisão do commit `093f958` (branch `feat/remove-preview-restrictions`, ainda
 - **Comando:** `ENOIS_PREVIEW_EXAMPLE_WORKSPACE=<workspace novo do test:example> npm run test:media`.
 
 ### R3. Tirar o script de navegador (critério A3)
+
 - **Arquivos:**
   - apague `scripts/validate-example-browser.ts`;
   - em `test/integration/application-flows.test.ts`, remova o teste "actual desktop and mobile emulation authenticate through the hydrated form …". Os outros dois testes do arquivo ficam;
@@ -100,23 +105,27 @@ A revisão do commit `093f958` (branch `feat/remove-preview-restrictions`, ainda
 - **Distribuição:** `npm test`, que inclui o teste de distribuição em `test/distribution-journey.test.ts`, precisa passar com a lista nova.
 
 ### R4. Validação final
+
 - Detalhada em Validation.
 - Antes dela, atualize Progress até o R4. A partir daí, este arquivo congela, e o relatório vai para `review-followups/executor-report.md`.
 
 ## Critérios de aceitação
 
 Fontes:
+
 - **[R]** a revisão de `093f958` (os três pontos do Purpose);
 - **[S]** `.agent/specifications/remove-preview-restrictions.md`, onde "Revisions created by 0.3.x have no guaranteed resume" e onde a garantia de "unchanged behavior" mantém o armazenamento correto;
 - **[B]** `b41202c:preview/publication.ts`, que tem o `Inputs` com `toolCommit`.
 
 Para cada critério, o executor confere **separadamente**:
+
 1. se a expectativa está correta frente às fontes;
 2. se a verificação a demonstra.
 
 Registre comando, resultado observado e artefato em `executor-report.md`. Uma suíte verde sozinha não fecha nenhum critério.
 
 **A1. Revisão da 0.3.x recebe mensagem certa** [R, S, B]
+
 - **Contexto:** journal com `inputs.toolCommit`.
 - **Ação:** `resume`.
 - **Esperado:**
@@ -129,11 +138,13 @@ Registre comando, resultado observado e artefato em `executor-report.md`. Uma su
   - o teste de adulteração prova que a mensagem antiga continua para corrupção de verdade, então trocar a mensagem em todos os casos seria detectado.
 
 **A2. Corpo incompleto não deixa objeto** [R, S]
+
 - **Contexto:** imagem do exemplo, autor fictício e um upload de 45 MB interrompido.
 - **Esperado:** o `GET` depois da interrupção não responde 200, e um upload completo novo do mesmo tamanho fica legível.
 - **Discriminação:** a variação local que espera 200 falha, e o tamanho igual detecta espaço ou chave presos.
 
 **A3. Script de navegador removido sem regressão** [R]
+
 - **Esperado:**
   - o `grep` da R3 não devolve nada;
   - `test:flows` passa com 2 testes;
@@ -159,6 +170,7 @@ Registre comando, resultado observado e artefato em `executor-report.md`. Uma su
 Rode sobre o tree exato que será commitado, já com este plano congelado. Use `ENOIS_PREVIEW_EVIDENCE=$EV/release-0.4.0/review-followups/final` e `ENOIS_PREVIEW_EXAMPLE_WORKSPACE` apontando para o workspace preparado pelo passo 6.
 
 Todos devem sair com 0, nesta ordem:
+
 1. `npm ci --ignore-scripts`
 2. `npm run build`
 3. `npm run typecheck`
@@ -175,6 +187,7 @@ Grave `final/validation.json` com o tree antes e depois (iguais), as contagens e
 Uma tentativa que falhar vai para `final-attempt<N>/` e não conta. Se a JVM cair com `SIGSEGV` no JIT, como aconteceu na validação da 0.4.0, repita o comando uma vez e registre. Se cair de novo, pare e reporte.
 
 **Paradas:**
+
 - o red de A1 não aparece;
 - a variação de A2 que espera 200 não falha;
 - qualquer validação falha;

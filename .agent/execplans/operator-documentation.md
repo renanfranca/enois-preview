@@ -11,6 +11,7 @@ Hoje a documentação foi escrita como registro de aceite e changelog. Uma pesso
 Este plano reescreve os guias para **quem vai operar** a ferramenta (publicar previews dos próprios PRs), em **pt-BR e inglês com paridade**. Os diagramas ficam em **Mermaid** e as notas por versão vão para um **CHANGELOG**. Essas quatro escolhas foram feitas pelo usuário em 11 de novembro de 2026.
 
 **Sucesso (observável):**
+
 - O README, em cada idioma, abre explicando o problema e o propósito em linguagem comum. Depois vêm um diagrama "onde roda o quê", requisitos, instalação, uma tabela de comandos e um mapa da documentação. VALIDATION.md não aparece mais na primeira frase.
 - Existem, em `docs/pt-BR/` e `docs/en/`, três guias novos com os mesmos nomes de arquivo:
   - `CONCEPTS.md`: glossário e modelo mental;
@@ -42,16 +43,16 @@ Safety boundary: This task is limited to authorized, defensive maintenance of th
   - `scripts/export-public.ts` exige o título `## TypeScript migration evidence` dentro de `VALIDATION.md`, porque exporta só daquele ponto em diante. Não altere esse título.
 - **Fontes de verdade.** Leia cada uma antes de escrever a seção que depende dela. Não use memória.
 
-  | Assunto | Fonte |
-  |---|---|
-  | Comandos e mensagens | `preview/cli.ts` (`main`, `selectAccounts`) |
-  | Fluxo do publish | `preview/publication.ts` (`publishRevision`, `continueRevision`, `exportSources`, `resumeRevision`) e `preview/remote.ts` (`Publisher`, com as etapas `buildAndValidate`, `acquireRemoteLease`, `registry`, `configuration`, `catalog`, `deploy`, `validatePublic`, `releaseRemoteLease`) |
-  | Captura e recuperação | `preview/capture.ts` (`commits`, `capture`, `recover`, `sourceDigest`) |
-  | Instalação | `scripts/install-tool.ts`, `preview/installation.ts` |
-  | Configuração | `preview/config.ts`, `example/prepare.ts`, `example/sources.json` |
-  | Visitante | `src/worker.ts` (`createWorker`), `src/scenario.ts` (`IDLE_MS`, fases, `launch`, `alarm`, `expire`), `runtime/start.ts`, `runtime/gateway.ts`, `runtime/register-codespace.ts`, `runtime/demo-activity.ts`, `runtime/DemoCredentials.java` |
-  | Limites (20 MiB, 256 MiB, 10 min) | README atual, conferido contra `runtime/` e `src/` |
-  | Histórico para o CHANGELOG | Seções "Na versão 0.3.x" do README, TUTORIAL e LLM atuais; `git tag -n`; `git log --oneline`; a seção "Execução observada da versão 0.2.0" de `docs/pt-BR/TUTORIAL.md` |
+  | Assunto                           | Fonte                                                                                                                                                                                                                                                                                     |
+  | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Comandos e mensagens              | `preview/cli.ts` (`main`, `selectAccounts`)                                                                                                                                                                                                                                               |
+  | Fluxo do publish                  | `preview/publication.ts` (`publishRevision`, `continueRevision`, `exportSources`, `resumeRevision`) e `preview/remote.ts` (`Publisher`, com as etapas `buildAndValidate`, `acquireRemoteLease`, `registry`, `configuration`, `catalog`, `deploy`, `validatePublic`, `releaseRemoteLease`) |
+  | Captura e recuperação             | `preview/capture.ts` (`commits`, `capture`, `recover`, `sourceDigest`)                                                                                                                                                                                                                    |
+  | Instalação                        | `scripts/install-tool.ts`, `preview/installation.ts`                                                                                                                                                                                                                                      |
+  | Configuração                      | `preview/config.ts`, `example/prepare.ts`, `example/sources.json`                                                                                                                                                                                                                         |
+  | Visitante                         | `src/worker.ts` (`createWorker`), `src/scenario.ts` (`IDLE_MS`, fases, `launch`, `alarm`, `expire`), `runtime/start.ts`, `runtime/gateway.ts`, `runtime/register-codespace.ts`, `runtime/demo-activity.ts`, `runtime/DemoCredentials.java`                                                |
+  | Limites (20 MiB, 256 MiB, 10 min) | README atual, conferido contra `runtime/` e `src/`                                                                                                                                                                                                                                        |
+  | Histórico para o CHANGELOG        | Seções "Na versão 0.3.x" do README, TUTORIAL e LLM atuais; `git tag -n`; `git log --oneline`; a seção "Execução observada da versão 0.2.0" de `docs/pt-BR/TUTORIAL.md`                                                                                                                    |
 
 ## Definitions
 
@@ -233,24 +234,25 @@ Executado em 11 de novembro de 2026 na branch `docs/operator-documentation`, Nod
 
 Checklist de preservação (restrição → onde aparece agora):
 
-| Restrição | Arquivo e seção |
-| --- | --- |
-| Recusa de árvore suja | README "Limites e custos"; RECIPES 3 e 10; FLOW passo 4 |
-| A ferramenta não comita nem altera as três aplicações | README "Limites e custos"; CONCEPTS "As três aplicações"; RECIPES 10 |
-| Instalação imutável e proibição de `npm run` dentro dela | README "Instalação"; TUTORIAL passo 9; RECIPES 1 |
-| Checkout de desenvolvimento não publica | README "Instalação"; RECIPES 1 |
-| Revisões da 0.3.1 ou anteriores só retomam com o executor original | README "Instalação"; RECIPES 5; CHANGELOG 0.3.2 |
-| Formato `enois-preview-ts-v1` e recusa de registros antigos | README "Instalação"; RECIPES 10; LLM "Proibições"; TUTORIAL "Lançador da versão Python" |
-| Ctrl+C (130/143), `restoration.json` e leases | RECIPES 6; CONCEPTS "Lease" e "`restoration.json`"; LLM "Como orientar" |
-| `source-digest` só lê; comparar `logicalSha256` | RECIPES 7; README "Comandos" |
-| Contas compartilhadas, 20 MiB / 256 MiB, 10 min, polling não renova | README "Limites e custos"; RECIPES 9; FLOW visita, passos 8 e 9 |
-| Planos gratuitos só no setup; nenhum cartão ou plano pago | README "Limites e custos"; TUTORIAL passo 15 |
-| Termos do Codespaces | README "Limites e custos" |
-| GPLv3, avisos dos projetos, dados fora do repositório | README "Licença" |
-| Codespace sem comandos manuais no terminal dele | TUTORIAL "Antes de começar"; RECIPES 9; CONCEPTS "Worker, Durable Object e Codespace"; LLM |
-| Tokens nunca em argumentos, chat ou arquivos versionados | TUTORIAL "Antes de começar"; RECIPES 1; LLM "Proibições" |
+| Restrição                                                           | Arquivo e seção                                                                            |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Recusa de árvore suja                                               | README "Limites e custos"; RECIPES 3 e 10; FLOW passo 4                                    |
+| A ferramenta não comita nem altera as três aplicações               | README "Limites e custos"; CONCEPTS "As três aplicações"; RECIPES 10                       |
+| Instalação imutável e proibição de `npm run` dentro dela            | README "Instalação"; TUTORIAL passo 9; RECIPES 1                                           |
+| Checkout de desenvolvimento não publica                             | README "Instalação"; RECIPES 1                                                             |
+| Revisões da 0.3.1 ou anteriores só retomam com o executor original  | README "Instalação"; RECIPES 5; CHANGELOG 0.3.2                                            |
+| Formato `enois-preview-ts-v1` e recusa de registros antigos         | README "Instalação"; RECIPES 10; LLM "Proibições"; TUTORIAL "Lançador da versão Python"    |
+| Ctrl+C (130/143), `restoration.json` e leases                       | RECIPES 6; CONCEPTS "Lease" e "`restoration.json`"; LLM "Como orientar"                    |
+| `source-digest` só lê; comparar `logicalSha256`                     | RECIPES 7; README "Comandos"                                                               |
+| Contas compartilhadas, 20 MiB / 256 MiB, 10 min, polling não renova | README "Limites e custos"; RECIPES 9; FLOW visita, passos 8 e 9                            |
+| Planos gratuitos só no setup; nenhum cartão ou plano pago           | README "Limites e custos"; TUTORIAL passo 15                                               |
+| Termos do Codespaces                                                | README "Limites e custos"                                                                  |
+| GPLv3, avisos dos projetos, dados fora do repositório               | README "Licença"                                                                           |
+| Codespace sem comandos manuais no terminal dele                     | TUTORIAL "Antes de começar"; RECIPES 9; CONCEPTS "Worker, Durable Object e Codespace"; LLM |
+| Tokens nunca em argumentos, chat ou arquivos versionados            | TUTORIAL "Antes de começar"; RECIPES 1; LLM "Proibições"                                   |
 
 Lacunas abertas:
+
 - Renderização Mermaid não verificada localmente (sem `mermaid-cli`). Conferir na pré-visualização do GitHub no PR.
 - Versão do Node sem mensagem de erro própria (ver M3).
 
@@ -299,6 +301,7 @@ Rode na raiz do repositório. Os resultados esperados vêm entre parênteses. Re
     - tokens nunca em argumentos, chat ou arquivos versionados.
 
 **Obrigações do executor antes de entregar:**
+
 - Confira cada expectativa contra as fontes citadas, separadamente de conferir se os comandos passam. Um `npm test` verde não prova que os docs estão corretos.
 - Registre em `Progress` a evidência de cada critério: o comando, o resultado observado e o arquivo ou a linha.
 - Registre lacunas (por exemplo, a renderização Mermaid e fatos não confirmados) como lacunas. Não declare satisfeito um critério com lacuna aberta.

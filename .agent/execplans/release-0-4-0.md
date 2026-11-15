@@ -7,10 +7,12 @@ Safety boundary: This task is limited to authorized, defensive maintenance of th
 O código da 0.4.0 está pronto no PR #12 (`feat/remove-preview-restrictions` → `main`, com os commits `093f958` e `39ad65c`). O conteúdo está em `.agent/specifications/remove-preview-restrictions.md` e na seção `## 0.4.0` do `CHANGELOG.md`.
 
 Este plano lança a versão e fecha as duas provas que só podem ser feitas em público:
+
 - **K1:** a publicação da #806, cujo banco tem a migração `V277` fora de ordem, chega a `validated`, e o link mostra a correção a 390 px;
 - **K5:** um upload de 50 MB passa pelo link público, pelo Worker refixado na 0.4.0.
 
 **Sucesso:**
+
 - o PR #12 entrou por fast-forward, e `main` = `origin/main` = `v0.4.0^{commit}` = SHA4;
 - a release `0.4.0` está publicada com notas curtas e foi lida de volta sem vazamentos;
 - `current` aponta para SHA4, instalado pelo `install.sh` da tag;
@@ -51,6 +53,7 @@ Este plano lança a versão e fecha as duas provas que só podem ser feitas em p
 - **Nas aplicações, só o L7:** atualizar as branches atuais com o `upstream/qa` mais novo, sem enviar nada. Fora isso, **não toque** nas aplicações, nos bancos, nos workspaces `public-walkthrough-*`, na config padrão nem em releases e tags anteriores.
 
 **Autorização (dada no handoff):**
+
 - **Concedida:**
   - `lc` e `lp` neste repositório e no lançador;
   - merge **só por fast-forward** pelo `luna`, com fallback por `git merge --ff-only` e `git push origin main`, registrado;
@@ -83,7 +86,9 @@ Este plano lança a versão e fecha as duas provas que só podem ser feitas em p
 ## Milestones
 
 ### L0. Baseline
+
 Grave em `delivery/baseline.json`:
+
 - branch, `git status` e `HEAD` = `39ad65c`;
 - `gh pr view 12 --json state,mergeable,headRefOid`;
 - `origin/main` = `b41202c`;
@@ -97,14 +102,17 @@ Grave em `delivery/baseline.json`:
 Qualquer divergência é parada.
 
 ### L1. Validação, commit do plano e push
+
 - Rode a Validation (seção abaixo) sobre o tree com este plano.
 - Depois, `lc` e `lp`. O commit novo entra no PR #12. SHA4 = o `HEAD` depois do `lp`.
 - Confira que o diff de `39ad65c..SHA4` toca só `.agent/execplans/release-0-4-0.md`.
 
 ### L2. Merge por fast-forward
+
 - Rode:
 
   `luna "Na branch feat/remove-preview-restrictions de ~/projects/enois-preview, o PR #12 para main já existe. Faça o merge SOMENTE por fast-forward: git switch main && git pull --ff-only && git merge --ff-only feat/remove-preview-restrictions && git push origin main. Não use squash, rebase nem merge commit; se o fast-forward não for possível, pare e reporte. Ao final deixe main limpo e igual a origin/main e informe o SHA e o estado do PR."`
+
 - Se o `luna` for bloqueado, faça o mesmo fast-forward com git e registre.
 - **Confira:**
   - `main` = `origin/main` = SHA4;
@@ -112,6 +120,7 @@ Qualquer divergência é parada.
   - `git status` limpo.
 
 ### L3. Tag
+
 - `git tag -a v0.4.0 -m "0.4.0" <SHA4>` e `git push origin v0.4.0`.
 - **Confira:**
   - `git ls-remote --tags origin` = `tags-before.txt` mais as duas linhas da `v0.4.0` (a tag anotada e o `^{}`);
@@ -119,6 +128,7 @@ Qualquer divergência é parada.
 - Grave `tags-after.txt`.
 
 ### L4. Release
+
 - `gh release create v0.4.0 --title 0.4.0 --notes-file <arquivo em delivery/>`, sem anexos.
 - **Notas curtas, em PT e EN:**
   - a ferramenta deixa de impor política e troca bloqueios por avisos;
@@ -137,6 +147,7 @@ Qualquer divergência é parada.
 - Grave `release-readback.json`.
 
 ### L5. Instalação
+
 - Rode:
 
   ```sh
@@ -145,6 +156,7 @@ Qualquer divergência é parada.
   ```
 
   A saída vai para `delivery/install.log`.
+
 - **Confira:**
   - `current` → SHA4;
   - o comando global aponta para `<SHA4>/dist/preview/cli.js`;
@@ -153,7 +165,9 @@ Qualquer divergência é parada.
   - as instalações `d2c2bbb`, `e733eb4` e `b41202c` continuam presentes.
 
 ### L6. Lançador
+
 No checkout do lançador:
+
 1. `git pull --ff-only`;
 2. pin SHA4 em `tool.lock.json` (`commit`) e na dependência `enois-preview` do `package.json` (`https://codeload.github.com/renanfranca/enois-preview/tar.gz/<SHA4>`);
 3. `npm install --package-lock-only --ignore-scripts`;
@@ -164,6 +178,7 @@ No checkout do lançador:
 Não rode `wrangler deploy`: o próprio `publish` implanta no L8.
 
 ### L7. Aplicações em `upstream/qa`
+
 1. Em cada um dos três repositórios, rode `git fetch upstream`. Grave `upstream/qa` em `delivery/apps.json`.
 2. Nos checkouts principais de backend, design system e frontend: `git switch qa` (já está) e `git merge --ff-only upstream/qa`. Se não for fast-forward, pare.
 3. No worktree da #806: `git rebase upstream/qa`.
@@ -183,6 +198,7 @@ Não rode `wrangler deploy`: o próprio `publish` implanta no L8.
    - a branch `origin/fix/806-mobile-price-title-squeeze` continua em `595914bd`, porque não houve envio. Registre que ela ficou divergente.
 
 ### L8. Publicação da #806 (K1, parte 1)
+
 1. Confira de novo que a ref de lease não existe.
 2. Renomeie o `.preview/publish-result.json` vazio para `.preview/publish-result-0.3.9.json`.
 3. Rode, em segundo plano, e espere terminar (de 20 a 40 min):
@@ -190,6 +206,7 @@ Não rode `wrangler deploy`: o próprio `publish` implanta no L8.
    `ENOIS_PREVIEW_HOME=~/projects/enois/.local/issue806/.preview/installation enois-preview publish issue-806-precos-longos`
 
    O stdout vai para `.preview/publish-result.json`, o stderr para `.preview/publish-0.4.0.log` e o código de saída para `.preview/publish-0.4.0.exit`.
+
 4. **Esperado:**
    - saída 0, `status: "validated"`, uma `url` e um slug `issue-806-precos-longos-…`;
    - `warnings` contém `ignored-config-fields` e **não** contém `launcher-pin`;
@@ -201,7 +218,9 @@ Não rode `wrangler deploy`: o próprio `publish` implanta no L8.
    - se a JVM cair com `SIGSEGV` no JIT, registre o `hs_err` e conte isso como a única retomada.
 
 ### L9. Conferência a 390 px (K1, parte 2)
+
 Siga o M7 do `EXECPLAN-publish-preview-806.md`:
+
 1. Abra a `url` e espere a página de credenciais. O único login oferecido é `issue806.dona@enois.invalid`.
 2. A 390 × 844, siga os passos 3 a 5 do "Como conferir no link" do handoff:
    - o título de "Identidade visual completa…" fica visível, com largura maior que zero;
@@ -211,16 +230,20 @@ Siga o M7 do `EXECPLAN-publish-preview-806.md`:
 4. Escreva `.preview/PR-como-verificar.md` pelo modelo da receita 9, com o link, a conta, as páginas e os resultados esperados, **sem senha**. **Não poste.**
 
 ### L10. Upload de 50 MB pelo link público (K5)
+
 Use um script fora do repositório, em `delivery/k5/`, contra a `url` da #806:
+
 1. Use um `Session` com o slug. As credenciais vêm de `/__demo/access.json`.
 2. Login com a conta da #806.
 3. Aloque `audio/wav` de 50 000 000 bytes, com propósito `POST_AUDIO`, e envie um WAV válido com `PUT` no `uploadUrl` pela origem pública. O Worker fragmenta acima de 8 MiB.
 4. **Esperado:** sucesso no `PUT`. Um `GET` com `Range: bytes=0-77` no `cdnUrl` responde 206 e começa com `RIFF`.
 5. Apague a mídia com `DELETE /api/media/<id>`.
 6. Grave `k5.json` com os bytes, os status e a confirmação da exclusão, sem credenciais.
+
 - **Discriminação:** com o Worker da 0.3.9, o mesmo `PUT` responderia `413 Limite de 20 MiB por arquivo.`
 
 ### L11. Limpeza e registros
+
 - Confira que `feat/remove-preview-restrictions` é ancestral da `main` e apague a branch local e a remota (`cleanup.json`).
 - Se o publish avançou o origin do lançador, faça fast-forward no checkout local.
 - Confira que o sha256 da config da #806 é igual ao do L0.
@@ -231,18 +254,21 @@ Use um script fora do repositório, em `delivery/k5/`, contra a `url` da #806:
 ## Critérios de aceitação
 
 Fontes:
+
 - **[S]** a especificação, nos cenários 1 e 5;
 - **[C]** `CHANGELOG.md`, seção `## 0.4.0`;
 - **[H]** o `HANDOFF-enois-preview.md` da #806, seção "Como conferir no link";
 - **[U]** o pedido do usuário: release, instalação, lançador e #806.
 
 Para cada critério, o executor confere **separadamente**:
+
 1. se a expectativa está certa frente às fontes;
 2. se a prova a demonstra.
 
 Registre comando, resultado e artefato. Lacuna fica escrita como lacuna.
 
 **D1. Entrega** [U, C]
+
 - `main` = `origin/main` = `v0.4.0^{commit}` = SHA4;
 - PR #12 `MERGED`;
 - tags anteriores iguais a `tags-before.txt`;
@@ -252,6 +278,7 @@ Registre comando, resultado e artefato. Lacuna fica escrita como lacuna.
 - a branch foi apagada.
 
 **K1. A #806 publica e mostra a correção** [S cenário 1, H]
+
 - **Contexto:** os mesmos dados congelados da tentativa da 0.3.9, com o banco que tem a `V277` fora de ordem. As aplicações agora estão em `upstream/qa`, com a correção rebaseada (`FIX806`), e trazem também as migrações `V288` a `V316`, que ainda não estão nesse banco.
 - **Esperado:**
   - `validated`;
@@ -261,10 +288,12 @@ Registre comando, resultado e artefato. Lacuna fica escrita como lacuna.
 - **Discriminação:** a 0.3.9 falhava nessa mesma publicação com `Detected resolved migration not applied to database: 277` (operação `ad7ac648…`). Um link `validated` sem as capturas não fecha o K1.
 
 **K5. Upload de 50 MB no link público** [S cenário 5]
+
 - **Esperado:** `PUT` aceito, `GET` com `Range` respondendo 206 e `RIFF`, e a mídia apagada no fim.
 - **Discriminação:** o Worker da 0.3.9 responde 413 acima de 20 MiB. O `k5.json` registra que o tamanho passou de 20 MiB.
 
 **D2. Nada privado mudou** [U]
+
 - O sha256 da config da #806 é igual ao do L0.
 - As aplicações estão exatamente nos `HEAD`s do L7, com `git status` vazio, e nada foi enviado aos remotos delas (`origin/qa` e `origin/fix/806-mobile-price-title-squeeze` estão iguais ao L0).
 - Nenhum arquivo foi tocado nos workspaces `public-walkthrough-*`.
@@ -287,6 +316,7 @@ Registre comando, resultado e artefato. Lacuna fica escrita como lacuna.
 ## Validation
 
 Antes do `lc` do L1, sobre o tree exato com este plano, todos devem sair com 0:
+
 1. `npm ci --ignore-scripts`
 2. `npm run build`
 3. `npm run typecheck`
@@ -296,6 +326,7 @@ Antes do `lc` do L1, sobre o tree exato com este plano, todos devem sair com 0:
 O código não muda neste plano. As suítes de integração (`test:image`, `test:media`, `test:flows` e as demais) já passaram em `39ad65c` e não são repetidas. Grave as saídas em `delivery/validation/`.
 
 **Paradas:**
+
 - qualquer divergência no L0;
 - qualquer validação falha;
 - o merge não é fast-forward;

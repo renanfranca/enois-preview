@@ -13,6 +13,7 @@ Com um link de preview no PR, quem avalia abre a mudança rodando num ambiente r
 O enois-preview resolve isso para quem abre o PR (o operador). Você roda `enois-preview publish <cenario>` no seu terminal, onde o [cenário](docs/pt-BR/CONCEPTS.md#cenário) é um nome curto que você escolhe, e recebe um link HTTPS. Quando alguém abre o link, um GitHub Codespace, uma máquina de desenvolvimento na nuvem do GitHub, sobe sozinho com as três aplicações nos seus commits e com uma cópia dos seus dados [sanitizada](docs/pt-BR/CONCEPTS.md#dados-congelados-e-captura), sem sessões, tokens nem senhas. Depois de dez minutos sem uso, o ambiente é apagado.
 
 Em resumo:
+
 - **No `publish`:** a ferramenta usa o `HEAD` comitado de cada aplicação, copia os dados só quando precisa, congela tudo numa [revisão](docs/pt-BR/CONCEPTS.md#revisão) imutável, constrói a imagem Docker do app, grava a configuração no seu [lançador](docs/pt-BR/CONCEPTS.md#lançador) (um repositório privado seu no GitHub), publica o [Worker](docs/pt-BR/CONCEPTS.md#worker-durable-object-e-codespace) (o programa da Cloudflare que atende o link) e só informa sucesso depois de abrir o link e conferir que o app está no ar, roda a revisão esperada e deixa as contas selecionadas entrarem.
 - **Na visita:** o Worker cria o Codespace, mostra as contas e senhas geradas no boot e encaminha a navegação até o app.
 
@@ -26,16 +27,16 @@ O [CLI](docs/pt-BR/CONCEPTS.md#cli), o comando `enois-preview`, roda na sua máq
 
 ## Comandos
 
-| Comando | Para que serve | Receita |
-| --- | --- | --- |
-| `enois-preview setup --config <arquivo>` | Confere a infraestrutura existente e mostra o aviso dos planos gratuitos | [Instalar](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado) · [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados) |
-| `enois-preview publish <cenario>` | Publica os commits atuais com os dados congelados do cenário | [Código novo](docs/pt-BR/RECIPES.md#3-publicar-de-novo-só-com-código-novo) |
-| `enois-preview publish <cenario> --refresh-data` | Captura dados novos e publica | [Dados novos](docs/pt-BR/RECIPES.md#4-publicar-com-dados-novos) |
-| `enois-preview publish <cenario> --accounts ID[,ID...]` | Escolhe as contas dos visitantes sem pergunta no terminal | [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados) |
-| `... --force-lease` (no `publish` ou no `resume`) | Remove o lease remoto de outra operação e continua | [Lease](docs/pt-BR/CONCEPTS.md#lease) |
-| `enois-preview resume <revisao-completa>` | Continua uma publicação que falhou, sem recapturar dados | [Retomar](docs/pt-BR/RECIPES.md#5-retomar-uma-publicação-que-falhou) |
-| `enois-preview install <commit-completo>` | Instala outro commit público verificado e aponta o comando para ele | [Instalar](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado) |
-| `enois-preview source-digest` | Só lê: informa o digest lógico do banco de origem, mesmo com o backend rodando | [Conferir o banco](docs/pt-BR/RECIPES.md#7-conferir-se-o-banco-mudou) |
+| Comando                                                 | Para que serve                                                                 | Receita                                                                                                                                                       |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enois-preview setup --config <arquivo>`                | Confere a infraestrutura existente e mostra o aviso dos planos gratuitos       | [Instalar](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado) · [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados) |
+| `enois-preview publish <cenario>`                       | Publica os commits atuais com os dados congelados do cenário                   | [Código novo](docs/pt-BR/RECIPES.md#3-publicar-de-novo-só-com-código-novo)                                                                                    |
+| `enois-preview publish <cenario> --refresh-data`        | Captura dados novos e publica                                                  | [Dados novos](docs/pt-BR/RECIPES.md#4-publicar-com-dados-novos)                                                                                               |
+| `enois-preview publish <cenario> --accounts ID[,ID...]` | Escolhe as contas dos visitantes sem pergunta no terminal                      | [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados)                                                                                                |
+| `... --force-lease` (no `publish` ou no `resume`)       | Remove o lease remoto de outra operação e continua                             | [Lease](docs/pt-BR/CONCEPTS.md#lease)                                                                                                                         |
+| `enois-preview resume <revisao-completa>`               | Continua uma publicação que falhou, sem recapturar dados                       | [Retomar](docs/pt-BR/RECIPES.md#5-retomar-uma-publicação-que-falhou)                                                                                          |
+| `enois-preview install <commit-completo>`               | Instala outro commit público verificado e aponta o comando para ele            | [Instalar](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado)                                                                  |
+| `enois-preview source-digest`                           | Só lê: informa o digest lógico do banco de origem, mesmo com o backend rodando | [Conferir o banco](docs/pt-BR/RECIPES.md#7-conferir-se-o-banco-mudou)                                                                                         |
 
 `enois-preview --help` mostra o resumo. Todos aceitam `--home <diretorio>` para usar outra instalação privada.
 
@@ -78,6 +79,7 @@ enois-preview publish meu-cenario
 ```
 
 Atenção:
+
 - `publish` e `resume` recalculam os hashes e registram o commit da ferramenta em execução no journal e no resultado. Uma ferramenta que não é instalação verificada, como um checkout de desenvolvimento ou uma instalação diferente do registro, publica mesmo assim, com o aviso `unverified-tool`. Veja [commit da ferramenta e install.json](docs/pt-BR/CONCEPTS.md#commit-da-ferramenta-e-installjson).
 - O `install.sh` existe a partir da 0.3.9. Para instalar um commit anterior, siga o [caminho manual](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado).
 - A instalação é imutável: para outra versão, instale outro commit. Não execute `npm run` dentro dela, porque isso recompila o `dist`.
@@ -88,15 +90,15 @@ A primeira publicação, com dados fictícios, está no [tutorial](docs/pt-BR/TU
 
 ## Mapa da documentação
 
-| Documento | Quando ler |
-| --- | --- |
-| [Conceitos](docs/pt-BR/CONCEPTS.md) | Antes de tudo: revisão, captura, lançador, journal, lease |
-| [Fluxo](docs/pt-BR/FLOW.md) | Para entender o que acontece no `publish` e na visita |
-| [Tutorial](docs/pt-BR/TUTORIAL.md) | Na primeira publicação, com o exemplo fictício |
-| [Receitas](docs/pt-BR/RECIPES.md) | No dia a dia: publicar de novo, refresh, retomar, interrupções, erros |
-| [Diagnóstico](docs/diagnostics/README.md) | Para preparar a infraestrutura ou investigar uma falha |
-| [Guia para LLM](docs/pt-BR/LLM.md) | Se um assistente for ajudar você a operar |
-| [Histórico de versões](CHANGELOG.md) | Para saber o que mudou em cada versão |
+| Documento                                 | Quando ler                                                            |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| [Conceitos](docs/pt-BR/CONCEPTS.md)       | Antes de tudo: revisão, captura, lançador, journal, lease             |
+| [Fluxo](docs/pt-BR/FLOW.md)               | Para entender o que acontece no `publish` e na visita                 |
+| [Tutorial](docs/pt-BR/TUTORIAL.md)        | Na primeira publicação, com o exemplo fictício                        |
+| [Receitas](docs/pt-BR/RECIPES.md)         | No dia a dia: publicar de novo, refresh, retomar, interrupções, erros |
+| [Diagnóstico](docs/diagnostics/README.md) | Para preparar a infraestrutura ou investigar uma falha                |
+| [Guia para LLM](docs/pt-BR/LLM.md)        | Se um assistente for ajudar você a operar                             |
+| [Histórico de versões](CHANGELOG.md)      | Para saber o que mudou em cada versão                                 |
 
 ## Limites e custos
 

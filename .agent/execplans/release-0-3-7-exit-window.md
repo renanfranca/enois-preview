@@ -9,6 +9,7 @@ A revisão da 0.3.6 (11 de novembro de 2026) deixou três pontos, e o usuário d
 3. **O `status` e o `start` ainda podem responder "Backend ownership mismatch" durante a saída do backend.** No meio da saída, o kernel já liberou a memória (a `cmdline` fica vazia) e o `cwd`, mas o processo ainda não virou zumbi. O `stop` não é afetado, porque espera a identidade que sinalizou. O `capture` é afetado, porque espera `status` = `stopped` (`preview/capture.ts:62` e `:149`).
 
 **Sucesso:**
+
 - `node --test dist/test/service-journey.test.js` termina em menos de 30 s, sem perder a guarda de 75 s do J1.
 - O `VALIDATION.md` registra a rota `ready` como fechada pela evidência da v0.3.6, e o `register-codespace` como a única lacuna aberta.
 - Um processo do pidfile que já está saindo (flag `PF_EXITING`) conta como parado na checagem de dono. Um processo vivo e estranho que não está saindo continua dando o mismatch.
@@ -42,6 +43,7 @@ Safety boundary: This task is limited to authorized, defensive maintenance of th
 - **Sem worktree:** use a pasta principal (memória `no-worktree-single-folder`).
 
 **Código atual da checagem de dono** (`preview/service.ts`, na `4e81e92`):
+
 - `processStat(pid)` lê `/proc/<pid>/stat` e devolve o estado (campo 3) e o `starttime` (campo 22).
 - `alive(record)` devolve a identidade, ou `undefined` se o processo sumiu, é `Z`/`X` ou tem outro `starttime`.
 - `ownedPid` faz o seguinte:
@@ -51,6 +53,7 @@ Safety boundary: This task is limited to authorized, defensive maintenance of th
 - **A janela:** no kernel, `do_exit` liga `PF_EXITING` e depois libera a memória (`exit_mm`, que deixa a `cmdline` vazia) e o `cwd` (`exit_fs`). O estado só vira `Z` no `exit_notify`. Nesse intervalo, o processo está saindo, mas ainda aparece vivo e estranho.
 
 **Observações do planejamento** (leituras e protótipos fora do repositório; não provam a implementação):
+
 - `node --test dist/test/service-journey.test.js` na `4e81e92`: 4 de 4 passaram, com 4,3 + 2,2 + 0,1 + 2,4 s e `duration_ms` 79338. É o timer de 75 s.
 - **Protótipo de saída retida** (um processo com socket TCP em `SO_LINGER` e envio pendente, depois `_exit`): o `/proc/<pid>/stat` mostrou estado `Z`, flags `0x40804c`, bit `0x4` ligado, `cmdline` vazia e `cwd` com `ENOENT`.
   - Isso confirma que o campo 9 (índice 6 depois do `)` + 2) traz as flags e que o `PF_EXITING` aparece.
@@ -62,6 +65,7 @@ Safety boundary: This task is limited to authorized, defensive maintenance of th
   - A evidência não mostra o registro.
 
 **Autorização** (a mesma da 0.3.6, sem a limpeza de workspace):
+
 - **Concedida:**
   - commit (`lc`), push (`lp`) e PR;
   - merge pelo `luna`, com fallback por git ff;
@@ -109,6 +113,7 @@ Safety boundary: This task is limited to authorized, defensive maintenance of th
 ## Milestones
 
 ### S0. Branch e baseline
+
 - Use o skill `create-git-branch` na pasta principal. Este plano vai junto.
 - Copie para `$EV/release-0.3.7/configs-before/` (só para leitura):
   - as 4 configs;
@@ -117,17 +122,21 @@ Safety boundary: This task is limited to authorized, defensive maintenance of th
   - o conteúdo dos pidfiles configurados, se existirem.
 
 ### S1. Red (tdd-behavior-autonomous-quiet)
+
 Rode na `4e81e92` e grave em `release-0.3.7/red.log`:
+
 - **K1:** `npm run build && node --test dist/test/service-journey.test.js`. O red esperado é `duration_ms` acima de 70000, com os 4 testes passando.
 - **K3:** registre que não há red por caminho público, citando as observações do planejamento. Se quiser repetir o protótipo de corrida, ele vai em `release-0.3.7/dev/`, nunca no repositório.
 
 ### S2. Green
+
 - **`test/service-journey.test.ts`:** cancele o timer do J1 (Decisions). Não mude as asserções do J1.
 - **`preview/service.ts`:** aplique a regra do `PF_EXITING`, conforme Decisions.
   - Não mude o `alive()` do `stop`, o formato do pidfile, as mensagens nem o código de saída.
 - **Repetições:** `node --test dist/test/service-journey.test.js` cinco vezes. Grave as cinco `duration_ms` em `green-service.log`.
 
 ### S3. Documentação e versão
+
 - `package.json` e as duas ocorrências da raiz em `package-lock.json`: `0.3.7`.
 - `VALIDATION.md` (não reescreva seções anteriores):
   - **A linha "Open:", depois de "Accepted limits" (ponto 2):** diga que a rota `ready` do gateway foi fechada pela publicação canônica da v0.3.6 (o `runtime.log` da operação contém `Demo gateway ready`) e que o `register-codespace` continua aberto, porque só roda com `CODESPACES=true`. Sem caminhos locais.
@@ -141,17 +150,22 @@ Rode na `4e81e92` e grave em `release-0.3.7/red.log`:
 - `release/public-files.json`: o `local.json` novo. O plano em `.agent/` **não** entra: ele não é fonte pública exportada.
 
 ### S4. Validação final
+
 Detalhada em Validation. Antes dela, atualize o `Progress` deste plano até o S4 e marque o S5 como "em andamento". A partir daí, este arquivo fica congelado.
 
 ### S5. Commit, PR, merge e tag
+
 Siga o S6 da 0.3.6, com a branch nova e `v0.3.7`:
+
 1. `lc`, depois `lp`.
 2. PR e merge **só por fast-forward** pelo `luna`, com o mesmo prompt da 0.3.6. Se o `luna` for bloqueado, faça o fast-forward com git e registre.
 3. Confira que `main` = `origin/main` = SHA validado (SHA7), que o PR está `MERGED` e que o `git status` está limpo.
 4. `git tag -a v0.3.7 -m "0.3.7" <SHA7>` e `git push origin v0.3.7`. Confira que as tags anteriores não mudaram (`delivery/`).
 
 ### S6. Baseline, instalação, configs e lançador
+
 Siga o S7 da 0.3.6, com SHA7:
+
 1. `before.json` com o `source-digest` nas 4 configs.
 2. Backup dos dois `rede.mv.db` em `db-backup/`, no modo 600.
 3. `node dist/scripts/install-tool.js --commit <SHA7>`. Confira:
@@ -169,7 +183,9 @@ Siga o S7 da 0.3.6, com SHA7:
    - `lc` e `lp`.
 
 ### S7. Prova operacional do service por `current/`
+
 Siga o S9 da 0.3.6 e grave `service-path.json`:
+
 - leituras nas 4 configs;
 - `source-digest` antes;
 - ciclo real `start`/`ready`/`stop`/`released` na config de instalação PT;
@@ -177,15 +193,20 @@ Siga o S9 da 0.3.6 e grave `service-path.json`:
 - depois do `stop`: o pidfile novo no disco, `status` = `stopped`, e um segundo `start` que funciona e termina parado.
 
 ### S8. Publish e resume canônicos
+
 Siga o S10 da 0.3.6, com `toolCommit` = SHA7 e o catálogo com as 12 entradas anteriores iguais e 13 no total (`public/comparison.json`). Cite de novo, sem caminhos locais, se o `runtime.log` da operação nova contém `Demo gateway ready` e se há registro do Codespace.
 
 ### S9. Preservação
+
 Siga o S11 da 0.3.6:
+
 - `after.json` com o `logicalSha256` igual ao do `before.json`;
 - checks booleanos comparados com os de `release-0.3.6/final-preservation.json` (`preservation-comparison.json`).
 
 ### S10. Release
+
 `gh release create v0.3.7 --title 0.3.7` com notas PT/EN:
+
 - os três pontos;
 - a correção fechada por construção;
 - a lacuna `register-codespace`.
@@ -193,6 +214,7 @@ Siga o S11 da 0.3.6:
 Pacote de evidências revisadas mais o `.sha256`, sem logs brutos e com marcadores no lugar dos caminhos locais. Baixe de volta, rode `sha256sum -c` e `cmp`, e procure `/home/`, tokens e emails (`release-readback.json`).
 
 ### S11. Limpeza e registros
+
 - Remova a branch local e a remota, depois de confirmar que ela é ancestral da `main` (`cleanup.json`).
 - Se o publish avançou o origin do lançador, faça ff do checkout local.
 - `$EV/EXECPLAN.md`: seção "0.3.7 exit window and closure".
@@ -206,6 +228,7 @@ Pacote de evidências revisadas mais o `.sha256`, sem logs brutos e com marcador
 ## Critérios de aceitação
 
 As fontes são:
+
 - **[S]** `preview/service.ts` e `test/service-journey.test.ts` na `4e81e92`;
 - **[V]** `VALIDATION.md` na `4e81e92`: a seção "Orphan stop and pidfile ownership (0.3.6)" e a linha "Open:" de "Accepted limits";
 - **[K]** o kernel Linux: `PF_EXITING` = `0x00000004` em `include/linux/sched.h`; a ordem em `kernel/exit.c` `do_exit` (`exit_signals` antes de `exit_mm`/`exit_fs`, e estes antes de `exit_notify`); o campo 9 `flags` em proc(5);
@@ -215,6 +238,7 @@ As fontes são:
 Antes da entrega, confira de novo cada expectativa contra essas fontes, **separado** de conferir se a prova a demonstra. Registre a evidência de cada critério: comando, resultado observado e artefato. Uma suíte verde sozinha não fecha nenhum K. Uma lacuna de cobertura fica escrita como lacuna, não como critério cumprido.
 
 **K1. O J1 não segura o processo e mantém a guarda** [S, R]
+
 - **Contexto:** o build da branch.
 - **Ação:** `node --test dist/test/service-journey.test.js`.
 - **Resultado esperado:**
@@ -224,6 +248,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - **Discriminação:** na `4e81e92`, a mesma ação dá cerca de 79000 ms (S1). A guarda se confirma pela leitura do teste: o `race` continua com dois ramos e a asserção do código de saída fica igual. Registre o trecho.
 
 **K2. O texto das lacunas corresponde à evidência** [V, E]
+
 - **Resultado esperado:**
   - a linha "Open:" depois de "Accepted limits" não diz mais que a rota `ready` está aberta;
   - ela diz que a rota foi fechada pela publicação canônica da v0.3.6 e que o `register-codespace` continua aberto;
@@ -232,6 +257,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - **Discriminação:** o `git diff` mostra a linha antiga removida.
 
 **K3. O processo saindo conta como parado; o estranho estável continua protegido** [S, K, R]
+
 - **Expectativa:**
   - com o pidfile nomeando o próprio backend e ele já com `PF_EXITING` (a `cmdline` vazia ou o `cwd` com `ENOENT`), o `status` responde `stopped`, sem erro;
   - o `start` liga um backend novo depois que o antigo some;
@@ -242,6 +268,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - ❗️ **Lacuna de cobertura:** a janela não tem red observável (protótipos do planejamento: o linger já virou `Z`; o laço deu 0 em 20). Registre "closed by construction, not observed", como na 0.3.6. Não acrescente um teste que injete `/proc` nem um modo de teste no produto.
 
 **K4. O comportamento da 0.3.6 continua** [V]
+
 - J1 a J4 em `npm test`.
 - J5 e J6 no `test:capture`:
   - `orphanStop.codes` = `[0]`;
@@ -252,6 +279,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
   - a listagem do `.preview/` do PT igual antes e depois.
 
 **K5. Entrega**
+
 - `main` = `origin/main` = `v0.3.7^{commit}` = SHA7, e as tags anteriores sem mudança. PR `MERGED`.
 - `current` → SHA7, e as 4 configs diferem de `configs-before/` só no `toolCommit`.
 - O pin do lançador está em SHA7, sincronizado com o origin.
@@ -273,6 +301,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 Rode sobre o tree exato que será commitado, já com este plano congelado. Mova qualquer tentativa que falhar para `final-attempt<N>/`, sem contá-la como aprovação.
 
 Com `ENOIS_PREVIEW_EVIDENCE=$EV/release-0.3.7/final`, rode, nesta ordem, os comandos abaixo; todos devem sair com 0:
+
 1. `npm ci --ignore-scripts`
 2. `npm run build`
 3. `npm run typecheck`
@@ -283,11 +312,13 @@ Com `ENOIS_PREVIEW_EVIDENCE=$EV/release-0.3.7/final`, rode, nesta ordem, os coma
 8. `npm run test:install`
 
 Grave `release-0.3.7/final/validation.json` com:
+
 - o tree antes e depois (iguais);
 - as contagens observadas comparadas com o `local.json`;
 - o `capture-validation.json`.
 
 **Paradas:**
+
 - K1 sem red na `4e81e92`;
 - J3 ou J4 falharem;
 - algum `restoration.json` pendente ou alguma operação não concluída;

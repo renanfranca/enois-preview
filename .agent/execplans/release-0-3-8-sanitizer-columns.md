@@ -10,14 +10,15 @@ java.lang.IllegalStateException: Unrecognized authentication or integration colu
 
 O sanitizador (`recipe/SeedTool.java`) recusa, de propósito, qualquer coluna com cara de credencial que ele ainda não conhece. Esse bloqueio é a proteção certa e continua. O que falta é a decisão revisada para as duas colunas novas do backend:
 
-| Coluna | Origem no backend | O que guarda |
-|---|---|---|
-| `CALENDAR_SUBSCRIPTIONS.TOKEN_HASH` | migração V272, de 2026-11-11 | hash SHA-256 do token do link `.ics` da agenda; o token é a única credencial da rota, que responde sem sessão |
-| `MESSAGES.ENCRYPTED_KEYS` | migração V244, de 2026-11-05 | JSON com uma cópia cifrada da chave AES da mensagem para cada participante (E2E por mensagem); `NULL` nas mensagens antigas |
+| Coluna                              | Origem no backend            | O que guarda                                                                                                                |
+| ----------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `CALENDAR_SUBSCRIPTIONS.TOKEN_HASH` | migração V272, de 2026-11-11 | hash SHA-256 do token do link `.ics` da agenda; o token é a única credencial da rota, que responde sem sessão               |
+| `MESSAGES.ENCRYPTED_KEYS`           | migração V244, de 2026-11-05 | JSON com uma cópia cifrada da chave AES da mensagem para cada participante (E2E por mensagem); `NULL` nas mensagens antigas |
 
 O usuário decidiu corrigir isso numa release 0.3.8 com o ciclo completo da 0.3.7, **sem** publicar o cenário `issue-727`.
 
 **Sucesso:**
+
 - Uma captura cujo H2 tem `CALENDAR_SUBSCRIPTIONS` termina, e a cópia sanitizada não tem nenhuma linha nessa tabela nem o valor do token.
 - Uma captura cujo H2 tem `MESSAGES.ENCRYPTED_KEYS` termina, preserva as mensagens com o conteúdo e deixa `ENCRYPTED_KEYS` como `NULL` em todas as linhas.
 - Uma coluna nova e desconhecida, com cara de credencial, continua sendo recusada com a mesma mensagem e sem promover dados.
@@ -54,6 +55,7 @@ Safety boundary: This task is limited to authorized, defensive maintenance of th
 - **Sem worktree:** use a pasta principal.
 
 **Código atual do sanitizador** (`recipe/SeedTool.java`, na `c52d80e`, ação `sanitize`):
+
 1. Lê o esquema de todas as tabelas `PUBLIC`.
 2. Pula as tabelas do conjunto `DROP` e a `USER_CREDENTIALS`.
 3. Nas outras, aceita só duas exceções nomeadas: `PARENTAL_LINKS.TOKEN_HASH` e `CONTENT_FINGERPRINTS.TOKEN_COUNT`.
@@ -65,6 +67,7 @@ O esquema é lido num `TreeMap`. Por isso a primeira tabela recusada, em ordem a
 O teste existente da captura sanitizada é `test/capture-journey.test.ts`, "capture restores running backend and sanitizes a real H2 copy while preserving content and relationships". Ele usa `fixture()` de `test/fixtures/h2.ts`, que cria um H2 real com o driver 2.5.252 e marcadores fictícios. Ele confere as consultas na cópia e a **ausência dos bytes** dos marcadores no `seed/rede.mv.db`.
 
 **Observações do planejamento** (leituras feitas fora do repositório; não provam a implementação):
+
 - No H2 do backend `qa` (`81c1ac02`), as únicas colunas recusadas pela regra atual são `CALENDAR_SUBSCRIPTIONS.TOKEN_HASH` e `MESSAGES.ENCRYPTED_KEYS`. Para isso, consultei `information_schema.columns` com o mesmo padrão e as mesmas exclusões do `SeedTool`.
 - V272 cria `calendar_subscriptions(id, user_id, scope, token_hash varchar(64) not null, created_at, revoked_at)`, com índice único em `token_hash`.
 - V244 faz `ALTER TABLE messages ADD COLUMN IF NOT EXISTS encrypted_keys TEXT NULL`.
@@ -72,6 +75,7 @@ O teste existente da captura sanitizada é `test/capture-journey.test.ts`, "capt
 - O `sanitizerSha256` só decide reaproveitamento dentro de uma **captura** (`preview/capture.ts:184`). Um `publish` sem `--refresh-data` reaproveita os dados congelados e não roda o sanitizador. Por isso o publish canônico do S8 não exercita a mudança.
 
 **Autorização** (a mesma da 0.3.7):
+
 - **Concedida:**
   - commit (`lc`), push (`lp`) e PR;
   - merge pelo `luna`, com fallback por git ff;
@@ -118,6 +122,7 @@ O teste existente da captura sanitizada é `test/capture-journey.test.ts`, "capt
 ## Milestones
 
 ### S0. Branch e baseline
+
 - Use o skill `create-git-branch` na pasta principal, a partir da `main` (`c52d80e`). Este plano vai junto.
 - Confira `main` = `origin/main` = `v0.3.7^{commit}` = `c52d80e`.
 - Copie para `$EV/release-0.3.8/configs-before/` (só para leitura):
@@ -128,12 +133,15 @@ O teste existente da captura sanitizada é `test/capture-journey.test.ts`, "capt
 - Registre, só para leitura, o `toolCommit` de `~/.config/enois-preview-ts/config.json` e da config do `issue-727`. No S11, eles precisam continuar iguais.
 
 ### S1. Red (tdd-behavior-autonomous-quiet)
+
 Escreva os testes de K1, K2 e K3 em `test/capture-journey.test.ts`, pelo mesmo caminho público do teste existente (`captures.capture(config)` e consultas H2 na cópia). Estenda `fixture()` de `test/fixtures/h2.ts` para aceitar SQL adicional, sem mudar o que ele cria hoje. Rode na `c52d80e` com `npm run build && node --test dist/test/capture-journey.test.js` e grave em `release-0.3.8/red.log`:
+
 - **K1** falha com `Unrecognized authentication or integration column: CALENDAR_SUBSCRIPTIONS.TOKEN_HASH`;
 - **K2** falha com `… MESSAGES.ENCRYPTED_KEYS`;
 - **K3** passa: é guarda, não red.
 
 ### S2. Green
+
 - **`recipe/SeedTool.java`:**
   - acrescente `"CALENDAR_SUBSCRIPTIONS"` a `DROP`;
   - acrescente a exceção `MESSAGES`/`ENCRYPTED_KEYS` ao lado de `PARENTAL_LINKS`/`TOKEN_HASH`;
@@ -142,6 +150,7 @@ Escreva os testes de K1, K2 e K3 em `test/capture-journey.test.ts`, pelo mesmo c
 - **Repetições:** `node --test dist/test/capture-journey.test.js` três vezes. Grave os resultados em `green-capture.log`.
 
 ### S3. Documentação e versão
+
 - `package.json` e as duas ocorrências da raiz em `package-lock.json`: `0.3.8`.
 - `CHANGELOG.md` e `docs/en/CHANGELOG.md`: uma entrada `0.3.8` no topo, na data da entrega, dizendo que:
   - a captura aceita bancos com a agenda privada (`CALENDAR_SUBSCRIPTIONS`, esvaziada) e com E2E por mensagem (`MESSAGES.ENCRYPTED_KEYS`, zerada);
@@ -160,17 +169,22 @@ Escreva os testes de K1, K2 e K3 em `test/capture-journey.test.ts`, pelo mesmo c
   - Não descreva como contornar a recusa.
 
 ### S4. Validação final
+
 Detalhada em Validation. Antes dela, atualize o `Progress` deste plano até o S4 e marque o S5 como "em andamento". A partir daí, este arquivo fica congelado.
 
 ### S5. Commit, PR, merge e tag
+
 Siga o S5 da 0.3.7, com a branch nova e `v0.3.8`:
+
 1. `lc`, depois `lp`.
 2. PR e merge **só por fast-forward** pelo `luna`, com o mesmo prompt da 0.3.7. Se o `luna` for bloqueado, faça o fast-forward com git e registre.
 3. Confira que `main` = `origin/main` = SHA validado (SHA7), que o PR está `MERGED` e que o `git status` está limpo.
 4. `git tag -a v0.3.8 -m "0.3.8" <SHA7>` e `git push origin v0.3.8`. Confira que as tags anteriores não mudaram (`delivery/`).
 
 ### S6. Baseline, instalação, configs e lançador
+
 Siga o S6 da 0.3.7, com SHA7:
+
 1. `before.json` com o `source-digest` nas 4 configs.
 2. Backup dos dois `rede.mv.db` dos workspaces PT e EN em `db-backup/`, no modo 600.
 3. `node dist/scripts/install-tool.js --commit <SHA7>`. Confira:
@@ -188,7 +202,9 @@ Siga o S6 da 0.3.7, com SHA7:
    - `lc` e `lp`.
 
 ### S7. Prova operacional do service por `current/`
+
 Siga o S7 da 0.3.7 e grave `service-path.json`:
+
 - leituras nas 4 configs;
 - `source-digest` antes;
 - ciclo real `start`/`ready`/`stop`/`released` na config de instalação PT;
@@ -196,15 +212,20 @@ Siga o S7 da 0.3.7 e grave `service-path.json`:
 - depois do `stop`: o pidfile no disco, `status` = `stopped`, e um segundo `start` que funciona e termina parado.
 
 ### S8. Publish e resume canônicos
+
 Siga o S8 da 0.3.7, com `toolCommit` = SHA7 e o catálogo com as 13 entradas anteriores iguais e 14 no total (`public/comparison.json`). Cite de novo, sem caminhos locais, se o `runtime.log` da operação nova contém `Demo gateway ready` e se há registro do Codespace. Registre que esse publish reaproveita dados congelados e não exercita o sanitizador novo.
 
 ### S9. Preservação
+
 Siga o S9 da 0.3.7:
+
 - `after.json` com o `logicalSha256` igual ao do `before.json`;
 - checks booleanos comparados com os de `release-0.3.7/final-preservation.json` (`preservation-comparison.json`).
 
 ### S10. Release
+
 `gh release create v0.3.8 --title 0.3.8` com notas PT/EN:
+
 - as duas colunas e a decisão de cada uma;
 - a recusa de colunas desconhecidas, que continua;
 - a mudança do `sanitizerSha256`;
@@ -213,6 +234,7 @@ Siga o S9 da 0.3.7:
 Pacote de evidências revisadas mais o `.sha256`, sem logs brutos e com marcadores no lugar dos caminhos locais. Baixe de volta, rode `sha256sum -c` e `cmp`, e procure `/home/`, tokens e emails (`release-readback.json`).
 
 ### S11. Limpeza e registros
+
 - Remova a branch local e a remota, depois de confirmar que ela é ancestral da `main` (`cleanup.json`).
 - Se o publish avançou o origin do lançador, faça ff do checkout local.
 - Confira que o `toolCommit` da config padrão e da config do `issue-727` continua `c52d80e…`, igual ao S0.
@@ -228,6 +250,7 @@ Pacote de evidências revisadas mais o `.sha256`, sem logs brutos e com marcador
 ## Critérios de aceitação
 
 As fontes são:
+
 - **[T]** `recipe/SeedTool.java`, `test/capture-journey.test.ts` e `test/fixtures/h2.ts` na `c52d80e`;
 - **[B]** as migrações do `enois-backend` `V272__calendar_subscriptions.sql` e `V244__message_encrypted_keys.sql` (branch `qa`, `81c1ac02`), e a falha real de captura de 2026-11-11 citada em Purpose;
 - **[U]** a decisão do usuário: release 0.3.8 com o ciclo completo, a partir da `main`, sem o cenário `issue-727`.
@@ -235,6 +258,7 @@ As fontes são:
 Antes da entrega, confira de novo cada expectativa contra essas fontes, **separado** de conferir se a prova a demonstra. Registre a evidência de cada critério: comando, resultado observado e artefato. Uma suíte verde sozinha não fecha nenhum K. Uma lacuna de cobertura fica escrita como lacuna, não como critério cumprido.
 
 **K1. A agenda privada não bloqueia a captura e não vaza** [T, B]
+
 - **Contexto:** o H2 da fixture tem também `CALENDAR_SUBSCRIPTIONS(ID, USER_ID, SCOPE, TOKEN_HASH VARCHAR(64) NOT NULL UNIQUE, CREATED_AT, REVOKED_AT)`, com uma linha do `author` cujo `TOKEN_HASH` é um marcador único (por exemplo, `calendar-subscription-marker-…`).
 - **Ação:** `captures.capture(config)`.
 - **Resultado esperado:**
@@ -246,6 +270,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - **Discriminação:** na `c52d80e`, a mesma ação rejeita com `Unrecognized authentication or integration column: CALENDAR_SUBSCRIPTIONS.TOKEN_HASH` (S1). Uma correção que só aceitasse a coluna sem esvaziar a tabela falharia na contagem e nos bytes.
 
 **K2. As mensagens ficam, as chaves por mensagem não** [T, B]
+
 - **Contexto:** o H2 da fixture tem também `MESSAGES(ID, SENDER_ID, CONTENT, ENCRYPTED_KEYS)`, com:
   - uma mensagem do `author` com conteúdo fictício legível e `ENCRYPTED_KEYS` igual a um marcador único;
   - uma mensagem com `ENCRYPTED_KEYS` `NULL`.
@@ -259,6 +284,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - Nesta fixture, deixe `MESSAGES` sem `CALENDAR_SUBSCRIPTIONS`. Assim, o red de K2 não fica escondido pela ordem alfabética.
 
 **K3. Uma coluna desconhecida continua bloqueando** [T, U]
+
 - **Contexto:** o H2 da fixture tem também uma tabela fictícia (por exemplo, `CALENDAR_FEEDS(ID, FEED_TOKEN)`) com um marcador.
 - **Ação:** `captures.capture(config)`.
 - **Resultado esperado:**
@@ -269,6 +295,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - **Discriminação:** passa antes e depois. É a guarda contra uma exceção larga demais (por exemplo, aceitar qualquer tabela que comece com `CALENDAR_` ou qualquer `*_TOKEN*`).
 
 **K4. O comportamento da 0.3.7 continua** [T]
+
 - O teste existente "capture restores running backend and sanitizes a real H2 copy…" e todo o `npm test` passam sem mudar as asserções existentes.
 - No `test:capture`, sobre o H2 fictício do workspace PT:
   - `validOriginalLoginsBeforeCapture` = 4, `originalLoginsRejectedInSanitizedCopy401` = 4;
@@ -279,6 +306,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - ❗️ **Lacuna de cobertura:** o H2 fictício do workspace PT pode não ter as tabelas novas, porque foi preparado com um backend mais antigo. Registre se tem ou não (consulta só de leitura ao `information_schema` de uma cópia). Se não tiver, o K4 prova a não regressão, e a prova das tabelas novas fica só em K1 e K2, por H2 real da fixture. Não use o H2 do `enois-backend` nem o do `issue-727` para isso.
 
 **K5. Entrega**
+
 - `main` = `origin/main` = `v0.3.8^{commit}` = SHA7, e as tags anteriores sem mudança. PR `MERGED`.
 - `current` → SHA7, e as 4 configs do ciclo diferem de `configs-before/` só no `toolCommit`.
 - A config padrão e a do `issue-727` continuam em `c52d80e…`.
@@ -297,6 +325,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - [ ] S5–S11: registrados em `$EV/EXECPLAN.md` e `release-0.3.8/executor-report.md`
 
 **Desvios registrados na execução:**
+
 1. **A `main` não estava na `c52d80e`.** Ela estava em `6108393` = `origin/main`: os três commits de documentação da `docs/operator-documentation` já tinham entrado por fast-forward em 2026-11-11, e a branch não existe mais. O S3 depende desses arquivos (`CHANGELOG.md` e `docs/*/RECIPES.md` só existem depois deles), e o merge do S5 só é fast-forward a partir da `main`. Por isso, a branch saiu da `6108393`, e a release 0.3.8 inclui essa documentação. O sanitizador e todo o código de produção na `6108393` são iguais aos da `c52d80e`. Por isso, o red foi observado na `6108393`.
 2. **Onde a mensagem de recusa aparece.** O erro que `captures.capture` lança é o genérico `Capture incomplete; backend restored to its prior state. java failed (exit 1); …`. A mensagem `Unrecognized authentication or integration column: …` vai só para o log privado `<state>/tools/sanitize.log`. Foi ali que a falha de 2026-11-11 foi lida. O K3 confere o erro lançado e a mensagem nesse log. O red de K1 e K2 foi lido no mesmo log (`red-summary.json`). O produto não mudou, como pedem as Decisions.
 3. **Lacuna do K4 confirmada.** O H2 fictício do workspace PT não tem `CALENDAR_SUBSCRIPTIONS` nem `MESSAGES.ENCRYPTED_KEYS`: uma consulta numa cópia devolveu 0 linhas, e o sha256 do original não mudou (`k4-coverage.json`). O `test:capture` prova só a não regressão.
@@ -306,6 +335,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 Rode sobre o tree exato que será commitado, já com este plano congelado. Mova qualquer tentativa que falhar para `final-attempt<N>/`, sem contá-la como aprovação.
 
 Com `ENOIS_PREVIEW_EVIDENCE=$EV/release-0.3.8/final`, rode, nesta ordem, os comandos abaixo; todos devem sair com 0:
+
 1. `npm ci --ignore-scripts`
 2. `npm run build`
 3. `npm run typecheck`
@@ -316,11 +346,13 @@ Com `ENOIS_PREVIEW_EVIDENCE=$EV/release-0.3.8/final`, rode, nesta ordem, os coma
 8. `npm run test:install`
 
 Grave `release-0.3.8/final/validation.json` com:
+
 - o tree antes e depois (iguais);
 - as contagens observadas comparadas com o `local.json`;
 - o `capture-validation.json`.
 
 **Paradas:**
+
 - K1 ou K2 sem red na `c52d80e`, ou com outra mensagem;
 - K3 falhar antes ou depois da mudança;
 - algum `restoration.json` pendente ou alguma operação não concluída;

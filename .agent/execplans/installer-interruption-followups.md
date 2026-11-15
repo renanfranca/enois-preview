@@ -126,11 +126,11 @@ Linha de base observada no planejamento, em `3453b09`: `npm run typecheck` exit 
 
 ## Validation
 
-| Critério | Fonte da expectativa | Prova planejada |
-| --- | --- | --- |
+| Critério                                                                                         | Fonte da expectativa                                                                                                           | Prova planejada                                       |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
 | B1 ponto de entrada interrompido com download pendente sai com 130 e 143 em até 10 s, sem sobras | `scripts/install-tool.ts:89-93`; decisão sobre `process.exit` em `.agent/execplans/install-interruption-and-network-errors.md` | Teste novo em `test/integration/install-tool.test.ts` |
-| B2 interrupção antes do Chromium não roda `npx` e não cita log inexistente | Decisão desta ExecPlan; `preview/state.ts:24` | Teste novo em `test/integration/install-tool.test.ts` |
-| B3 `retry with:` funciona depois do SIGKILL do grupo do Playwright | Leitura do Playwright 1.64.1 (Context) | Procedimento manual de M3 |
+| B2 interrupção antes do Chromium não roda `npx` e não cita log inexistente                       | Decisão desta ExecPlan; `preview/state.ts:24`                                                                                  | Teste novo em `test/integration/install-tool.test.ts` |
+| B3 `retry with:` funciona depois do SIGKILL do grupo do Playwright                               | Leitura do Playwright 1.64.1 (Context)                                                                                         | Procedimento manual de M3                             |
 
 Validação final, nesta ordem. O commit só acontece se as três passarem:
 

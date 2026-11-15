@@ -10,6 +10,7 @@ This tutorial takes you from installation to the first published link, using the
 - Have the full public commit pinned in your launcher's `tool.lock.json` at hand. Below it appears as `<PINNED_PUBLIC_COMMIT>`.
 
 Attention:
+
 - Use only your local terminal. Do not run commands inside a [Codespace](CONCEPTS.md#worker-durable-object-and-codespace) to complete a revision's boot.
 - Never put tokens in arguments, chats or versioned files.
 - Do not change billing plans.
@@ -94,13 +95,13 @@ Preparation creates isolated copies of the three public applications at the comm
 
 ## After the first publication
 
-| Situation | Recipe |
-| --- | --- |
-| New code, same data | [Publish again with new code only](RECIPES.md#3-publish-again-with-new-code-only) |
-| New data or media | [Publish with new data](RECIPES.md#4-publish-with-new-data) |
-| `publish` failed | [Resume a failed publication](RECIPES.md#5-resume-a-failed-publication) |
-| You interrupted the command | [Ctrl+C, SIGTERM or a killed process](RECIPES.md#6-ctrlc-sigterm-or-a-killed-process) |
-| Your own data | [Use my own data](RECIPES.md#8-use-my-own-data) |
+| Situation                         | Recipe                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| New code, same data               | [Publish again with new code only](RECIPES.md#3-publish-again-with-new-code-only)                 |
+| New data or media                 | [Publish with new data](RECIPES.md#4-publish-with-new-data)                                       |
+| `publish` failed                  | [Resume a failed publication](RECIPES.md#5-resume-a-failed-publication)                           |
+| You interrupted the command       | [Ctrl+C, SIGTERM or a killed process](RECIPES.md#6-ctrlc-sigterm-or-a-killed-process)             |
+| Your own data                     | [Use my own data](RECIPES.md#8-use-my-own-data)                                                   |
 | Limits for whoever opens the link | [Show in the PR that the problem is fixed](RECIPES.md#9-show-in-the-pr-that-the-problem-is-fixed) |
 
 ## Python era launcher

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import * as records from '../preview/state.js';
-import { mkdtemp, writeFile, readFile, readdir, stat, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
+import * as records from '../preview/state.js';
 
 test('versioned identity uses deterministic UTF-8 with sorted object keys and ordered arrays', () => {
   const contract = records as unknown as { canonical(value: unknown): string; identity(value: unknown): string };
@@ -16,14 +16,23 @@ test('versioned identity uses deterministic UTF-8 with sorted object keys and or
 });
 
 test('durable record writes refuse a historical record before changing its bytes or directory permissions', async () => {
-  const directory=await mkdtemp(join(tmpdir(),'enois-record-'));
+  const directory = await mkdtemp(join(tmpdir(), 'enois-record-'));
   try {
-    const file=join(directory,'journal.json');const original='{"schema":2,"private":"fictional"}\n';
-    await writeFile(file,original,{mode:0o640});const before=(await stat(directory)).mode;
+    const file = join(directory, 'journal.json');
+    const original = '{"schema":2,"private":"fictional"}\n';
+    await writeFile(file, original, { mode: 0o640 });
+    const before = (await stat(directory)).mode;
 
-    await assert.rejects(records.writeRecord(file,{revision:'new'}),/Unsupported record format.*enois-preview-ts-v1.*fresh installation/);
+    await assert.rejects(
+      records.writeRecord(file, { revision: 'new' }),
+      /Unsupported record format.*enois-preview-ts-v1.*fresh installation/,
+    );
 
-    assert.equal(await readFile(file,'utf8'),original);assert.equal((await stat(file)).mode&0o777,0o640);
-    assert.equal((await stat(directory)).mode,before);assert.deepEqual(await readdir(directory),['journal.json']);
-  } finally { await rm(directory,{recursive:true,force:true}); }
+    assert.equal(await readFile(file, 'utf8'), original);
+    assert.equal((await stat(file)).mode & 0o777, 0o640);
+    assert.equal((await stat(directory)).mode, before);
+    assert.deepEqual(await readdir(directory), ['journal.json']);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

@@ -94,10 +94,10 @@ A `v0.3.9` nunca foi lançada: os commits dela entram nesta versão. A 0.4.0 dei
 
 Em 7 de novembro de 2026, o tutorial foi executado na infraestrutura existente com a ferramenta fixada em `a95d9862bea0b5076b311600d6f0ebec939cfbd5`, sem alterar planos ou segredos. As revisões são temporárias e iniciam outro ambiente automaticamente após a exclusão por inatividade.
 
-| Etapa | Revisão pública verificada | Dados |
-| --- | --- | --- |
-| Primeira publicação e retomada | [34fab05937743573](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-34fab05937743573) | D1 |
-| Código atualizado | [a787a8b14663c307](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-a787a8b14663c307) | Mesma D1, H2 e mídias locais indisponíveis durante o comando |
-| Refresh explícito | [6c1183df4fe6acca](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-6c1183df4fe6acca) | D2, mesmos commits da etapa anterior |
+| Etapa                          | Revisão pública verificada                                                                                                     | Dados                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| Primeira publicação e retomada | [34fab05937743573](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-34fab05937743573) | D1                                                           |
+| Código atualizado              | [a787a8b14663c307](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-a787a8b14663c307) | Mesma D1, H2 e mídias locais indisponíveis durante o comando |
+| Refresh explícito              | [6c1183df4fe6acca](https://enois-demo-launcher.renan-andradefranca.workers.dev/preview/exemplo-typescript-pt-6c1183df4fe6acca) | D2, mesmos commits da etapa anterior                         |
 
 A retomada preservou a revisão enquanto os três repositórios fictícios e os dados locais estavam indisponíveis. O caso começou com uma falha local de JVM registrada no aceite; a causa permanece desconhecida. [Recibos e limites](VALIDATION.md) incluem verificações públicas independentes dos marcadores de código e dados, imagens em desktop e emulação móvel e restauração após inatividade.

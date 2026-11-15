@@ -130,14 +130,14 @@ Sem cobertura ou sem verificação:
 
 Critérios e a prova de cada um:
 
-| Critério | Fonte da expectativa | Prova planejada |
-| --- | --- | --- |
-| A1 falha de rede com texto de download | Decisão "Texto da falha de rede" | Teste novo em `test/cli-journey.test.ts` |
-| A2 SIGINT e SIGTERM com download pendente saem com 130 e 143, sem `.staging-*` | `preview/cli.ts:124`; `test/cli-journey.test.ts:288` | Teste novo em `test/cli-journey.test.ts` |
-| A3 erro inesperado sem citar entrada privada | Decisão sobre o texto de reserva | Teste novo em `test/cli-journey.test.ts` |
-| A4 SIGINT na compilação mata o `npm` e limpa o prefixo | Decisão sobre o ponto sem volta | Teste novo em `test/integration/install-tool.test.ts` |
-| A5 SIGINT no Chromium sai com 130 e mantém a instalação | Decisão sobre o Chromium | Teste novo em `test/integration/install-tool.test.ts` |
-| A6 a receita 1 nomeia a mensagem de rede e o efeito do Ctrl+C | M3 | Leitura dos dois arquivos |
+| Critério                                                                       | Fonte da expectativa                                 | Prova planejada                                       |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------- | ----------------------------------------------------- |
+| A1 falha de rede com texto de download                                         | Decisão "Texto da falha de rede"                     | Teste novo em `test/cli-journey.test.ts`              |
+| A2 SIGINT e SIGTERM com download pendente saem com 130 e 143, sem `.staging-*` | `preview/cli.ts:124`; `test/cli-journey.test.ts:288` | Teste novo em `test/cli-journey.test.ts`              |
+| A3 erro inesperado sem citar entrada privada                                   | Decisão sobre o texto de reserva                     | Teste novo em `test/cli-journey.test.ts`              |
+| A4 SIGINT na compilação mata o `npm` e limpa o prefixo                         | Decisão sobre o ponto sem volta                      | Teste novo em `test/integration/install-tool.test.ts` |
+| A5 SIGINT no Chromium sai com 130 e mantém a instalação                        | Decisão sobre o Chromium                             | Teste novo em `test/integration/install-tool.test.ts` |
+| A6 a receita 1 nomeia a mensagem de rede e o efeito do Ctrl+C                  | M3                                                   | Leitura dos dois arquivos                             |
 
 Validação final, nesta ordem. O commit só acontece se as três passarem:
 

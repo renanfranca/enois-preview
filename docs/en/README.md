@@ -13,6 +13,7 @@ With a preview link in the PR, reviewers open the change running in a real envir
 enois-preview solves this for whoever opens the PR (the operator). You run `enois-preview publish <scenario>` in your terminal, where the [scenario](CONCEPTS.md#scenario) is a short name you choose, and get an HTTPS link. When someone opens the link, a GitHub Codespace, a cloud development machine from GitHub, boots by itself with the three applications at your commits and a [sanitized](CONCEPTS.md#frozen-data-and-capture) copy of your data, without sessions, tokens or passwords. After ten minutes without use, the environment is deleted.
 
 In short:
+
 - **On `publish`:** the tool takes the committed `HEAD` of each application, copies data only when needed, freezes everything into an immutable [revision](CONCEPTS.md#revision), builds the app's Docker image, writes the configuration to your [launcher](CONCEPTS.md#launcher) (a private repository of yours on GitHub), deploys the [Worker](CONCEPTS.md#worker-durable-object-and-codespace) (the Cloudflare program that answers the link), and reports success only after opening the link and checking that the app is up, runs the expected revision and lets the selected accounts log in.
 - **On a visit:** the Worker creates the Codespace, shows the accounts and passwords generated at boot, and forwards browsing to the app.
 
@@ -26,16 +27,16 @@ The [CLI](CONCEPTS.md#cli), the `enois-preview` command, runs on your machine, w
 
 ## Commands
 
-| Command | Purpose | Recipe |
-| --- | --- | --- |
-| `enois-preview setup --config <file>` | Checks existing infrastructure and prints the Free plan warning | [Install](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit) · [My data](RECIPES.md#8-use-my-own-data) |
-| `enois-preview publish <scenario>` | Publishes current commits with the scenario's frozen data | [New code](RECIPES.md#3-publish-again-with-new-code-only) |
-| `enois-preview publish <scenario> --refresh-data` | Captures new data and publishes | [New data](RECIPES.md#4-publish-with-new-data) |
-| `enois-preview publish <scenario> --accounts ID[,ID...]` | Selects the visitor accounts without a terminal prompt | [My data](RECIPES.md#8-use-my-own-data) |
-| `... --force-lease` (on `publish` or `resume`) | Removes a remote lease held by another operation and continues | [Lease](CONCEPTS.md#lease) |
-| `enois-preview resume <full-revision>` | Continues a failed publication, without recapturing data | [Resume](RECIPES.md#5-resume-a-failed-publication) |
-| `enois-preview install <full-commit>` | Installs another verified public commit and points the command at it | [Install](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit) |
-| `enois-preview source-digest` | Read only: reports the logical digest of the source database, even while the backend runs | [Check the database](RECIPES.md#7-check-whether-the-database-changed) |
+| Command                                                  | Purpose                                                                                   | Recipe                                                                                                                |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `enois-preview setup --config <file>`                    | Checks existing infrastructure and prints the Free plan warning                           | [Install](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit) · [My data](RECIPES.md#8-use-my-own-data) |
+| `enois-preview publish <scenario>`                       | Publishes current commits with the scenario's frozen data                                 | [New code](RECIPES.md#3-publish-again-with-new-code-only)                                                             |
+| `enois-preview publish <scenario> --refresh-data`        | Captures new data and publishes                                                           | [New data](RECIPES.md#4-publish-with-new-data)                                                                        |
+| `enois-preview publish <scenario> --accounts ID[,ID...]` | Selects the visitor accounts without a terminal prompt                                    | [My data](RECIPES.md#8-use-my-own-data)                                                                               |
+| `... --force-lease` (on `publish` or `resume`)           | Removes a remote lease held by another operation and continues                            | [Lease](CONCEPTS.md#lease)                                                                                            |
+| `enois-preview resume <full-revision>`                   | Continues a failed publication, without recapturing data                                  | [Resume](RECIPES.md#5-resume-a-failed-publication)                                                                    |
+| `enois-preview install <full-commit>`                    | Installs another verified public commit and points the command at it                      | [Install](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit)                                           |
+| `enois-preview source-digest`                            | Read only: reports the logical digest of the source database, even while the backend runs | [Check the database](RECIPES.md#7-check-whether-the-database-changed)                                                 |
 
 `enois-preview --help` prints the summary. Every command accepts `--home <directory>` to use another private installation.
 
@@ -78,6 +79,7 @@ enois-preview publish my-scenario
 ```
 
 Attention:
+
 - `publish` and `resume` recompute the hashes and record the running tool's commit in the journal and the result. A tool that is not a verified installation, such as a development checkout or an installation that differs from its record, still publishes, with the `unverified-tool` warning. See [tool commit and install.json](CONCEPTS.md#tool-commit-and-installjson).
 - `install.sh` exists from 0.3.9 on. To install an earlier commit, follow the [manual path](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit).
 - Installations are immutable: install another commit for another version. Do not run `npm run` inside one, because it rebuilds `dist`.
@@ -88,15 +90,15 @@ The first publication, with fictional data, is in the [tutorial](TUTORIAL.md).
 
 ## Documentation map
 
-| Document | When to read |
-| --- | --- |
-| [Concepts](CONCEPTS.md) | First: revision, capture, launcher, journal, lease |
-| [Flow](FLOW.md) | To understand what happens on `publish` and on a visit |
-| [Tutorial](TUTORIAL.md) | For the first publication, with the fictional example |
-| [Recipes](RECIPES.md) | Day to day: publish again, refresh, resume, interruptions, errors |
-| [Diagnostics](../diagnostics/README.md) | To prepare infrastructure or investigate a failure |
-| [LLM guide](LLM.md) | If an assistant will help you operate |
-| [Changelog](CHANGELOG.md) | To see what changed in each release |
+| Document                                | When to read                                                      |
+| --------------------------------------- | ----------------------------------------------------------------- |
+| [Concepts](CONCEPTS.md)                 | First: revision, capture, launcher, journal, lease                |
+| [Flow](FLOW.md)                         | To understand what happens on `publish` and on a visit            |
+| [Tutorial](TUTORIAL.md)                 | For the first publication, with the fictional example             |
+| [Recipes](RECIPES.md)                   | Day to day: publish again, refresh, resume, interruptions, errors |
+| [Diagnostics](../diagnostics/README.md) | To prepare infrastructure or investigate a failure                |
+| [LLM guide](LLM.md)                     | If an assistant will help you operate                             |
+| [Changelog](CHANGELOG.md)               | To see what changed in each release                               |
 
 ## Limits and costs
 

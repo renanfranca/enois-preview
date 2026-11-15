@@ -10,6 +10,7 @@ Este tutorial leva você da instalação até o primeiro link publicado, usando 
 - Tenha em mãos o commit público completo fixado no `tool.lock.json` do seu lançador. Abaixo ele aparece como `<COMMIT_PUBLICO_FIXADO>`.
 
 Atenção:
+
 - Use só o seu terminal local. Não execute comandos dentro de um [Codespace](CONCEPTS.md#worker-durable-object-e-codespace) para completar o boot de uma revisão.
 - Não coloque tokens em argumentos, no chat ou em arquivos versionados.
 - Não altere o plano de cobrança.
@@ -94,13 +95,13 @@ A preparação cria cópias isoladas das três aplicações públicas nos commit
 
 ## Depois da primeira publicação
 
-| Situação | Receita |
-| --- | --- |
-| Código novo, mesmos dados | [Publicar de novo só com código novo](RECIPES.md#3-publicar-de-novo-só-com-código-novo) |
-| Dados ou mídias novos | [Publicar com dados novos](RECIPES.md#4-publicar-com-dados-novos) |
-| O `publish` falhou | [Retomar uma publicação que falhou](RECIPES.md#5-retomar-uma-publicação-que-falhou) |
-| Você interrompeu o comando | [Ctrl+C, SIGTERM ou processo morto](RECIPES.md#6-ctrlc-sigterm-ou-processo-morto) |
-| Seus próprios dados | [Usar meus próprios dados](RECIPES.md#8-usar-meus-próprios-dados) |
+| Situação                      | Receita                                                                                               |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Código novo, mesmos dados     | [Publicar de novo só com código novo](RECIPES.md#3-publicar-de-novo-só-com-código-novo)               |
+| Dados ou mídias novos         | [Publicar com dados novos](RECIPES.md#4-publicar-com-dados-novos)                                     |
+| O `publish` falhou            | [Retomar uma publicação que falhou](RECIPES.md#5-retomar-uma-publicação-que-falhou)                   |
+| Você interrompeu o comando    | [Ctrl+C, SIGTERM ou processo morto](RECIPES.md#6-ctrlc-sigterm-ou-processo-morto)                     |
+| Seus próprios dados           | [Usar meus próprios dados](RECIPES.md#8-usar-meus-próprios-dados)                                     |
 | Limites para quem abre o link | [Mostrar no PR que o problema foi resolvido](RECIPES.md#9-mostrar-no-pr-que-o-problema-foi-resolvido) |
 
 ## Lançador da versão Python

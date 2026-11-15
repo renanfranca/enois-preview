@@ -11,9 +11,7 @@
     "sourceMap": true,
     "rootDir": ".",
     "outDir": "dist",
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
     "skipLibCheck": true,
     "resolveJsonModule": true
   },

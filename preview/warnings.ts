@@ -1,6 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-export interface Warning { code: string; message: string }
+export interface Warning {
+  code: string;
+  message: string;
+}
 const current = new AsyncLocalStorage<Warning[]>();
 
 /** Records one observation that never stops the operation: once in the final result and once on stderr. */

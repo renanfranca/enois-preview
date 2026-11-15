@@ -3,6 +3,7 @@
 ## Purpose and success
 
 O usuário explicou, em 11 de novembro de 2026, o problema que o enois-preview resolve de fato. Num pull request (PR) do Énóis, ele hoje precisa provar a correção com prints e vídeos:
+
 - no PR `Rede-ENois/enois-frontend#440`, foram dois vídeos, de celular e de desktop;
 - no PR `Rede-ENois/enois-design-system#19`, foram prints de antes e depois, mais um script de DevTools aplicado em produção.
 
@@ -11,6 +12,7 @@ Com o link do preview, quem revisa abre a mudança rodando num ambiente real e a
 A documentação atual (commit `2c3dfa3`) apresenta outro problema ("montar o ambiente na máquina de cada revisor é lento"). Ela também não avisa que os repositórios do Énóis são **públicos** e que, por isso, o link colado no PR também é público.
 
 **Sucesso (observável):**
+
 - **Abertura do README** (pt e en):
   - a seção "O problema" apresenta o preview como evidência viva no lugar de print e vídeo;
   - a frase da linha 3 vira duas frases mais curtas.
@@ -54,21 +56,21 @@ Safety boundary: This task is limited to authorized, defensive maintenance of th
 
 **Fatos que a documentação vai afirmar, com a fonte.** Releia cada fonte antes de escrever. Se o código contradisser algo desta lista, o código prevalece: registre a divergência em `Progress`.
 
-| Fato | Fonte |
-|---|---|
-| Os repositórios `Rede-ENois/enois-backend`, `enois-frontend` e `enois-design-system` são públicos | `gh repo view Rede-ENois/<repo> --json visibility` retornou `PUBLIC` em 11 de novembro de 2026 |
-| A captura leva **todo** o banco H2 e as pastas de mídia configuradas. Só as contas selecionadas ficam com login; as outras mantêm perfil e conteúdo visíveis, com login desativado | `recipe/SeedTool.java` (`sanitize`: `UPDATE USER_CREDENTIALS SET PASSWORD_HASH='!preview-disabled'…` e depois a reativação das selecionadas); `preview/capture.ts` (`capture`); TUTORIAL, seção "O que o exemplo contém" (Maya e Davi) |
-| A sanitização remove sessões, tokens e senhas, mas não anonimiza conteúdo | `recipe/SeedTool.java` (`DROP`, colunas `PASSWORD|SECRET|TOKEN…`); README, seção Licença ("Sanitizar autenticação não anonimiza o conteúdo escolhido pelo operador") |
-| A página de entrada do link mostra as contas e senhas, geradas de novo a cada boot | `runtime/DemoCredentials.java`, `runtime/start.ts`, `src/worker.ts` (`/__demo/credentials`); receita 9 atual |
-| Os visitantes compartilham contas, estado e capacidade (20 MiB por arquivo, 256 MiB por ambiente) | receita 9 atual (dona desses limites desde `2c3dfa3`) |
-| O ambiente é apagado após 10 min sem interação reconhecida. Uma visita nova sobe outro ambiente. O link é imutável, mas não promete ambiente disponível, porque depende da infraestrutura do operador e das cotas gratuitas | `src/scenario.ts` (`IDLE_MS`, `launch`); receita 9 atual; README, seção "Limites e custos" |
-| Para trocar os dados: `publish <cenario> --refresh-data`; as contas são escolhidas por `accounts` ou interativamente | receita 4; `preview/cli.ts` (`selectAccounts`); receita 8 |
-| Para usar um banco próprio: campos `database`, `h2Jar`, `media`, `accounts` e `service`, e repetir `setup` | receita 8 |
+| Fato                                                                                                                                                                                                                        | Fonte                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Os repositórios `Rede-ENois/enois-backend`, `enois-frontend` e `enois-design-system` são públicos                                                                                                                           | `gh repo view Rede-ENois/<repo> --json visibility` retornou `PUBLIC` em 11 de novembro de 2026                                                                                                                                         |
+| A captura leva **todo** o banco H2 e as pastas de mídia configuradas. Só as contas selecionadas ficam com login; as outras mantêm perfil e conteúdo visíveis, com login desativado                                          | `recipe/SeedTool.java` (`sanitize`: `UPDATE USER_CREDENTIALS SET PASSWORD_HASH='!preview-disabled'…` e depois a reativação das selecionadas); `preview/capture.ts` (`capture`); TUTORIAL, seção "O que o exemplo contém" (Maya e Davi) |
+| A sanitização remove sessões, tokens e senhas, mas não anonimiza conteúdo                                                                                                                                                   | `recipe/SeedTool.java` (`DROP`, colunas `PASSWORD                                                                                                                                                                                      | SECRET | TOKEN…`); README, seção Licença ("Sanitizar autenticação não anonimiza o conteúdo escolhido pelo operador") |
+| A página de entrada do link mostra as contas e senhas, geradas de novo a cada boot                                                                                                                                          | `runtime/DemoCredentials.java`, `runtime/start.ts`, `src/worker.ts` (`/__demo/credentials`); receita 9 atual                                                                                                                           |
+| Os visitantes compartilham contas, estado e capacidade (20 MiB por arquivo, 256 MiB por ambiente)                                                                                                                           | receita 9 atual (dona desses limites desde `2c3dfa3`)                                                                                                                                                                                  |
+| O ambiente é apagado após 10 min sem interação reconhecida. Uma visita nova sobe outro ambiente. O link é imutável, mas não promete ambiente disponível, porque depende da infraestrutura do operador e das cotas gratuitas | `src/scenario.ts` (`IDLE_MS`, `launch`); receita 9 atual; README, seção "Limites e custos"                                                                                                                                             |
+| Para trocar os dados: `publish <cenario> --refresh-data`; as contas são escolhidas por `accounts` ou interativamente                                                                                                        | receita 4; `preview/cli.ts` (`selectAccounts`); receita 8                                                                                                                                                                              |
+| Para usar um banco próprio: campos `database`, `h2Jar`, `media`, `accounts` e `service`, e repetir `setup`                                                                                                                  | receita 8                                                                                                                                                                                                                              |
 
 ## Decisions
 
 - **Regra de dados para previews em PRs públicos** (decidida pelo usuário em 11 de novembro de 2026). A documentação recomenda, em ordem:
-  1. **Dados fictícios moldados no caso real:** reproduzir a *forma* que causa o problema (tamanho de textos, quantidade de itens, emojis, dimensões de imagem, estados como "fixado" ou "com selos", largura de tela), não o conteúdo real.
+  1. **Dados fictícios moldados no caso real:** reproduzir a _forma_ que causa o problema (tamanho de textos, quantidade de itens, emojis, dimensões de imagem, estados como "fixado" ou "com selos", largura de tela), não o conteúdo real.
   2. **Os seus próprios dados**, sabendo que ficam expostos a quem abrir o link.
   3. **Conteúdo de outras pessoas (inclusive raspado do Énóis): não use**, a não ser com consentimento delas ou aval da equipe do Énóis.
   - Razão:
@@ -249,6 +251,7 @@ Rode na raiz do repositório. Os resultados esperados vêm entre parênteses.
     ```
 
 **Obrigações do executor antes de entregar:**
+
 - Confira cada fato escrito contra a fonte em `Context and limits`, separadamente de conferir se os comandos passam.
 - Registre em `Progress` a evidência de cada critério (comando, resultado observado e arquivo ou linha) e as duas jornadas do M4.
 - Registre lacunas como lacunas. Não declare cumprido um critério com lacuna aberta.

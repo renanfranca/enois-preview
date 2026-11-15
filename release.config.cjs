@@ -11,6 +11,9 @@ module.exports = {
     ['@semantic-release/release-notes-generator', { preset: 'conventionalcommits' }],
     '@semantic-release/npm',
     ['@semantic-release/exec', { prepareCmd: 'npm run test:package && npm pack --dry-run' }],
-    ['@semantic-release/github', { successComment: false, failComment: false, releasedLabels: false }],
+    [
+      '@semantic-release/github',
+      { successComment: false, failComment: false, releasedLabels: false, releaseNameTemplate: '<%= nextRelease.version %>' },
+    ],
   ],
 };

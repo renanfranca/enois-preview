@@ -1,0 +1,7 @@
+target
+build
+package-lock.json
+gradle
+.gradle
+dist
+docs/validation

@@ -44,7 +44,7 @@ O GitHub Container Registry, onde o GitHub guarda imagens Docker. A ferramenta e
 
 ### Lançador
 
-Repositório GitHub **privado** do operador. Contém o Worker (`launcher.ts` e `wrangler.jsonc`), o catálogo das publicações, a configuração do Codespace de cada publicação em `.devcontainer/<slug>/` (o **devcontainer**, arquivo do GitHub que diz ao Codespace qual imagem usar e como subir) e o `tool.lock.json`, que fixa o commit público da ferramenta. Os caminhos estão em [Onde ficam os arquivos](#onde-ficam-os-arquivos).
+Repositório GitHub **privado** do operador. Contém o Worker (`launcher.ts` e `wrangler.jsonc`), o catálogo das publicações, a configuração do Codespace de cada publicação em `.devcontainer/<slug>/` (o **devcontainer**, arquivo do GitHub que diz ao Codespace qual imagem usar e como subir) e o `package.json`, cuja dependência `enois-preview` fixa a versão da ferramenta que o Worker usa. O `enois-preview setup` cria o lançador. Os caminhos estão em [Onde ficam os arquivos](#onde-ficam-os-arquivos).
 
 **Por que importa para você:** o `publish` faz commits e pushes nesse repositório por você. Não edite o catálogo à mão para completar uma publicação; use `resume`.
 
@@ -78,13 +78,13 @@ Trava que impede duas operações de mexer na mesma coisa ao mesmo tempo. As lea
 
 **Por que importa para você:** se uma lease está ocupada, outra operação pode estar viva. Espere ou use `resume` depois que o dono terminar. Quando você sabe que a outra operação morreu, `publish --force-lease` ou `resume --force-lease` apaga a lease remota dela, registra a tomada em `journal.intents.remoteLease.forced` e mostra o aviso `lease-forced`. Sem a flag, a ferramenta espera e recusa como antes.
 
-### Commit da ferramenta e `install.json`
+### Versão da ferramenta e `toolVersion`
 
-`install.json` fica dentro de uma instalação e guarda o commit público dela e os hashes da fonte e do `dist`. Antes de `publish` e `resume`, a ferramenta recalcula esses hashes. Quando batem, o journal e o resultado registram esse commit como `toolCommit`, com `toolVerified: true`. Caso contrário, como num checkout de desenvolvimento ou numa instalação alterada por `npm run`, a ferramenta roda mesmo assim: registra o `HEAD` do Git do checkout (ou `null`), marca `toolVerified: false` e mostra o aviso `unverified-tool`.
+A ferramenta lê a própria versão do `package.json` dela: a versão publicada no npm, ou `0.0.0-SNAPSHOT` num checkout de desenvolvimento. `enois-preview --version` mostra essa versão. `publish` e `resume` a registram como `toolVersion` no journal e no resultado, e o User-Agent das sessões HTTP é `enois-preview/<versão>`.
 
-A configuração não tem mais o campo `toolCommit`. Uma configuração da 0.3.x que ainda o traga, ou traga `service` ou `installation`, carrega normalmente; esses campos são ignorados e preservados, com um único aviso `ignored-config-fields`.
+Um journal sem `toolVersion` (de uma revisão criada pela 0.4.0 ou antes) não é retomado: o `resume` para e pede um `publish` novo.
 
-**Por que importa para você:** se o `tool.lock.json` do lançador ou a dependência `enois-preview` dele fixam outro commit, a publicação continua com o aviso `launcher-pin`, que cita os dois commits. O lançador nunca é refixado automaticamente; refixe você quando quiser que o Worker use esta versão.
+**Por que importa para você:** quando a dependência `enois-preview` do lançador fixa outra versão, o `publish` (ou o `resume`) refixa essa dependência e o lockfile num commit da própria ferramenta, dentro do lease e antes do deploy. Uma versão que não existe no npm, como a de um checkout de desenvolvimento, para a operação antes de qualquer escrita no lançador.
 
 ### Aviso
 
@@ -124,13 +124,13 @@ A contrapartida: para mudar qualquer coisa, você gera uma revisão nova e atual
 
 ## Onde ficam os arquivos
 
-| Caminho                                  | O que é                                                                     |
-| ---------------------------------------- | --------------------------------------------------------------------------- |
-| `~/.local/share/enois-preview/<COMMIT>/` | Instalação imutável da ferramenta, com `install.json`                       |
-| `~/.local/share/enois-preview/current`   | Link para a instalação em uso                                               |
-| `~/.config/enois-preview-ts/config.json` | Configuração privada. Mude o diretório com `ENOIS_PREVIEW_HOME` ou `--home` |
-| `<state>/scenarios/<cenario>.json`       | Qual versão de dados o cenário usa                                          |
-| `<state>/data/<id>/`                     | Dados congelados e sanitizados                                              |
-| `<state>/operations/<revisao>/`          | Journal, arquivos congelados e evidências de cada revisão                   |
-| Lançador: `catalog/scenarios.json`       | Catálogo de revisões publicadas                                             |
-| Lançador: `.devcontainer/<slug>/`        | Configuração do Codespace de cada revisão                                   |
+| Caminho                                          | O que é                                                                                                                        |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `$(npm root -g)/enois-preview/`                  | A ferramenta instalada pelo npm                                                                                                |
+| `~/.config/enois-preview-ts/infrastructure.json` | Infraestrutura do operador, criada pelo `setup`, modo `0600` e sem segredos. Mude o caminho com `ENOIS_PREVIEW_INFRASTRUCTURE` |
+| `~/.config/enois-preview-ts/config.json`         | Configuração privada do workspace. Mude o diretório com `ENOIS_PREVIEW_HOME` ou `--home`                                       |
+| `<state>/scenarios/<cenario>.json`               | Qual versão de dados o cenário usa                                                                                             |
+| `<state>/data/<id>/`                             | Dados congelados e sanitizados                                                                                                 |
+| `<state>/operations/<revisao>/`                  | Journal, arquivos congelados e evidências de cada revisão                                                                      |
+| Lançador: `catalog/scenarios.json`               | Catálogo de revisões publicadas                                                                                                |
+| Lançador: `.devcontainer/<slug>/`                | Configuração do Codespace de cada revisão                                                                                      |

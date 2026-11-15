@@ -1,0 +1,154 @@
+name: release
+
+on:
+  workflow_run:
+    workflows: [build]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: release calculates the next version from main; recover completes an existing tag
+        type: choice
+        options: [release, recover]
+        default: release
+      version:
+        description: Only for recover, the existing version x.y.z (tag v<version>); keep empty for release
+        type: string
+        default: ''
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    if: >-
+      github.repository == 'renanfranca/enois-preview' &&
+      ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') ||
+      (github.event_name == 'workflow_dispatch' && inputs.operation == 'release'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.policy.outputs.sha }}
+      force-patch: ${{ steps.policy.outputs.force-patch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - id: policy
+        name: Qualify the candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_OPERATION: ${{ inputs.operation }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: node dist/scripts/release-policy.js qualify
+
+  publish:
+    needs: qualify
+    if: github.repository == 'renanfranca/enois-preview'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Confirm the qualified commit is still the main head
+        env:
+          QUALIFIED: ${{ needs.qualify.outputs.sha }}
+        run: |
+          head="$(git rev-parse HEAD)"
+          remote="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ "$head" != "$QUALIFIED" ] || [ "$remote" != "$QUALIFIED" ]; then
+            echo "main moved from $QUALIFIED (checkout $head, origin $remote); the next build releases it." >&2
+            exit 1
+          fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          NPM_CONFIG_PROVENANCE: 'true'
+          ENOIS_FORCE_PATCH: ${{ needs.qualify.outputs.force-patch }}
+        run: npx --no-install semantic-release
+
+  recover:
+    if: github.repository == 'renanfranca/enois-preview' && github.event_name == 'workflow_dispatch' && inputs.operation == 'recover'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - id: request
+        name: Validate the recovery request with the policy from main
+        env:
+          RELEASE_OPERATION: ${{ inputs.operation }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: node dist/scripts/release-policy.js recover
+      - name: Check out the existing tag
+        env:
+          TAG: ${{ steps.request.outputs.tag }}
+        run: |
+          git clean -fdx
+          git checkout --detach "refs/tags/$TAG"
+      - run: npm ci
+      - name: Prepare the package for the tagged version
+        env:
+          VERSION: ${{ steps.request.outputs.version }}
+        run: |
+          npm version "$VERSION" --no-git-tag-version
+          npm run test:package
+          npm pack --dry-run
+      - name: Publish the npm package when missing
+        env:
+          VERSION: ${{ steps.request.outputs.version }}
+          NPM_CONFIG_PROVENANCE: 'true'
+        run: |
+          if npm view "enois-preview@$VERSION" version >/dev/null 2>&1; then
+            echo "enois-preview@$VERSION is already on npm."
+          else
+            npm publish
+          fi
+      - name: Create the GitHub release when missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.request.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+          else
+            gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+          fi

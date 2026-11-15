@@ -2,7 +2,7 @@
 
 A command line tool that publishes a preview link for a pull request (PR), a code review request on GitHub, made to one of the applications of Énóis. Énóis ([enois.ia.br](https://enois.ia.br)) is a free, nonprofit social network without ads, built together with its community. Whoever opens the link gets the whole app running, with realistic data, in a disposable environment.
 
-[Português do Brasil](../../README.md) · [Concepts](CONCEPTS.md) · [Flow](FLOW.md) · [Recipes](RECIPES.md) · [Tutorial](TUTORIAL.md) · [Changelog](CHANGELOG.md)
+[Português do Brasil](../../README.md) · [Concepts](CONCEPTS.md) · [Flow](FLOW.md) · [Recipes](RECIPES.md) · [Tutorial](TUTORIAL.md) · [Releases](https://github.com/renanfranca/enois-preview/releases)
 
 ## The problem
 
@@ -27,18 +27,18 @@ The [CLI](CONCEPTS.md#cli), the `enois-preview` command, runs on your machine, w
 
 ## Commands
 
-| Command                                                  | Purpose                                                                                   | Recipe                                                                                                                |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `enois-preview setup --config <file>`                    | Checks existing infrastructure and prints the Free plan warning                           | [Install](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit) · [My data](RECIPES.md#8-use-my-own-data) |
-| `enois-preview publish <scenario>`                       | Publishes current commits with the scenario's frozen data                                 | [New code](RECIPES.md#3-publish-again-with-new-code-only)                                                             |
-| `enois-preview publish <scenario> --refresh-data`        | Captures new data and publishes                                                           | [New data](RECIPES.md#4-publish-with-new-data)                                                                        |
-| `enois-preview publish <scenario> --accounts ID[,ID...]` | Selects the visitor accounts without a terminal prompt                                    | [My data](RECIPES.md#8-use-my-own-data)                                                                               |
-| `... --force-lease` (on `publish` or `resume`)           | Removes a remote lease held by another operation and continues                            | [Lease](CONCEPTS.md#lease)                                                                                            |
-| `enois-preview resume <full-revision>`                   | Continues a failed publication, without recapturing data                                  | [Resume](RECIPES.md#5-resume-a-failed-publication)                                                                    |
-| `enois-preview install <full-commit>`                    | Installs another verified public commit and points the command at it                      | [Install](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit)                                           |
-| `enois-preview source-digest`                            | Read only: reports the logical digest of the source database, even while the backend runs | [Check the database](RECIPES.md#7-check-whether-the-database-changed)                                                 |
+| Command                                                  | Purpose                                                                                   | Recipe                                                                |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `enois-preview setup`                                    | Creates or checks your infrastructure: launcher, Worker and secrets                       | [Install and set up](RECIPES.md#1-install-or-update-the-tool)         |
+| `enois-preview setup --config <file>`                    | Also validates and stores the workspace configuration                                     | [My data](RECIPES.md#8-use-my-own-data)                               |
+| `enois-preview publish <scenario>`                       | Publishes current commits with the scenario's frozen data                                 | [New code](RECIPES.md#3-publish-again-with-new-code-only)             |
+| `enois-preview publish <scenario> --refresh-data`        | Captures new data and publishes                                                           | [New data](RECIPES.md#4-publish-with-new-data)                        |
+| `enois-preview publish <scenario> --accounts ID[,ID...]` | Selects the visitor accounts without a terminal prompt                                    | [My data](RECIPES.md#8-use-my-own-data)                               |
+| `... --force-lease` (on `publish` or `resume`)           | Removes a remote lease held by another operation and continues                            | [Lease](CONCEPTS.md#lease)                                            |
+| `enois-preview resume <full-revision>`                   | Continues a failed publication, without recapturing data                                  | [Resume](RECIPES.md#5-resume-a-failed-publication)                    |
+| `enois-preview source-digest`                            | Read only: reports the logical digest of the source database, even while the backend runs | [Check the database](RECIPES.md#7-check-whether-the-database-changed) |
 
-`enois-preview --help` prints the summary. Every command accepts `--home <directory>` to use another private installation.
+`enois-preview --help` prints the summary and `enois-preview --version` prints the running version. Every command accepts `--home <directory>` to use another workspace directory.
 
 `setup`, `publish`, `resume` and `source-digest` end with one JSON result that always carries `warnings: [{code, message}]`. A warning never stops the operation; it is also printed on stderr as `warning: <message>` when observed. Only three things stop an operation: the application fails to build or run, the tool cannot identify the revision it built and published, or a selected account cannot log in.
 
@@ -46,8 +46,8 @@ The [CLI](CONCEPTS.md#cli), the `enois-preview` command, runs on your machine, w
 
 - Linux with Node 24.x (`>=24 <25`); `.nvmrc` selects the 24 family.
 - Git, Java 25 and Javac, Docker, `flock` and GitHub CLI. `fuser` is optional: when present, it helps report a database in use.
-- GitHub, GHCR and Cloudflare authentication.
-- Your own private infrastructure: a private launcher repository, a private GHCR package and a Cloudflare Worker. To create it, follow [installation diagnostics](../diagnostics/installation.en.md).
+- A GitHub account and a Cloudflare account. `setup` checks the GitHub CLI, Docker (GHCR) and `wrangler` logins and offers each fix.
+- Your own private infrastructure: a private launcher repository, a Cloudflare Worker and five secrets. `setup` creates whatever is missing in your accounts; the GHCR package is created by the first `publish`. Details are in [installation diagnostics](../diagnostics/installation.en.md).
 - The H2 driver must match the configured database. The image recipe includes `ffmpeg` and a local image classification model; new uploads require no external storage write service.
 - Python is not required.
 
@@ -55,50 +55,45 @@ To change the tool itself, see [Developing the tool](#developing-the-tool).
 
 ## Installation
 
-Install with one command, at the full public commit pinned by the private launcher's `tool.lock.json`:
+Install the tool from npm and run the guided setup:
 
 ```sh
-COMMIT=<PINNED_PUBLIC_COMMIT>
-curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
+npm install -g enois-preview
+enois-preview setup
 ```
 
-`install.sh` comes from the pinned commit itself and only prepares the installer in a temporary directory, removed at the end. The installer downloads that commit from GitHub, builds it outside your checkouts in `~/.local/share/enois-preview/<COMMIT>`, records the hashes of its source and `dist` in `install.json`, points `current` at it, links the `enois-preview` command and installs the Chromium used by public validation. It needs Node 24.x, npm, `curl` and `tar`.
+`setup` checks tools and logins, prints a plan on stderr with one line per resource (`exists`, `create` or `update`) and writes only after your confirmation. It creates the private launcher, deploys the Worker, stores the secrets (`GITHUB_TOKEN` is a token you create and paste into a hidden prompt), enables the launcher, installs the Chromium used by public validation and writes `~/.config/enois-preview-ts/infrastructure.json`. Running it again writes nothing when everything exists. Flags, defaults and the cases where it stops are in [installation diagnostics](../diagnostics/installation.en.md).
 
-To switch later to another pinned commit, the tool installs it itself:
-
-```sh
-enois-preview install <ANOTHER_PINNED_PUBLIC_COMMIT>
-```
-
-With the tool installed, the first publication with the fictional example is:
+With the infrastructure ready, the first publication with the fictional example is:
 
 ```sh
-node ~/.local/share/enois-preview/current/dist/example/prepare.js /absolute/new/fictional-workspace
-enois-preview setup --config /absolute/new/fictional-workspace/.preview/config.json
+node "$(npm root -g)/enois-preview/dist/example/prepare.js" ~/fictional-workspace
+enois-preview setup --config ~/fictional-workspace/.preview/config.json
 enois-preview publish my-scenario
 ```
 
 Attention:
 
-- `publish` and `resume` recompute the hashes and record the running tool's commit in the journal and the result. A tool that is not a verified installation, such as a development checkout or an installation that differs from its record, still publishes, with the `unverified-tool` warning. See [tool commit and install.json](CONCEPTS.md#tool-commit-and-installjson).
-- `install.sh` exists from 0.3.9 on. To install an earlier commit, follow the [manual path](RECIPES.md#1-install-or-switch-the-tool-to-another-pinned-commit).
-- Installations are immutable: install another commit for another version. Do not run `npm run` inside one, because it rebuilds `dist`.
-- Revisions frozen by 0.3.1 or earlier resume only with their original executor: a clean checkout at their commit, built with `npm run build`.
-- Configuration, data, [journals](CONCEPTS.md#journal), provenance and catalog use `format: "enois-preview-ts-v1"`. The default private installation is `~/.config/enois-preview-ts`. A 0.3.x configuration still loads: `service`, `toolCommit`, `installation` and other fields no longer used are ignored and preserved, with one `ignored-config-fields` warning. Records with historical `schema` fields or without this `format` are refused before mutation: start a fresh installation and catalog, without copying the old confirmation or converting Python journals. Previous files and Git history stay preserved, without a promise to resume old operations or retain old links.
+- Configuration has two parts. Infrastructure (`repository`, `branch`, `registry`, `worker`, `origin` and `cloudflareAccountId`) is stored once per operator in `infrastructure.json`, mode `0600`, without secrets; the `ENOIS_PREVIEW_INFRASTRUCTURE` variable overrides its path. The workspace (applications, database, H2 and scripts) stays in `<home>/config.json`. Without `infrastructure.json`, `publish`, `resume` and `source-digest` stop with `Infrastructure missing. Run enois-preview setup first.`. A workspace field the contract does not define, including an infrastructure field, produces the `ignored-config-fields` warning.
+- `publish` and `resume` record the running version as `toolVersion` in the journal and the result. When the launcher depends on another `enois-preview` version, `publish` repins the dependency in one commit made by the tool, inside the lease and before deployment. To update, run `npm install -g enois-preview@<version>`.
+- Revisions created before npm distribution (0.4.0 or earlier) are not resumed: `resume` stops and asks for a new `publish`. A 0.4.0 launcher (with `tool.lock.json` and a `codeload` dependency) is not migrated: choose a new `--launcher` in `setup`.
+- Removed with npm distribution: `install.sh`, the `enois-preview install` command, `install.json`, the `prepare-launcher` script, `tool.lock.json` in launchers and the `unverified-tool` and `launcher-pin` warnings. Installation is through npm, and `setup` generates the launcher.
+- Configuration, data, [journals](CONCEPTS.md#journal), provenance and catalog use `format: "enois-preview-ts-v1"`. The default workspace directory is `~/.config/enois-preview-ts`.
 
 The first publication, with fictional data, is in the [tutorial](TUTORIAL.md).
 
 ## Documentation map
 
-| Document                                | When to read                                                      |
-| --------------------------------------- | ----------------------------------------------------------------- |
-| [Concepts](CONCEPTS.md)                 | First: revision, capture, launcher, journal, lease                |
-| [Flow](FLOW.md)                         | To understand what happens on `publish` and on a visit            |
-| [Tutorial](TUTORIAL.md)                 | For the first publication, with the fictional example             |
-| [Recipes](RECIPES.md)                   | Day to day: publish again, refresh, resume, interruptions, errors |
-| [Diagnostics](../diagnostics/README.md) | To prepare infrastructure or investigate a failure                |
-| [LLM guide](LLM.md)                     | If an assistant will help you operate                             |
-| [Changelog](CHANGELOG.md)               | To see what changed in each release                               |
+| Document                                                          | When to read                                                                        |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [Concepts](CONCEPTS.md)                                           | First: revision, capture, launcher, journal, lease                                  |
+| [Flow](FLOW.md)                                                   | To understand what happens on `publish` and on a visit                              |
+| [Tutorial](TUTORIAL.md)                                           | For the first publication, with the fictional example                               |
+| [Recipes](RECIPES.md)                                             | Day to day: publish again, refresh, resume, interruptions, errors                   |
+| [Diagnostics](../diagnostics/README.md)                           | To prepare infrastructure or investigate a failure                                  |
+| [LLM guide](LLM.md)                                               | If an assistant will help you operate                                               |
+| [Releases](https://github.com/renanfranca/enois-preview/releases) | To see what changed in each release (up to 0.4.0, in the [changelog](CHANGELOG.md)) |
+| [Releases and CI](RELEASING.md)                                   | If you maintain the tool: commits, versions, release and recovery                   |
 
 ## Limits and costs
 
@@ -114,7 +109,7 @@ Publication reports success only after the public gates pass: readiness, revisio
 
 ## Developing the tool
 
-The tool uses strict TypeScript and ESM, built explicitly. Development commands are `npm ci --ignore-scripts`, `npm run build`, `npm run typecheck`, `npm test` and `npm run check`. Tests rebuild before execution.
+The tool uses strict TypeScript and ESM, built explicitly. Development commands are `npm ci`, `npm run build`, `npm run typecheck`, `npm test` and `npm run check`; tests rebuild before execution. Code follows Prettier (`npm run prettier:check`; a pre-commit hook formats changed files). A development checkout runs as `0.0.0-SNAPSHOT` and never creates or repins launchers, because that version is not on npm. Commits follow Conventional Commits; CI and release are described in [Releases and CI](RELEASING.md).
 
 ## License
 

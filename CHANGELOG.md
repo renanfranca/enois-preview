@@ -2,7 +2,9 @@
 
 [English](docs/en/CHANGELOG.md) · [README](README.md)
 
-Este arquivo registra o que mudou em cada versão, da mais nova para a mais antiga. Os guias ([README](README.md), [tutorial](docs/pt-BR/TUTORIAL.md), [receitas](docs/pt-BR/RECIPES.md)) descrevem só o comportamento atual. As evidências de cada versão estão em [VALIDATION.md](VALIDATION.md).
+> **A partir da 0.5.0, as mudanças de cada versão estão nas [releases do GitHub](https://github.com/renanfranca/enois-preview/releases), com notas geradas a partir dos commits.** Este arquivo ficou congelado na 0.4.0.
+
+Este arquivo registra o que mudou em cada versão até a 0.4.0, da mais nova para a mais antiga. Os guias ([README](README.md), [tutorial](docs/pt-BR/TUTORIAL.md), [receitas](docs/pt-BR/RECIPES.md)) descrevem só o comportamento atual. As evidências de cada versão estão em [VALIDATION.md](VALIDATION.md).
 
 ## 0.4.0 (2026-11-14)
 

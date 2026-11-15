@@ -94,11 +94,6 @@ export async function prepare(destinationInput: string): Promise<void> {
       { id: 'example_lia', email: 'lia@enois.invalid', label: 'Lia · autora' },
       { id: 'example_rui', email: 'rui@enois.invalid', label: 'Rui · leitor' },
     ],
-    repository: 'YOUR_OWNER/YOUR_PRIVATE_LAUNCHER',
-    branch: 'YOUR_BRANCH',
-    registry: 'ghcr.io/YOUR_OWNER/YOUR_PRIVATE_IMAGE',
-    origin: 'https://YOUR_WORKER.workers.dev',
-    cloudflareAccountId: 'YOUR_ACCOUNT_ID',
   });
   await writeRecord(join(destination, 'example-manifest.json'), {
     sources: pins,
@@ -108,7 +103,7 @@ export async function prepare(destinationInput: string): Promise<void> {
     recipeSha256: await sha(join(root, 'seed.sql')),
   });
   console.log(
-    `Fictional workspace prepared at ${destination}. Configure existing private infrastructure in .preview/config.json, then run enois-preview setup --config ${join(state, 'config.json')}. No preview was published.`,
+    `Fictional workspace prepared at ${destination}. Run enois-preview setup --config ${join(state, 'config.json')} to store it next to your infrastructure. No preview was published.`,
   );
 }
 if (await invokedDirectly(import.meta.url)) {

@@ -21,8 +21,8 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { command as h2Command, fixture as h2Fixture, pausingFuser } from './fixtures/h2.js';
-import { unstampedPublicationHome } from './fixtures/publication-home.js';
-import { git, legacyFields } from './fixtures/workspace.js';
+import { publicationHome } from './fixtures/publication-home.js';
+import { git, infrastructure, legacyFields } from './fixtures/workspace.js';
 
 function recordEvidence(name: string, value: unknown): void {
   if (process.env.ENOIS_PREVIEW_EVIDENCE)
@@ -30,12 +30,10 @@ function recordEvidence(name: string, value: unknown): void {
 }
 
 function prepared(existingRoot?: string) {
-  const { root, config, tool, home, data, toolCommit } = unstampedPublicationHome(
+  const { root, config, tool, home, data } = publicationHome(
     existingRoot ?? mkdtempSync(join(tmpdir(), 'enois-publication-')),
     resolve('.'),
   );
-  const stamped = spawnSync(process.execPath, [resolve('dist/test/fixtures/stamp-tool.js'), tool, toolCommit], { encoding: 'utf8' });
-  assert.equal(stamped.status, 0, stamped.stderr);
   writeFileSync(join(home, 'config.json'), JSON.stringify(config));
   return {
     root,
@@ -43,7 +41,6 @@ function prepared(existingRoot?: string) {
     tool,
     home,
     data,
-    toolCommit,
     invoke: (...args: string[]) =>
       spawnSync(process.execPath, [join(tool, 'dist/preview/cli.js'), '--home', home, ...args], { encoding: 'utf8', timeout: 10_000 }),
   };
@@ -124,7 +121,8 @@ test('a refresh with a missing selected identity preserves D1 and gives correcti
   }
 });
 
-function remoteConsumer(f: ReturnType<typeof prepared>, pinned = f.toolCommit): void {
+/** A remote launcher in the current format, pinned to `pinned` (the running version by default), with `git` and `npm` fakes on PATH. */
+function remoteConsumer(f: ReturnType<typeof prepared>, pinned = '0.0.0-SNAPSHOT', legacy = false): void {
   const bare = join(f.root, 'remote.git');
   mkdirSync(bare);
   git(bare, 'init', '--bare', '-q');
@@ -135,25 +133,38 @@ function remoteConsumer(f: ReturnType<typeof prepared>, pinned = f.toolCommit): 
   writeFileSync(join(seed, 'catalog/scenarios.json'), '{"format":"enois-preview-ts-v1","scenarios":{}}');
   writeFileSync(
     join(seed, 'wrangler.jsonc'),
-    JSON.stringify({ main: 'launcher.ts', vars: { GITHUB_REPOSITORY: f.config.repository, GITHUB_OWNER: 'fixture' } }),
+    JSON.stringify({ main: 'launcher.ts', vars: { GITHUB_REPOSITORY: infrastructure.repository, GITHUB_OWNER: 'fixture' } }),
   );
-  writeFileSync(
-    join(seed, 'tool.lock.json'),
-    JSON.stringify({ format: 'enois-preview-ts-v1', repository: 'renanfranca/enois-preview', commit: pinned }),
-  );
+  const dependency = legacy ? `https://codeload.github.com/renanfranca/enois-preview/tar.gz/${'d'.repeat(40)}` : pinned;
+  if (legacy)
+    writeFileSync(
+      join(seed, 'tool.lock.json'),
+      JSON.stringify({ format: 'enois-preview-ts-v1', repository: 'renanfranca/enois-preview', commit: 'd'.repeat(40) }),
+    );
   writeFileSync(
     join(seed, 'package.json'),
-    JSON.stringify({ devDependencies: { 'enois-preview': `https://codeload.github.com/renanfranca/enois-preview/tar.gz/${pinned}` } }),
+    JSON.stringify({
+      name: 'enois-private-preview-launcher',
+      private: true,
+      type: 'module',
+      devDependencies: { 'enois-preview': dependency, wrangler: '4.156.0' },
+    }),
   );
+  writeFileSync(join(seed, 'package-lock.json'), '{"lockfileVersion":3}');
   git(seed, 'add', '.');
   git(seed, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture');
   git(seed, 'remote', 'add', 'origin', bare);
   git(seed, 'push', '-q', 'origin', 'preview');
   const bin = join(f.root, 'bin');
   mkdirSync(bin);
-  const executable = join(f.tool, 'dist/test/fixtures/git-command.js');
-  chmodSync(executable, 0o755);
-  symlinkSync(executable, join(bin, 'git'));
+  for (const [name, fixture] of [
+    ['git', 'git-command'],
+    ['npm', 'npm-command'],
+  ] as const) {
+    const executable = join(f.tool, `dist/test/fixtures/${fixture}.js`);
+    chmodSync(executable, 0o755);
+    symlinkSync(executable, join(bin, name));
+  }
   writeFileSync(join(f.root, 'platform.json'), JSON.stringify({ builds: {}, images: {}, deployments: {}, validations: {} }));
 }
 function publishProcess(
@@ -518,7 +529,7 @@ test('CLI resume refuses tampered frozen inputs even when the mutable journal in
   }
 });
 
-test('CLI resume of a revision recorded by 0.3.x explains that the revision belongs to an earlier version and points to publish', () => {
+test('CLI resume of a journal without toolVersion explains that the revision belongs to an earlier version and points to publish', () => {
   const f = prepared();
   try {
     assert.equal(f.invoke('publish', 'fixture').status, 1);
@@ -526,25 +537,29 @@ test('CLI resume of a revision recorded by 0.3.x explains that the revision belo
     const revision = readdirSync(operations).find(name => !name.startsWith('.'));
     assert.ok(revision);
     const file = join(operations, revision, 'journal.json');
-    const journal = JSON.parse(readFileSync(file, 'utf8'));
-    journal.inputs.toolCommit = 'c'.repeat(40);
-    writeFileSync(file, JSON.stringify(journal));
-    const before = readFileSync(file);
+    const current = JSON.parse(readFileSync(file, 'utf8'));
     const state = readdirSync(f.config.state, { recursive: true }).sort();
+    for (const journal of [
+      { ...current, tool: { commit: 'c'.repeat(40), verified: true } },
+      { ...current, tool: undefined },
+      { ...current, tool: undefined, inputs: { ...current.inputs, toolCommit: 'c'.repeat(40) } },
+    ]) {
+      writeFileSync(file, JSON.stringify(journal));
+      const before = readFileSync(file);
 
-    const resumed = f.invoke('resume', revision);
+      const resumed = f.invoke('resume', revision);
 
-    assert.equal(resumed.status, 1);
-    assert.equal(resumed.stdout, '');
-    assert.match(resumed.stderr, new RegExp(`Revision ${revision} was created by an earlier enois-preview version`));
-    assert.match(resumed.stderr, /Run enois-preview publish fixture to create a new revision/);
-    assert.doesNotMatch(resumed.stderr, /restore the original record/);
-    assert.deepEqual(readFileSync(file), before);
-    assert.deepEqual(readdirSync(f.config.state, { recursive: true }).sort(), state);
+      assert.equal(resumed.status, 1);
+      assert.equal(resumed.stdout, '');
+      assert.equal(
+        resumed.stderr,
+        `Publication incomplete: Revision ${revision} was created by an earlier enois-preview version and cannot be resumed by this version. Run enois-preview publish fixture to create a new revision.\n`,
+      );
+      assert.deepEqual(readFileSync(file), before);
+      assert.deepEqual(readdirSync(f.config.state, { recursive: true }).sort(), state);
+    }
 
-    delete journal.inputs.toolCommit;
-    journal.inputs.unexpected = 'tampered';
-    writeFileSync(file, JSON.stringify(journal));
+    writeFileSync(file, JSON.stringify({ ...current, inputs: { ...current.inputs, unexpected: 'tampered' } }));
 
     const tampered = f.invoke('resume', revision);
 
@@ -556,63 +571,133 @@ test('CLI resume of a revision recorded by 0.3.x explains that the revision belo
   }
 });
 
-test('a development checkout publishes and resumes with an unverified tool warning and records its own commit', async () => {
+test('publish and resume record the running toolVersion in the journal and the final result', async () => {
   const f = prepared();
   try {
-    rmSync(join(f.tool, 'install.json'));
-    writeFileSync(join(f.tool, '.gitignore'), 'node_modules/\ndist/\n');
-    git(f.tool, 'init', '-q');
-    git(f.tool, 'add', '.');
-    git(f.tool, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture tool');
-    const head = git(f.tool, 'rev-parse', 'HEAD').trim();
-    remoteConsumer(f, head);
-    writeFileSync(
-      join(f.tool, 'dist/preview/service.js'),
-      readFileSync(join(f.tool, 'dist/preview/service.js'), 'utf8') + '\n// compiled from another branch\n',
-    );
+    remoteConsumer(f);
 
     const published = await publishProcess(f, 'publish', 'fixture');
 
     assert.equal(published.code, 0, published.stderr);
     const report = JSON.parse(published.stdout);
-    assert.equal(report.toolCommit, head);
-    assert.equal(report.toolVerified, false);
-    assert.deepEqual(
-      report.warnings.map((warning: { code: string }) => warning.code),
-      ['unverified-tool'],
-    );
-    assert.match(published.stderr, /^warning: This tool is not a verified installation/m);
+    assert.equal(report.toolVersion, '0.0.0-SNAPSHOT');
+    assert.equal(Object.hasOwn(report, 'toolCommit'), false);
+    assert.equal(Object.hasOwn(report, 'toolVerified'), false);
+    assert.equal(report.warnings.filter((warning: { code: string }) => warning.code === 'unverified-tool').length, 0);
     const journal = JSON.parse(readFileSync(join(f.config.state, 'operations', report.revision, 'journal.json'), 'utf8'));
-    assert.deepEqual(journal.tool, { commit: head, verified: false });
-    assert.equal(Object.hasOwn(journal.inputs, 'toolCommit'), false);
+    assert.deepEqual(journal.tool, { version: '0.0.0-SNAPSHOT' });
 
     const resumed = await publishProcess(f, 'resume', report.revision);
 
     assert.equal(resumed.code, 0, resumed.stderr);
-    assert.equal(JSON.parse(resumed.stdout).revision, report.revision);
-    assert.deepEqual(
-      JSON.parse(resumed.stdout).warnings.map((warning: { code: string }) => warning.code),
-      ['unverified-tool'],
-    );
+    assert.equal(JSON.parse(resumed.stdout).toolVersion, '0.0.0-SNAPSHOT');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }
 });
 
-test('a launcher pinned to another tool commit is reported with both commits and never repinned', async () => {
+test('publish repins a launcher on another version in one tool commit before deployment, and resume after an interrupted deployment does not repin again', async () => {
   const f = prepared();
   try {
-    remoteConsumer(f, 'd'.repeat(40));
-    const lock = git(join(f.root, 'remote.git'), 'show', 'preview:tool.lock.json');
+    remoteConsumer(f, '0.4.9');
+    const log = join(f.root, 'npm.log');
+    const env = { ...process.env, FIXTURE_NPM_LOG: log, FIXTURE_NPM_PUBLISHED: '0.4.9,0.0.0-SNAPSHOT' };
+    writeFileSync(join(f.root, 'fail-once'), 'deployment');
+    const remote = join(f.root, 'remote.git');
+
+    const interrupted = await publishWith(f, env, 'publish', 'fixture');
+    const revision = /resume ([a-f0-9]{64})/.exec(interrupted.stderr)?.[1];
+    const resumed = await publishWith(f, env, 'resume', revision ?? '');
+
+    assert.equal(interrupted.code, 1, interrupted.stdout);
+    assert.ok(revision, interrupted.stderr);
+    assert.equal(resumed.code, 0, resumed.stderr);
+    const subjects = git(remote, 'log', '--format=%s', 'preview').trim().split('\n').reverse();
+    assert.deepEqual(
+      subjects.filter(subject => subject.startsWith('build: pin enois-preview')),
+      ['build: pin enois-preview 0.0.0-SNAPSHOT'],
+    );
+    assert.ok(
+      subjects.indexOf('build: pin enois-preview 0.0.0-SNAPSHOT')
+        < subjects.indexOf('feat: retain immutable TypeScript preview configuration'),
+    );
+    const pinned = JSON.parse(git(remote, 'show', 'preview:package.json'));
+    assert.equal(pinned.devDependencies['enois-preview'], '0.0.0-SNAPSHOT');
+    assert.equal(pinned.devDependencies.wrangler, '4.156.0');
+    assert.equal(
+      JSON.parse(git(remote, 'show', 'preview:package-lock.json')).packages[''].devDependencies['enois-preview'],
+      '0.0.0-SNAPSHOT',
+    );
+    assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), [
+      'npm view enois-preview@0.0.0-SNAPSHOT version',
+      'npm install --package-lock-only --ignore-scripts --no-audit --no-fund',
+    ]);
+    const journal = JSON.parse(readFileSync(join(f.config.state, 'operations', revision ?? '', 'journal.json'), 'utf8'));
+    assert.equal(journal.checkpoints.launcherPin.version, '0.0.0-SNAPSHOT');
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test('an unpublished running version stops publish before any launcher write when the launcher is pinned to another version', async () => {
+  const f = prepared();
+  try {
+    remoteConsumer(f, '0.4.9');
+    const remote = join(f.root, 'remote.git');
+    const before = git(remote, 'rev-parse', 'preview').trim();
+
+    const result = await publishWith(f, { ...process.env, FIXTURE_NPM_PUBLISHED: '0.4.9' }, 'publish', 'fixture');
+
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /enois-preview 0\.0\.0-SNAPSHOT is not published on npm; run setup from an installed release\./);
+    assert.equal(git(remote, 'rev-parse', 'preview').trim(), before);
+    assert.equal(JSON.parse(git(remote, 'show', 'preview:package.json')).devDependencies['enois-preview'], '0.4.9');
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test('a launcher in another format (codeload dependency and tool.lock.json) stops publish before any launcher write', async () => {
+  const f = prepared();
+  try {
+    remoteConsumer(f, '0.0.0-SNAPSHOT', true);
+    const remote = join(f.root, 'remote.git');
+    const before = git(remote, 'rev-parse', 'preview').trim();
+
+    const result = await publishWith(f, { ...process.env, FIXTURE_NPM_PUBLISHED: '0.0.0-SNAPSHOT' }, 'publish', 'fixture');
+
+    assert.equal(result.code, 1);
+    assert.match(
+      result.stderr,
+      /Private launcher fixture\/launcher uses another format \(for example a 0\.4\.0 launcher with a codeload dependency and tool\.lock\.json\); run enois-preview setup with a new --launcher\./,
+    );
+    assert.equal(git(remote, 'rev-parse', 'preview').trim(), before);
+    assert.equal(git(remote, 'for-each-ref', '--format=%(refname)', 'refs/heads').trim(), 'refs/heads/preview');
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test('infrastructure fields in a workspace configuration are ignored with ignored-config-fields and infrastructure.json is used', async () => {
+  const f = prepared();
+  try {
+    remoteConsumer(f);
+    writeFileSync(
+      join(f.home, 'config.json'),
+      JSON.stringify({ ...f.config, repository: 'other/launcher', origin: 'https://other.example.invalid' }),
+    );
 
     const result = await publishProcess(f, 'publish', 'fixture');
 
     assert.equal(result.code, 0, result.stderr);
     const report = JSON.parse(result.stdout);
-    const pin = report.warnings.filter((warning: { code: string }) => warning.code === 'launcher-pin');
-    assert.equal(pin.length, 1);
-    assert.match(pin[0].message, new RegExp(`${'d'.repeat(40)}.*${f.toolCommit}`));
-    assert.equal(git(join(f.root, 'remote.git'), 'show', 'preview:tool.lock.json'), lock);
+    assert.deepEqual(
+      report.warnings.filter((warning: { code: string }) => warning.code === 'ignored-config-fields'),
+      [{ code: 'ignored-config-fields', message: 'Configuration fields no longer used are ignored and preserved: origin, repository.' }],
+    );
+    assert.match(report.url, /^https:\/\/preview\.example\.invalid\/preview\//);
+    const journal = JSON.parse(readFileSync(join(f.config.state, 'operations', report.revision, 'journal.json'), 'utf8'));
+    assert.equal(journal.target.repository, 'fixture/launcher');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }

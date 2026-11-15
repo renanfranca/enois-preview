@@ -5,9 +5,12 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
 import { sourceDigest } from './capture.js';
-import { captureConfig, prerequisites, validateConfig, warnIgnoredFields } from './config.js';
-import { invokedDirectly, lease, listenForInterruption, PreviewError, privateDir, readRecord, writeRecord } from './state.js';
-import { collectWarnings, warn } from './warnings.js';
+import { validateWorkspace, warnIgnoredFields } from './config.js';
+import { combine, readInfrastructure } from './infrastructure.js';
+import { setup } from './setup.js';
+import { invokedDirectly, listenForInterruption, PreviewError, readRecord } from './state.js';
+import { VERSION } from './version.js';
+import { collectWarnings } from './warnings.js';
 
 const NO_TERMINAL =
   'Select stable account IDs with enois-preview publish SCENARIO --accounts ID[,ID...], in an interactive local terminal, or in the configuration.';
@@ -42,67 +45,76 @@ function accountIds(value: string | undefined): string[] | undefined {
     throw new PreviewError('Use --accounts with distinct stable IDs separated by commas.');
   return ids;
 }
-const FREE_PLAN =
-  'Keep GitHub Free and Cloudflare Workers Free with additional spending blocked for the configured accounts; enois-preview does not verify billing.';
-
 export async function main(args: string[] = process.argv.slice(2)): Promise<number> {
   const interruption = listenForInterruption();
   const signal = interruption.signal;
   let failure = 'Publication incomplete';
-  let unexpected = 'Invalid or unavailable private input. Run enois-preview --help.';
+  const unexpected = 'Invalid or unavailable private input. Run enois-preview --help.';
   try {
     const { values, positionals } = parseArgs({
       args,
       allowPositionals: true,
       options: {
         help: { type: 'boolean', short: 'h' },
+        version: { type: 'boolean' },
         home: { type: 'string' },
         config: { type: 'string' },
         'refresh-data': { type: 'boolean' },
         accounts: { type: 'string' },
         'force-lease': { type: 'boolean' },
+        yes: { type: 'boolean' },
+        launcher: { type: 'string' },
+        branch: { type: 'string' },
+        registry: { type: 'string' },
+        worker: { type: 'string' },
+        account: { type: 'string' },
       },
     });
+    if (values.version) {
+      console.log(VERSION);
+      return 0;
+    }
     if (values.help) {
       console.log(`enois-preview: Publish immutable, disposable Énóis PR previews.
 
 Usage: enois-preview [--home PRIVATE_DIRECTORY] COMMAND
+       enois-preview --version
 
 Commands:
-  setup --config PRIVATE_JSON    Verify existing infrastructure and store the configuration
+  setup [--config WORKSPACE_JSON] [--yes] [--launcher OWNER/REPO] [--branch BRANCH] [--registry ghcr.io/OWNER/NAME] [--worker NAME] [--account CLOUDFLARE_ACCOUNT_ID]
+        Create or verify your private infrastructure (infrastructure.json) after one confirmed plan; with --config, also store the workspace
   publish SCENARIO [--refresh-data] [--accounts ID[,ID...]] [--force-lease]    Publish commits with frozen scenario data
   resume REVISION [--force-lease]    Continue the recorded immutable revision
   source-digest    Report the logical digest of the source database from a private copy (read only)
-  install PUBLIC_TOOL_COMMIT    Install another verified public commit and point the command at it
 
 Every final JSON result carries warnings: [{code, message}]; each warning is also printed on stderr as "warning: MESSAGE".`);
       return 0;
     }
     const command = positionals[0];
     if (command === 'source-digest') failure = 'Source digest incomplete';
-    if (command === 'install') {
-      failure = 'Installation incomplete';
-      unexpected = 'Installation failed; inspect the logs under the installation prefix.';
-    }
+    if (command === 'setup') failure = 'Setup incomplete';
     const publicationOnly = values.accounts !== undefined || values['force-lease'] !== undefined;
+    const setupOnly = [values.yes, values.launcher, values.branch, values.registry, values.worker, values.account].some(
+      value => value !== undefined,
+    );
     if (
       (command === 'setup' && (positionals.length !== 1 || values['refresh-data'] || publicationOnly))
+      || (command !== 'setup' && setupOnly)
       || (command === 'publish' && (positionals.length !== 2 || values.config !== undefined))
       || (command === 'resume'
         && (positionals.length !== 2 || values.config !== undefined || values['refresh-data'] || values.accounts !== undefined))
       || (command === 'source-digest'
         && (positionals.length !== 1 || values.config !== undefined || values['refresh-data'] || publicationOnly))
-      || (command === 'install' && (positionals.length !== 2 || values.config !== undefined || values['refresh-data'] || publicationOnly))
     ) {
       throw new PreviewError('Invalid command arguments. Run enois-preview --help.');
     }
-    if (command === 'install') {
-      // Needs no configuration and touches no private state: it adds an installation under the default prefix ~/.local/share/enois-preview, beside the running one.
-      const { installTool } = await import('../scripts/install-tool.js');
-      signal.throwIfAborted();
-      console.log(JSON.stringify(await installTool(positionals[1] ?? '', undefined, undefined, signal), null, 2));
-      return 0;
+    if (!['setup', 'publish', 'resume', 'source-digest'].includes(command ?? '')) {
+      console.error(
+        `${command === undefined ? 'Missing command.' : `Unknown command ${command}.`} Choose setup, publish, resume or source-digest. Run enois-preview --help.`,
+      );
+      return 1;
     }
+    const infrastructure = command === 'setup' ? undefined : await readInfrastructure();
     const home = values.home ?? process.env.ENOIS_PREVIEW_HOME ?? join(homedir(), '.config/enois-preview-ts');
     const file = join(home, 'config.json');
     const hasConfig = await access(file).then(
@@ -121,7 +133,7 @@ Every final JSON result carries warnings: [{code, message}]; each warning is als
       return finish(
         await collectWarnings(async () => {
           warnIgnoredFields(config);
-          return { ...(await sourceDigest(config, signal)) };
+          return { ...(await sourceDigest(combine(config, infrastructure!), signal)) };
         }),
       );
     }
@@ -135,7 +147,7 @@ Every final JSON result carries warnings: [{code, message}]; each warning is als
           warnIgnoredFields(config);
           return command === 'publish'
             ? await publishRevision(
-                config,
+                combine(config, infrastructure!),
                 positionals[1] ?? '',
                 {
                   refresh: values['refresh-data'] ?? false,
@@ -145,39 +157,31 @@ Every final JSON result carries warnings: [{code, message}]; each warning is als
                 },
                 signal,
               )
-            : await resumeRevision(config, positionals[1] ?? '', signal, values['force-lease'] ?? false);
+            : await resumeRevision(combine(config, infrastructure!), positionals[1] ?? '', signal, values['force-lease'] ?? false);
         }),
       );
     }
     const supplied = values.config ? await readRecord(values.config) : undefined;
-    if (command === 'setup') {
-      const candidate: Record<string, unknown> = { ...config, ...supplied };
-      return finish(
-        await collectWarnings(async () => {
-          warnIgnoredFields(candidate);
-          captureConfig(candidate);
-          const validated = validateConfig(candidate);
-          warn('free-plan', FREE_PLAN);
-          await prerequisites(validated, signal);
-          await lease(
-            join(home, 'installation.lock'),
-            async () => {
-              signal.throwIfAborted();
-              await privateDir(validated.state);
-              signal.throwIfAborted();
-              await writeRecord(file, candidate);
-            },
-            signal,
-          );
-          return {
-            status: 'configured',
-            message: 'Configuration verified and preserved privately. Publish and resume need no setup confirmation.',
-          };
-        }),
-      );
-    }
-    console.error('Choose setup, publish, resume, source-digest or install. Run enois-preview --help.');
-    return 1;
+    const candidate: Record<string, unknown> | undefined = supplied ? { ...config, ...supplied } : undefined;
+    return finish(
+      await collectWarnings(async () => {
+        if (candidate) warnIgnoredFields(candidate);
+        const workspace = candidate ? { validated: validateWorkspace(candidate), record: candidate } : undefined;
+        return setup(
+          {
+            home,
+            yes: values.yes ?? false,
+            launcher: values.launcher,
+            branch: values.branch,
+            registry: values.registry,
+            worker: values.worker,
+            account: values.account,
+            workspace,
+          },
+          signal,
+        );
+      }),
+    );
   } catch (error: unknown) {
     console.error(`${failure}: ${error instanceof PreviewError ? error.message : unexpected}`);
     return interruption.exitCode ?? 1;

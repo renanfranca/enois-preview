@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { buildImage, validateLocal, verifyImage } from './build.js';
 import type { Config } from './config.js';
+import { launcherVersion, repinLauncher, requirePublished } from './launcher.js';
 import type { Journal } from './publication.js';
 import { GitHub, RemoteFailure, request } from './remote_http.js';
 import {
@@ -24,6 +25,7 @@ import {
 } from './state.js';
 import type { ValidationResult } from './validation.js';
 import { Session, validate } from './validation.js';
+import { VERSION } from './version.js';
 import { warn } from './warnings.js';
 
 function refSha(value: unknown): string {
@@ -42,6 +44,7 @@ function deploymentInstant(value: unknown): bigint {
 export class Publisher {
   readonly github: GitHub;
   private readonly command: typeof run;
+  private publishedVersion = false;
   readonly leaseRef = 'refs/heads/enois-preview-publication-lease';
   get checkout(): string {
     return join(this.directory, 'launcher');
@@ -51,7 +54,7 @@ export class Publisher {
     readonly journal: Journal,
     readonly directory: string,
     readonly signal?: AbortSignal,
-    readonly options: { forceLease?: boolean; toolCommit?: string | null } = {},
+    readonly options: { forceLease?: boolean } = {},
   ) {
     this.github = new GitHub(config.repository, signal);
     this.command = commandRunner(signal);
@@ -123,23 +126,39 @@ export class Publisher {
     const vars = object(worker.vars);
     if (vars.GITHUB_REPOSITORY !== this.config.repository || vars.GITHUB_OWNER !== this.config.repository.split('/')[0])
       throw new PreviewError('Private launcher does not match the installation.');
-    const lock = await readRecord(join(this.checkout, 'tool.lock.json'));
-    const packageInfo = object(JSON.parse(await readFile(join(this.checkout, 'package.json'), 'utf8')));
     if (worker.main !== 'launcher.ts') throw new PreviewError('Private launcher does not match the installation.');
-    // A different pin only matters when the Worker and runtime contract changes; it is reported, never repinned.
-    const running = this.options.toolCommit ?? null;
-    const pinned = typeof lock.commit === 'string' ? lock.commit : null;
-    const dependency = object(packageInfo.devDependencies)['enois-preview'];
-    if (
-      running === null
-      || canonical(lock) !== canonical({ format: FORMAT, repository: 'renanfranca/enois-preview', commit: running })
-      || dependency !== `https://codeload.github.com/renanfranca/enois-preview/tar.gz/${running}`
-    )
-      warn(
-        'launcher-pin',
-        `Private launcher pins enois-preview ${pinned ?? 'an unknown commit'} (dependency ${typeof dependency === 'string' ? dependency.split('/').pop() : 'missing'}), while the running tool is ${running ?? 'an unknown commit'}. The launcher was not repinned.`,
+    if ((await launcherVersion(this.checkout)) === null)
+      throw new PreviewError(
+        `Private launcher ${this.config.repository} uses another format (for example a 0.4.0 launcher with a codeload dependency and tool.lock.json); run enois-preview setup with a new --launcher.`,
       );
     return (await this.command(['git', '-C', this.checkout, 'rev-parse', 'HEAD'])).toString().trim();
+  }
+  /** Read only, before the remote lease: a launcher in another format, or an unpublished running version it would need, stops here. */
+  async checkLauncher(): Promise<void> {
+    await this.refreshCheckout();
+    if ((await launcherVersion(this.checkout)) !== VERSION && !this.publishedVersion) {
+      await requirePublished(VERSION, this.command);
+      this.publishedVersion = true;
+    }
+  }
+  /** Inside the remote lease and before deployment: one tool commit moves the launcher to the running version. */
+  async pinLauncher(): Promise<void> {
+    const recorded = this.journal.checkpoints.launcherPin;
+    if (recorded && object(recorded).version === VERSION) return;
+    const intent = await this.intent('launcherPin', { version: VERSION });
+    if (intent.version !== VERSION) {
+      intent.version = VERSION;
+      delete intent.commit;
+      await this.save();
+    }
+    let commit = await this.refreshCheckout();
+    if ((await launcherVersion(this.checkout)) !== VERSION) {
+      if (!this.publishedVersion) await requirePublished(VERSION, this.command);
+      this.publishedVersion = true;
+      await repinLauncher(this.checkout, VERSION, this.command);
+      commit = await this.commitPush(['package.json', 'package-lock.json'], `build: pin enois-preview ${VERSION}`, 'launcherPin');
+    }
+    await this.complete('launcherPin', { version: VERSION, commit });
   }
   async commitPush(paths: string[], message: string, stage: string): Promise<string> {
     await this.command(['git', '-C', this.checkout, 'add', '--', ...paths]);
@@ -275,6 +294,29 @@ export class Publisher {
     if (response.headers.get('Docker-Content-Digest') !== digest) throw new PreviewError('Registry manifest digest could not be verified.');
     return digest;
   }
+  private owner: string | undefined;
+  private async ownerType(owner: string): Promise<string> {
+    if (this.owner === undefined)
+      try {
+        this.owner = String(object(await this.github.api(`users/${owner}`)).type ?? 'User');
+      } catch (error: unknown) {
+        if (!(error instanceof RemoteFailure && error.status === 404)) throw error;
+        this.owner = 'User';
+      }
+    return this.owner;
+  }
+  /** Whether the GHCR package exists before this operation pushes its first image. */
+  async packageExists(): Promise<boolean> {
+    const [owner, ...name] = this.config.registry.slice('ghcr.io/'.length).split('/');
+    const namespace = (await this.ownerType(owner ?? '')) === 'Organization' ? 'orgs' : 'users';
+    try {
+      await this.github.api(`${namespace}/${owner}/packages/container/${encodeURIComponent(name.join('/'))}`);
+      return true;
+    } catch (error: unknown) {
+      if (error instanceof RemoteFailure && error.status === 404) return false;
+      throw error;
+    }
+  }
   async registry(): Promise<void> {
     const record = this.journal.checkpoints.registry ? object(this.journal.checkpoints.registry) : undefined;
     const tag = `preview-${this.journal.revision}`;
@@ -293,6 +335,7 @@ export class Publisher {
         throw new PreviewError('Registry push outcome is unresolved. Inspect its recorded tag; do not push a competing artifact.');
       const image = string(object(this.journal.checkpoints.localImage).id);
       const destination = `${this.config.registry}:${tag}`;
+      intent.packageCreated = !(await this.packageExists());
       await this.command(['docker', 'tag', image, destination]);
       intent.pushAttempted = true;
       await this.save();
@@ -309,6 +352,15 @@ export class Publisher {
     )
       throw new PreviewError('Registry artifact belongs to another revision.');
     await this.complete('registry', { image, digest, evidence: await verifyImage(image, this.journal, this.directory, this.signal) });
+    if (intent.packageCreated === true) {
+      // GitHub has no API that grants a repository Codespaces access to a user or organization container package.
+      const [owner, ...name] = this.config.registry.slice('ghcr.io/'.length).split('/');
+      const namespace = (await this.ownerType(owner ?? '')) === 'Organization' ? 'orgs' : 'users';
+      warn(
+        'registry-codespaces-access',
+        `GHCR package ${this.config.registry} was created by this publication. Codespaces of ${this.config.repository} cannot pull it until you open https://github.com/${namespace}/${owner}/packages/container/${encodeURIComponent(name.join('/'))}/settings, choose Manage Codespaces access and add the repository ${this.config.repository}.`,
+      );
+    }
   }
   async deploy(): Promise<void> {
     const intent = await this.intent('deployment', { tag: this.journal.operation });
@@ -317,11 +369,11 @@ export class Publisher {
     const expected = object(object(catalog.scenarios)[this.journal.slug]);
     requireFormat(expected);
     if (expected.revision !== this.journal.revision) throw new PreviewError('Current remote catalog lost the recorded revision.');
-    for (const [label, args] of [
-      ['install', ['npm', 'ci', '--ignore-scripts']],
-      ['build', ['npm', 'run', 'build']],
-    ] as const)
-      await this.command(args, { cwd: this.checkout, timeout: 1800, logPath: join(this.directory, `consumer-${label}.log`) });
+    await this.command(['npm', 'ci', '--ignore-scripts'], {
+      cwd: this.checkout,
+      timeout: 1800,
+      logPath: join(this.directory, 'consumer-install.log'),
+    });
     const session = new Session(this.config.origin, { slug: this.journal.slug, signal: this.signal });
     let actual: Record<string, unknown> | undefined;
     try {

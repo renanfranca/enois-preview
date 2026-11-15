@@ -56,23 +56,8 @@ export function captureConfig(value: unknown): CaptureConfig {
     media,
   };
 }
-const KNOWN = new Set([
-  'format',
-  'workspace',
-  'state',
-  'repositories',
-  'database',
-  'h2Jar',
-  'accounts',
-  'media',
-  'repository',
-  'registry',
-  'branch',
-  'origin',
-  'cloudflareAccountId',
-  'leaseWaitSeconds',
-]);
-/** Fields a 0.3.x configuration may still carry (`service`, `toolCommit`, `installation`) and any other unused field: ignored, never deleted. */
+const KNOWN = new Set(['format', 'workspace', 'state', 'repositories', 'database', 'h2Jar', 'accounts', 'media', 'leaseWaitSeconds']);
+/** Any field the workspace contract does not define, including infrastructure fields that live in infrastructure.json: ignored, never deleted. */
 export function warnIgnoredFields(value: Record<string, unknown>): void {
   const ignored = Object.keys(value)
     .filter(key => !KNOWN.has(key))
@@ -84,21 +69,23 @@ export function warnIgnoredFields(value: Record<string, unknown>): void {
 import { constants } from 'node:fs';
 import { access, stat, statfs } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { REPOSITORIES, ROOT } from './project.js';
+import { REPOSITORIES } from './project.js';
 import { commandRunner } from './state.js';
 
-export interface Config extends CaptureConfig {
+export interface Workspace extends CaptureConfig {
   [key: string]: unknown;
   workspace: string;
   repositories: Record<string, string>;
+  leaseWaitSeconds: number;
+}
+export interface Config extends Workspace {
   repository: string;
   registry: string;
   branch: string;
   origin: string;
   cloudflareAccountId: string;
-  leaseWaitSeconds: number;
 }
-export function validateConfig(value: unknown): Config {
+export function validateWorkspace(value: unknown): Workspace {
   requireFormat(value);
   const sourcePaths = object(value.repositories);
   const repositories: Record<string, string> = {};
@@ -110,6 +97,15 @@ export function validateConfig(value: unknown): Config {
       throw new PreviewError('Private state must be outside application repositories.');
     repositories[name] = path;
   }
+  const leaseWaitSeconds = value.leaseWaitSeconds ?? 900;
+  if (typeof leaseWaitSeconds !== 'number' || !Number.isFinite(leaseWaitSeconds) || leaseWaitSeconds < 0 || leaseWaitSeconds > 3600)
+    throw new PreviewError('leaseWaitSeconds must be between 0 and 3600.');
+  return { ...value, ...captureConfig(value), workspace: absolute(value.workspace), repositories, leaseWaitSeconds };
+}
+/** A workspace combined with the operator's infrastructure, as publish and resume use it. */
+export function validateConfig(value: unknown): Config {
+  const workspace = validateWorkspace(value);
+  requireFormat(value);
   const repository = string(value.repository);
   const registry = string(value.registry);
   const branch = string(value.branch);
@@ -129,26 +125,11 @@ export function validateConfig(value: unknown): Config {
     || !origin.hostname
   )
     throw new PreviewError('Configure the public HTTPS Worker origin without credentials or a path.');
-  const leaseWaitSeconds = value.leaseWaitSeconds ?? 900;
-  if (typeof leaseWaitSeconds !== 'number' || !Number.isFinite(leaseWaitSeconds) || leaseWaitSeconds < 0 || leaseWaitSeconds > 3600)
-    throw new PreviewError('leaseWaitSeconds must be between 0 and 3600.');
-  return {
-    ...value,
-    ...captureConfig(value),
-    workspace: absolute(value.workspace),
-    repositories,
-    repository,
-    registry,
-    branch,
-    cloudflareAccountId,
-    origin: origin.origin,
-    leaseWaitSeconds,
-  };
+  return { ...workspace, repository, registry, branch, cloudflareAccountId, origin: origin.origin };
 }
-export async function prerequisites(config: Config, signal?: AbortSignal): Promise<void> {
-  const run = commandRunner(signal);
-  signal?.throwIfAborted();
-  for (const name of ['git', 'node', 'npm', 'java', 'javac', 'docker', 'gh', 'npx', 'flock']) {
+export const REQUIRED_COMMANDS = ['git', 'node', 'npm', 'java', 'javac', 'docker', 'gh', 'flock'] as const;
+export async function requireCommands(names: readonly string[] = REQUIRED_COMMANDS): Promise<void> {
+  for (const name of names) {
     const paths = (process.env.PATH ?? '').split(':');
     const found = await Promise.all(
       paths.map(path =>
@@ -160,25 +141,17 @@ export async function prerequisites(config: Config, signal?: AbortSignal): Promi
     );
     if (!found.some(Boolean)) throw new PreviewError(`Install ${name}, then repeat enois-preview setup.`);
   }
+}
+/** Read-only checks of what a workspace needs on this machine: application repositories, H2 driver and file, space, Docker. */
+export async function workspacePrerequisites(config: Workspace, signal?: AbortSignal): Promise<void> {
+  const run = commandRunner(signal);
+  signal?.throwIfAborted();
   for (const directory of Object.values(config.repositories)) await run(['git', '-C', directory, 'rev-parse', '--git-dir']);
   if (!(await stat(config.h2Jar)).isFile()) throw new PreviewError('Configure the H2 driver jar matching the local database.');
   const database = await stat(config.database);
   if (!database.isFile()) throw new PreviewError('Configure an existing local H2 file.');
   await storageWarning(config, database.size);
   await run(['docker', 'info']);
-  const repository = object(JSON.parse((await run(['gh', 'api', `repos/${config.repository}`])).toString()));
-  if (object(repository.permissions).push !== true) throw new PreviewError('Launcher must be writable.');
-  if (repository.private !== true) warn('launcher-not-private', `Launcher repository ${config.repository} is not private.`);
-  const [owner, ...packageParts] = config.registry.slice('ghcr.io/'.length).split('/');
-  const ownerInfo = object(JSON.parse((await run(['gh', 'api', `users/${owner}`])).toString()));
-  const namespace = ownerInfo.type === 'Organization' ? 'orgs' : 'users';
-  const registry = object(
-    JSON.parse(
-      (await run(['gh', 'api', `${namespace}/${owner}/packages/container/${encodeURIComponent(packageParts.join('/'))}`])).toString(),
-    ),
-  );
-  if (registry.visibility !== 'private') warn('registry-not-private', `GHCR package ${config.registry} is not private.`);
-  await run(['npx', '--no-install', 'wrangler', 'whoami', '--account', config.cloudflareAccountId], { cwd: ROOT });
 }
 /** Capture needs about four times the database size; less is reported, not refused. */
 export async function storageWarning(config: Pick<CaptureConfig, 'state'>, bytes: number): Promise<void> {

@@ -1,0 +1,37 @@
+{
+  "format": "enois-preview-ts-v1",
+  "date": "2026-11-15",
+  "environment": { "node": "24.16.0", "npm": "11.13.0" },
+  "finalValidation": {
+    "npm ci": { "exit": 0, "seconds": 6 },
+    "npm run prettier:check": { "exit": 0, "seconds": 3 },
+    "npm run typecheck": { "exit": 0, "seconds": 2 },
+    "npm test": { "exit": 0, "seconds": 86, "tests": 133, "pass": 133 },
+    "npm run test:release": { "exit": 0, "tests": 10, "pass": 10 },
+    "npm run test:workflows": { "exit": 0, "tests": 4, "pass": 4 },
+    "npm run test:package": { "exit": 0, "tests": 1, "pass": 1 },
+    "./tests-ci/lint-workflows.sh": { "exit": 0 },
+    "npx --no-install commitlint --from v0.4.0 --to HEAD": { "exit": 0 },
+    "npm run test:consumer": {
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "note": "First run failed (1 of 2): the public export allowlist refuses dotfile entries; they were removed from release/public-files.json and the rerun passed."
+    }
+  },
+  "ciEstimate": {
+    "command": "taskset -c 0-3 (npm ci through npm run test:package)",
+    "seconds": { "npm ci": 7, "prettier:check": 3, "commitlint": 0, "typecheck": 3, "npm test": 97, "test:release": 2, "test:workflows": 3, "test:package": 8, "total": 123 },
+    "note": "Local estimate with a warm npm cache; runner setup (Node, Java, H2 download) is not included. Real CI time is unverified until the pull request runs."
+  },
+  "policyFailureProofs": [
+    "test:workflows failed with a temporary workflow pinning actions/checkout@v4 (removed)",
+    "test:release failed when the revert rule was removed from release.config.cjs (restored)",
+    "test:package failed with VALIDATION.md included on purpose (reverted, M5)"
+  ],
+  "unverified": [
+    "acceptance 15: real CI time on ubuntu-latest",
+    "acceptance 17: real release from main with provenance and generated notes",
+    "acceptance 18: npm install, setup from scratch and publish of the fictional example with status validated"
+  ]
+}

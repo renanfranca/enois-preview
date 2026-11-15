@@ -1,4 +1,5 @@
 import { PreviewError, run } from './state.js';
+import { USER_AGENT } from './version.js';
 
 export class RemoteFailure extends PreviewError {
   constructor(readonly status: number) {
@@ -60,6 +61,24 @@ export class GitHub {
       await response.body?.cancel();
       return null;
     }
+    const result: unknown = await response.json();
+    return result;
+  }
+  /** A GitHub REST call outside the launcher repository, such as users/OWNER. */
+  async api(path: string): Promise<unknown> {
+    this.signal?.throwIfAborted();
+    const response = await request(
+      `https://api.github.com/${path}`,
+      'GET',
+      undefined,
+      {
+        Authorization: `Bearer ${await this.credentials()}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': USER_AGENT,
+      },
+      this.signal,
+    );
     const result: unknown = await response.json();
     return result;
   }

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { CookieJar } from 'tough-cookie';
 import { PreviewError } from './state.js';
+import { USER_AGENT } from './version.js';
 
 export interface RequestOptions {
   method?: string;
@@ -36,7 +37,7 @@ export class Session {
     if (url.origin !== this.origin || !path.startsWith('/'))
       throw new PreviewError('Validation paths must stay within the configured origin.');
     const headers = new Headers({
-      'User-Agent': 'enois-preview/0.3.1',
+      'User-Agent': USER_AGENT,
       Origin: this.origin,
       'X-Client-Origin': this.origin,
       'X-CSRF-Protection': '1',

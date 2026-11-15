@@ -6,7 +6,6 @@ import type { AccountSelector, DataManifest } from './capture.js';
 import { capture, commits, ROOT } from './capture.js';
 import type { Config } from './config.js';
 import { accounts, validateConfig } from './config.js';
-import { verifiedCommit } from './installation.js';
 import { Publisher } from './remote.js';
 import type { Inventory } from './state.js';
 import {
@@ -26,7 +25,7 @@ import {
   verify,
   writeRecord,
 } from './state.js';
-import { warn } from './warnings.js';
+import { VERSION } from './version.js';
 
 export interface Inputs {
   format: typeof FORMAT;
@@ -39,8 +38,7 @@ export interface Inputs {
 }
 /** The tool that ran the latest publish or resume of a revision; never part of the revision identity. */
 export interface ToolRecord {
-  commit: string | null;
-  verified: boolean;
+  version: string;
 }
 export interface PublishOptions {
   refresh?: boolean;
@@ -134,12 +132,13 @@ export function journalRecord(value: unknown): Journal {
   requireFormat(value);
   const raw = object(value.inputs);
   requireFormat(raw);
-  if (Object.hasOwn(raw, 'toolCommit')) {
+  const recordedTool = value.tool;
+  if (!recordedTool || typeof recordedTool !== 'object' || typeof (recordedTool as Record<string, unknown>).version !== 'string') {
     const revision =
       typeof value.revision === 'string' && /^[a-f0-9]{64}$/.test(value.revision) ? `Revision ${value.revision}` : 'This revision';
     const scenario = typeof raw.scenario === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(raw.scenario) ? raw.scenario : 'the scenario';
     throw new PreviewError(
-      `${revision} was created by an earlier enois-preview version and cannot be resumed by this version. Run enois-preview publish ${scenario} to create a new revision, or resume it with the version that created it.`,
+      `${revision} was created by an earlier enois-preview version and cannot be resumed by this version. Run enois-preview publish ${scenario} to create a new revision.`,
     );
   }
   const manifest = dataManifest(raw.dataManifest);
@@ -185,9 +184,9 @@ export function journalRecord(value: unknown): Journal {
   for (const key of ['repository', 'registry', 'branch', 'origin', 'cloudflareAccountId']) target[key] = string(object(value.target)[key]);
   const intents: Journal['intents'] = {};
   for (const [stage, details] of Object.entries(object(value.intents))) intents[stage] = object(details);
-  const rawTool = value.tool === undefined ? { commit: null, verified: false } : object(value.tool);
-  const toolCommit = rawTool.commit === null ? null : string(rawTool.commit);
-  if ((toolCommit !== null && !/^[a-f0-9]{40}$/.test(toolCommit)) || typeof rawTool.verified !== 'boolean')
+  const rawTool = object(value.tool);
+  const toolVersion = string(rawTool.version);
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(toolVersion) || Object.keys(rawTool).length !== 1)
     throw new PreviewError('Journal tool record is invalid; restore the original record.');
   return {
     format: FORMAT,
@@ -200,7 +199,7 @@ export function journalRecord(value: unknown): Journal {
     checkpoints: object(value.checkpoints),
     stage: string(value.stage),
     intents,
-    tool: { commit: toolCommit, verified: rawTool.verified },
+    tool: { version: toolVersion },
   };
 }
 function target(config: Config): Record<string, string> {
@@ -212,26 +211,9 @@ function target(config: Config): Record<string, string> {
     cloudflareAccountId: config.cloudflareAccountId,
   };
 }
-/** A verified installation reports its stamped commit; any other tool, such as a development checkout, still runs with a warning. */
-export async function runningTool(signal?: AbortSignal): Promise<ToolRecord> {
-  signal?.throwIfAborted();
-  try {
-    return { commit: await verifiedCommit(ROOT), verified: true };
-  } catch (error: unknown) {
-    if (!(error instanceof PreviewError)) throw error;
-  }
-  let commit: string | null = null;
-  try {
-    const head = (await commandRunner(signal)(['git', '-C', ROOT, 'rev-parse', 'HEAD'], { timeout: 30 })).toString().trim();
-    if (/^[a-f0-9]{40}$/.test(head)) commit = head;
-  } catch {
-    signal?.throwIfAborted();
-  }
-  warn(
-    'unverified-tool',
-    `This tool is not a verified installation of a public commit (running ${commit ?? 'an unknown commit'}); its recipe, runtime, src and dist inventories still identify what is built.`,
-  );
-  return { commit, verified: false };
+/** The tool that runs this publish or resume; recorded in the journal, never part of the revision identity. */
+function runningTool(): ToolRecord {
+  return { version: VERSION };
 }
 export async function verifyJournal(config: Config, journal: Journal): Promise<string> {
   if (canonical(journal.target) !== canonical(target(config))) throw new PreviewError('Revision targets another installation.');
@@ -291,9 +273,11 @@ async function continueRevision(
     await verifyJournal(config, journal);
     journal.tool = tool;
     await writeRecord(join(directory, 'journal.json'), journal);
-    publisher = new Publisher(config, journal, directory, signal, { forceLease, toolCommit: tool.commit });
+    publisher = new Publisher(config, journal, directory, signal, { forceLease });
+    await publisher.checkLauncher();
     await publisher.buildAndValidate();
     await publisher.acquireRemoteLease();
+    await publisher.pinLauncher();
     await publisher.registry();
     await publisher.configuration();
     await publisher.catalog();
@@ -333,8 +317,7 @@ async function continueRevision(
     commits: journal.inputs.commits,
     dataVersion: journal.inputs.data,
     dataReused,
-    toolCommit: journal.tool.commit,
-    toolVerified: journal.tool.verified,
+    toolVersion: journal.tool.version,
     image: string(registry.image),
     provenanceSha256: string(configuration.provenanceSha256),
     configurationCommit: string(configuration.commit),
@@ -372,7 +355,7 @@ export async function publishRevision(
     async () => {
       signal?.throwIfAborted();
       const versions = await commits(config, signal);
-      const tool = await runningTool(signal);
+      const tool = runningTool();
       let data = await readData();
       // An explicit selection that differs from the frozen data needs a new capture.
       const reselect =
@@ -462,7 +445,7 @@ export async function resumeRevision(
     join(config.state, 'publication.lock'),
     async () => {
       signal?.throwIfAborted();
-      const tool = await runningTool(signal);
+      const tool = runningTool();
       const current = journalRecord(await readRecord(file));
       if (current.revision !== revision) throw new PreviewError('Journal belongs to another revision.');
       return continueRevision(config, current, true, tool, forceLease, signal);

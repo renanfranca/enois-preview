@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import './operator.js';
 
 export function command(...args: string[]): string {
   const result = spawnSync(args[0]!, args.slice(1), { encoding: 'utf8' });

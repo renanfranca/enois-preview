@@ -2,7 +2,9 @@
 
 [Português do Brasil](../../CHANGELOG.md) · [README](README.md)
 
-This file records what changed in each release, newest first. The guides ([README](README.md), [tutorial](TUTORIAL.md), [recipes](RECIPES.md)) describe current behavior only. Each release's evidence is in [VALIDATION.md](../../VALIDATION.md).
+> **From 0.5.0 on, the changes of each release are in the [GitHub releases](https://github.com/renanfranca/enois-preview/releases), with notes generated from the commits.** This file is frozen at 0.4.0.
+
+This file records what changed in each release up to 0.4.0, newest first. The guides ([README](README.md), [tutorial](TUTORIAL.md), [recipes](RECIPES.md)) describe current behavior only. Each release's evidence is in [VALIDATION.md](../../VALIDATION.md).
 
 ## 0.4.0 (2026-11-14)
 

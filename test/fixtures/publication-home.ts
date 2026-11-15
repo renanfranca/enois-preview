@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stampInstallation } from '../../preview/installation.js';
 import { workspace } from './workspace.js';
 
 function dependency(name: string): string {
@@ -15,8 +14,8 @@ function dependency(name: string): string {
   return directory;
 }
 
-/** The synchronous part of {@link publicationHome}: everything except the installation stamp of the tool copy. */
-export function unstampedPublicationHome(root: string, source: string) {
+/** A fixture CLI home: three clean fixture repositories, a copy of the tool and one frozen scenario `fixture`. */
+export function publicationHome(root: string, source: string) {
   const config = workspace(root);
   const tool = join(root, 'tool');
   mkdirSync(tool);
@@ -24,7 +23,6 @@ export function unstampedPublicationHome(root: string, source: string) {
     cpSync(join(source, name), join(tool, name), { recursive: true });
   mkdirSync(join(tool, 'node_modules'));
   for (const name of ['tar', 'tough-cookie']) symlinkSync(dependency(name), join(tool, 'node_modules', name), 'dir');
-  const toolCommit = createHash('sha1').update(root).digest('hex');
   const bytes = Buffer.from('explicitly simulated sanitized data');
   const files = { 'seed/rede.mv.db': { bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') } };
   const content = {
@@ -45,12 +43,5 @@ export function unstampedPublicationHome(root: string, source: string) {
   writeFileSync(join(config.state, 'scenarios/fixture.json'), JSON.stringify({ format: 'enois-preview-ts-v1', data }));
   const home = join(root, 'home');
   mkdirSync(home);
-  return { root, config, tool, home, data, toolCommit, cli: join(tool, 'dist/preview/cli.js') };
-}
-
-/** A fixture CLI home: three clean fixture repositories, an installed tool copy and one frozen scenario `fixture`. */
-export async function publicationHome(root: string, source: string) {
-  const home = unstampedPublicationHome(root, source);
-  await stampInstallation(home.tool, home.toolCommit);
-  return home;
+  return { root, config, tool, home, data, cli: join(tool, 'dist/preview/cli.js') };
 }

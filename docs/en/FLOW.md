@@ -56,10 +56,10 @@ sequenceDiagram
   participant W as Worker
 
   Op->>CLI: enois-preview publish scenario
-  CLI->>CLI: reads config.json
+  CLI->>CLI: reads infrastructure.json and config.json
   CLI->>CLI: locks publication.lock
   CLI->>Apps: reads the commits and warns about uncommitted changes
-  CLI->>CLI: records the tool commit from install.json or Git
+  CLI->>CLI: records the tool version (toolVersion)
   opt first time or refresh-data
     CLI->>Apps: copies H2 and media without touching the backend
     CLI->>CLI: sanitizes and stores in data/id
@@ -82,25 +82,27 @@ sequenceDiagram
   end
 ```
 
-1. **Configuration:** the CLI reads `config.json` from your private installation. Without `setup`, it stops here. Fields no longer used, such as `service`, `toolCommit` or `installation`, produce the `ignored-config-fields` warning.
+1. **Configuration:** the CLI reads the infrastructure from `infrastructure.json` and the workspace from `config.json`. Without `infrastructure.json`, it stops with `Infrastructure missing. Run enois-preview setup first.`; without `config.json`, it asks for `setup --config`. Workspace fields the contract does not define, including infrastructure fields, produce the `ignored-config-fields` warning.
 2. **Local lock:** `publication.lock` prevents two `publish` or `resume` runs at once on the same `state`.
 3. **Sources:** the CLI reads the committed `HEAD` of each application. Staged, unstaged or untracked changes produce the `source-dirty` warning and are left out.
-4. **Tool commit:** the CLI recomputes the installation hashes and records its commit with `toolVerified: true`. A development checkout or a changed installation records its Git `HEAD` (or `null`) with the `unverified-tool` warning.
+4. **Tool version:** the CLI records the running version as `toolVersion`.
 5. **Capture:** only on the scenario's first publication, with `--refresh-data`, or when `--accounts` selects other accounts than the frozen data. The CLI copies H2 and media without stopping, starting or waiting for the backend; a file in use or changed during the copy produces a warning. If no accounts are configured, `--accounts` selects them, or the CLI asks in the terminal.
 6. **Export:** each application is exported from its current commit with `git archive`, outside your checkouts.
 7. **Freezing:** the CLI computes the revision and, if it does not exist yet, copies data, sources, recipe, runtime, Worker and `dist` into `operations/<revision>/frozen` and creates the journal.
-8. **The publisher's eight stages** (`Publisher` in `preview/remote.ts`), in this order:
-   1. `buildAndValidate`: builds the image locally, without running application tests, and validates boot in a local container.
-   2. `acquireRemoteLease`: creates the ref `refs/heads/enois-preview-publication-lease` in the launcher. If another operation holds it, waits up to `leaseWaitSeconds`; with `--force-lease`, deletes it, records the takeover and reports `lease-forced`.
-   3. `registry`: pushes the image to GHCR with the tag `preview-<revision>` and from then on uses it by digest.
-   4. `configuration`: pushes `.devcontainer/<slug>/` and the provenance to the launcher.
-   5. `catalog`: pushes the new entry in `catalog/scenarios.json`.
-   6. `deploy`: in the launcher checkout, runs `npm ci --ignore-scripts`, `npm run build` and `wrangler deploy`. A launcher pinned to another tool commit produces the `launcher-pin` warning and is not repinned.
-   7. `validatePublic`: opens the public link. Readiness, revision identity and the login of each selected account are gates; media, decoding, permissions and cookies become warnings.
-   8. `releaseRemoteLease`: deletes the lease ref.
+8. **The publisher's stages** (`Publisher` in `preview/remote.ts`), in this order:
+   1. `checkLauncher`: before any write, checks the launcher format and, when it depends on another `enois-preview` version, that the running version exists on npm. A launcher in another format or an unpublished version stops here, without touching the launcher.
+   2. `buildAndValidate`: builds the image locally, without running application tests, and validates boot in a local container.
+   3. `acquireRemoteLease`: creates the ref `refs/heads/enois-preview-publication-lease` in the launcher. If another operation holds it, waits up to `leaseWaitSeconds`; with `--force-lease`, deletes it, records the takeover and reports `lease-forced`.
+   4. `pinLauncher`: when the launcher's `enois-preview` dependency pins another version, repins the dependency and the lockfile in one tool commit, recorded in the journal as `launcherPin` so `resume` does not duplicate it.
+   5. `registry`: pushes the image to GHCR with the tag `preview-<revision>` and from then on uses it by digest. When this push creates the package, reports the `registry-codespaces-access` warning.
+   6. `configuration`: pushes `.devcontainer/<slug>/` and the provenance to the launcher.
+   7. `catalog`: pushes the new entry in `catalog/scenarios.json`.
+   8. `deploy`: in the launcher checkout, runs `npm ci --ignore-scripts` and `wrangler deploy`. The launcher uses the published npm package and does not build the tool.
+   9. `validatePublic`: opens the public link. Readiness, revision identity and the login of each selected account are gates; media, decoding, permissions and cookies become warnings.
+   10. `releaseRemoteLease`: deletes the lease ref.
 9. **Result:** on success, the CLI prints JSON with `status: "validated"`, the `url` and `warnings`. On failure, it writes `failure.json` and reports the stage, the full revision and the command `enois-preview resume <revision>`.
 
-`resume` runs steps 1, 2 and 4 and skips sources, capture, export and freezing (steps 3, 5, 6 and 7): it reads the revision's journal, checks the frozen files and continues the eight stages from what was already recorded. It never recaptures data.
+`resume` runs steps 1, 2 and 4 and skips sources, capture, export and freezing (steps 3, 5, 6 and 7): it reads the revision's journal, checks the frozen files and continues the stages from what was already recorded. It never recaptures data.
 
 ## What happens when someone opens the link
 

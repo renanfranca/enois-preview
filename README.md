@@ -2,7 +2,7 @@
 
 Ferramenta de linha de comando que publica um link de preview para um pull request (PR), o pedido no GitHub para que outras pessoas avaliem uma mudança numa das aplicações do Énóis. O Énóis ([enois.ia.br](https://enois.ia.br)) é uma rede social gratuita, sem anúncios e sem fins lucrativos, construída junto com a comunidade. Quem abre o link recebe o app inteiro rodando, com dados realistas, num ambiente descartável.
 
-[English](docs/en/README.md) · [Conceitos](docs/pt-BR/CONCEPTS.md) · [Fluxo](docs/pt-BR/FLOW.md) · [Receitas](docs/pt-BR/RECIPES.md) · [Tutorial](docs/pt-BR/TUTORIAL.md) · [Histórico](CHANGELOG.md)
+[English](docs/en/README.md) · [Conceitos](docs/pt-BR/CONCEPTS.md) · [Fluxo](docs/pt-BR/FLOW.md) · [Receitas](docs/pt-BR/RECIPES.md) · [Tutorial](docs/pt-BR/TUTORIAL.md) · [Releases](https://github.com/renanfranca/enois-preview/releases)
 
 ## O problema
 
@@ -27,18 +27,18 @@ O [CLI](docs/pt-BR/CONCEPTS.md#cli), o comando `enois-preview`, roda na sua máq
 
 ## Comandos
 
-| Comando                                                 | Para que serve                                                                 | Receita                                                                                                                                                       |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enois-preview setup --config <arquivo>`                | Confere a infraestrutura existente e mostra o aviso dos planos gratuitos       | [Instalar](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado) · [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados) |
-| `enois-preview publish <cenario>`                       | Publica os commits atuais com os dados congelados do cenário                   | [Código novo](docs/pt-BR/RECIPES.md#3-publicar-de-novo-só-com-código-novo)                                                                                    |
-| `enois-preview publish <cenario> --refresh-data`        | Captura dados novos e publica                                                  | [Dados novos](docs/pt-BR/RECIPES.md#4-publicar-com-dados-novos)                                                                                               |
-| `enois-preview publish <cenario> --accounts ID[,ID...]` | Escolhe as contas dos visitantes sem pergunta no terminal                      | [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados)                                                                                                |
-| `... --force-lease` (no `publish` ou no `resume`)       | Remove o lease remoto de outra operação e continua                             | [Lease](docs/pt-BR/CONCEPTS.md#lease)                                                                                                                         |
-| `enois-preview resume <revisao-completa>`               | Continua uma publicação que falhou, sem recapturar dados                       | [Retomar](docs/pt-BR/RECIPES.md#5-retomar-uma-publicação-que-falhou)                                                                                          |
-| `enois-preview install <commit-completo>`               | Instala outro commit público verificado e aponta o comando para ele            | [Instalar](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado)                                                                  |
-| `enois-preview source-digest`                           | Só lê: informa o digest lógico do banco de origem, mesmo com o backend rodando | [Conferir o banco](docs/pt-BR/RECIPES.md#7-conferir-se-o-banco-mudou)                                                                                         |
+| Comando                                                 | Para que serve                                                                 | Receita                                                                             |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `enois-preview setup`                                   | Cria ou confere a sua infraestrutura: lançador, Worker e segredos              | [Instalar e configurar](docs/pt-BR/RECIPES.md#1-instalar-ou-atualizar-a-ferramenta) |
+| `enois-preview setup --config <arquivo>`                | Também valida e grava a configuração do workspace                              | [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados)                      |
+| `enois-preview publish <cenario>`                       | Publica os commits atuais com os dados congelados do cenário                   | [Código novo](docs/pt-BR/RECIPES.md#3-publicar-de-novo-só-com-código-novo)          |
+| `enois-preview publish <cenario> --refresh-data`        | Captura dados novos e publica                                                  | [Dados novos](docs/pt-BR/RECIPES.md#4-publicar-com-dados-novos)                     |
+| `enois-preview publish <cenario> --accounts ID[,ID...]` | Escolhe as contas dos visitantes sem pergunta no terminal                      | [Meus dados](docs/pt-BR/RECIPES.md#8-usar-meus-próprios-dados)                      |
+| `... --force-lease` (no `publish` ou no `resume`)       | Remove o lease remoto de outra operação e continua                             | [Lease](docs/pt-BR/CONCEPTS.md#lease)                                               |
+| `enois-preview resume <revisao-completa>`               | Continua uma publicação que falhou, sem recapturar dados                       | [Retomar](docs/pt-BR/RECIPES.md#5-retomar-uma-publicação-que-falhou)                |
+| `enois-preview source-digest`                           | Só lê: informa o digest lógico do banco de origem, mesmo com o backend rodando | [Conferir o banco](docs/pt-BR/RECIPES.md#7-conferir-se-o-banco-mudou)               |
 
-`enois-preview --help` mostra o resumo. Todos aceitam `--home <diretorio>` para usar outra instalação privada.
+`enois-preview --help` mostra o resumo e `enois-preview --version` mostra a versão em execução. Todos aceitam `--home <diretorio>` para usar outro diretório de workspace.
 
 `setup`, `publish`, `resume` e `source-digest` terminam com um JSON que sempre traz `warnings: [{code, message}]`. Um aviso nunca para a operação; quando observado, também sai no stderr como `warning: <mensagem>`. Só três coisas param uma operação: a aplicação não compila ou não roda, a ferramenta não consegue identificar a revisão que construiu e publicou, ou uma conta selecionada não consegue entrar.
 
@@ -46,8 +46,8 @@ O [CLI](docs/pt-BR/CONCEPTS.md#cli), o comando `enois-preview`, roda na sua máq
 
 - Linux com Node 24.x (`>=24 <25`); o `.nvmrc` seleciona a família 24.
 - Git, Java 25 e Javac, Docker, `flock` e GitHub CLI. O `fuser` é opcional: quando existe, ajuda a avisar que o banco está em uso.
-- Autenticação no GitHub, no GHCR e na Cloudflare.
-- Sua própria infraestrutura privada: um repositório lançador privado, um pacote GHCR privado e um Worker da Cloudflare. Para criá-la, siga o [diagnóstico de instalação](docs/diagnostics/installation.pt-BR.md).
+- Uma conta no GitHub e uma na Cloudflare. O `setup` confere os logins do GitHub CLI, do Docker no GHCR e do `wrangler` e oferece cada correção.
+- Sua própria infraestrutura privada: um repositório lançador privado, um Worker da Cloudflare e cinco segredos. O `setup` cria o que faltar nas suas contas; o pacote GHCR nasce no primeiro `publish`. Os detalhes estão no [diagnóstico de instalação](docs/diagnostics/installation.pt-BR.md).
 - O driver H2 deve corresponder ao banco configurado. A receita da imagem já traz `ffmpeg` e o modelo local de classificação de imagens; uploads novos não usam serviço externo de escrita de mídia.
 - Python não é requisito.
 
@@ -55,50 +55,45 @@ Para alterar a própria ferramenta, veja [Desenvolver a ferramenta](#desenvolver
 
 ## Instalação
 
-Instale com um comando, no commit público completo fixado em `tool.lock.json` no lançador privado:
+Instale a ferramenta pelo npm e rode o setup guiado:
 
 ```sh
-COMMIT=<COMMIT_PUBLICO_FIXADO>
-curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
+npm install -g enois-preview
+enois-preview setup
 ```
 
-O `install.sh` vem do próprio commit fixado e só prepara o instalador num diretório temporário, apagado no fim. O instalador baixa esse commit do GitHub, compila fora dos seus checkouts em `~/.local/share/enois-preview/<COMMIT>`, grava em `install.json` os hashes da fonte e do `dist`, aponta `current` para essa instalação, liga o comando `enois-preview` e instala o Chromium usado na validação pública. Ele precisa de Node 24.x, npm, `curl` e `tar`.
+O `setup` confere ferramentas e logins, mostra no stderr um plano com uma linha por recurso (`exists`, `create` ou `update`) e só escreve depois da sua confirmação. Ele cria o lançador privado, publica o Worker, grava os segredos (o `GITHUB_TOKEN` é um token que você cria e cola num prompt oculto), ativa o lançador, instala o Chromium da validação pública e grava `~/.config/enois-preview-ts/infrastructure.json`. Rodar de novo não escreve nada quando tudo já existe. As flags, os padrões e os casos em que ele para estão no [diagnóstico de instalação](docs/diagnostics/installation.pt-BR.md).
 
-Para trocar depois para outro commit fixado, a própria ferramenta instala:
-
-```sh
-enois-preview install <OUTRO_COMMIT_PUBLICO_FIXADO>
-```
-
-Com a ferramenta instalada, a primeira publicação com o exemplo fictício é:
+Com a infraestrutura pronta, a primeira publicação com o exemplo fictício é:
 
 ```sh
-node ~/.local/share/enois-preview/current/dist/example/prepare.js /caminho/novo/workspace-ficticio
-enois-preview setup --config /caminho/novo/workspace-ficticio/.preview/config.json
+node "$(npm root -g)/enois-preview/dist/example/prepare.js" ~/workspace-ficticio
+enois-preview setup --config ~/workspace-ficticio/.preview/config.json
 enois-preview publish meu-cenario
 ```
 
 Atenção:
 
-- `publish` e `resume` recalculam os hashes e registram o commit da ferramenta em execução no journal e no resultado. Uma ferramenta que não é instalação verificada, como um checkout de desenvolvimento ou uma instalação diferente do registro, publica mesmo assim, com o aviso `unverified-tool`. Veja [commit da ferramenta e install.json](docs/pt-BR/CONCEPTS.md#commit-da-ferramenta-e-installjson).
-- O `install.sh` existe a partir da 0.3.9. Para instalar um commit anterior, siga o [caminho manual](docs/pt-BR/RECIPES.md#1-instalar-ou-trocar-a-ferramenta-para-outro-commit-fixado).
-- A instalação é imutável: para outra versão, instale outro commit. Não execute `npm run` dentro dela, porque isso recompila o `dist`.
-- Revisões congeladas pela 0.3.1 ou anteriores só são retomadas pelo executor original: um checkout limpo no commit delas, com `npm run build`.
-- Configuração, dados, [journals](docs/pt-BR/CONCEPTS.md#journal), proveniência e catálogo usam `format: "enois-preview-ts-v1"`. A instalação privada padrão fica em `~/.config/enois-preview-ts`. Uma configuração da 0.3.x continua carregando: `service`, `toolCommit`, `installation` e outros campos que não são mais usados são ignorados e preservados, com um único aviso `ignored-config-fields`. Registros antigos com `schema` ou sem esse `format` são recusados antes de alterações: crie uma instalação e um catálogo novos, sem copiar a confirmação nem converter journals Python. Arquivos antigos e histórico são preservados, sem promessa de retomada ou de funcionamento dos links anteriores.
+- A configuração tem duas partes. A infraestrutura (`repository`, `branch`, `registry`, `worker`, `origin` e `cloudflareAccountId`) fica uma vez por operador em `infrastructure.json`, com modo `0600` e sem segredos; a variável `ENOIS_PREVIEW_INFRASTRUCTURE` troca esse caminho. O workspace (aplicações, banco, H2 e scripts) fica em `<home>/config.json`. Sem `infrastructure.json`, `publish`, `resume` e `source-digest` param com `Infrastructure missing. Run enois-preview setup first.`. Um campo do workspace que o contrato não define, inclusive um campo de infraestrutura, gera o aviso `ignored-config-fields`.
+- `publish` e `resume` registram a versão em execução como `toolVersion` no journal e no resultado. Quando o lançador depende de outra versão do `enois-preview`, o `publish` refixa a dependência num commit da própria ferramenta, dentro do lease e antes do deploy. Para atualizar, rode `npm install -g enois-preview@<versão>`.
+- Revisões criadas antes da distribuição pelo npm (0.4.0 ou anteriores) não são retomadas: o `resume` para e pede um `publish` novo. Um lançador da 0.4.0 (com `tool.lock.json` e dependência por `codeload`) não é migrado: escolha um `--launcher` novo no `setup`.
+- Saíram com a distribuição pelo npm: o `install.sh`, o comando `enois-preview install`, o `install.json`, o script `prepare-launcher`, o `tool.lock.json` nos lançadores e os avisos `unverified-tool` e `launcher-pin`. A instalação é pelo npm, e o `setup` gera o lançador.
+- Configuração, dados, [journals](docs/pt-BR/CONCEPTS.md#journal), proveniência e catálogo usam `format: "enois-preview-ts-v1"`. O diretório padrão do workspace é `~/.config/enois-preview-ts`.
 
 A primeira publicação, com dados fictícios, está no [tutorial](docs/pt-BR/TUTORIAL.md).
 
 ## Mapa da documentação
 
-| Documento                                 | Quando ler                                                            |
-| ----------------------------------------- | --------------------------------------------------------------------- |
-| [Conceitos](docs/pt-BR/CONCEPTS.md)       | Antes de tudo: revisão, captura, lançador, journal, lease             |
-| [Fluxo](docs/pt-BR/FLOW.md)               | Para entender o que acontece no `publish` e na visita                 |
-| [Tutorial](docs/pt-BR/TUTORIAL.md)        | Na primeira publicação, com o exemplo fictício                        |
-| [Receitas](docs/pt-BR/RECIPES.md)         | No dia a dia: publicar de novo, refresh, retomar, interrupções, erros |
-| [Diagnóstico](docs/diagnostics/README.md) | Para preparar a infraestrutura ou investigar uma falha                |
-| [Guia para LLM](docs/pt-BR/LLM.md)        | Se um assistente for ajudar você a operar                             |
-| [Histórico de versões](CHANGELOG.md)      | Para saber o que mudou em cada versão                                 |
+| Documento                                                         | Quando ler                                                                        |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| [Conceitos](docs/pt-BR/CONCEPTS.md)                               | Antes de tudo: revisão, captura, lançador, journal, lease                         |
+| [Fluxo](docs/pt-BR/FLOW.md)                                       | Para entender o que acontece no `publish` e na visita                             |
+| [Tutorial](docs/pt-BR/TUTORIAL.md)                                | Na primeira publicação, com o exemplo fictício                                    |
+| [Receitas](docs/pt-BR/RECIPES.md)                                 | No dia a dia: publicar de novo, refresh, retomar, interrupções, erros             |
+| [Diagnóstico](docs/diagnostics/README.md)                         | Para preparar a infraestrutura ou investigar uma falha                            |
+| [Guia para LLM](docs/pt-BR/LLM.md)                                | Se um assistente for ajudar você a operar                                         |
+| [Releases](https://github.com/renanfranca/enois-preview/releases) | Para saber o que mudou em cada versão (até a 0.4.0, no [histórico](CHANGELOG.md)) |
+| [Releases e CI](docs/pt-BR/RELEASING.md)                          | Se você mantém a ferramenta: commits, versões, release e recuperação              |
 
 ## Limites e custos
 
@@ -114,7 +109,7 @@ A publicação só informa sucesso depois que passam os portões públicos: pron
 
 ## Desenvolver a ferramenta
 
-A ferramenta usa TypeScript estrito e ESM, compilado explicitamente. Para desenvolvimento, use `npm ci --ignore-scripts`, `npm run build`, `npm run typecheck`, `npm test` e `npm run check`. O teste recompila antes de executar.
+A ferramenta usa TypeScript estrito e ESM, compilado explicitamente. Para desenvolvimento, use `npm ci`, `npm run build`, `npm run typecheck`, `npm test` e `npm run check`; o teste recompila antes de executar. O código segue o Prettier (`npm run prettier:check`, e um hook de pre-commit formata os arquivos alterados). Um checkout de desenvolvimento roda como `0.0.0-SNAPSHOT` e não cria nem refixa lançadores, porque essa versão não existe no npm. Commits seguem Conventional Commits; o CI e a release estão em [Releases e CI](docs/pt-BR/RELEASING.md).
 
 ## Licença
 

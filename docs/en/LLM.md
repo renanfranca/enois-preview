@@ -29,4 +29,4 @@ This guide describes how an assistant should help the operator; it does not prom
 
 ## Toolchain
 
-The toolchain is TypeScript: use Node 24.x (`>=24 <25`) and run `npm run build` after `npm ci --ignore-scripts`. Publication and resume record whether they run from a verified installation created by `install-tool`; any other tool runs with the `unverified-tool` warning (see [tool commit and `install.json`](CONCEPTS.md#tool-commit-and-installjson)). The private launcher also builds its dependency explicitly and uses `launcher.ts`.
+The toolchain is TypeScript: use Node 24.x (`>=24 <25`) and run `npm run build` after `npm ci --ignore-scripts`. The operator installs the tool with `npm install -g enois-preview` and creates the infrastructure with `enois-preview setup`. Publication and resume record the running version as `toolVersion` (see [tool version and `toolVersion`](CONCEPTS.md#tool-version-and-toolversion)). The private launcher depends on the published npm package, uses `launcher.ts` and does not build the tool.

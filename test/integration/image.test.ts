@@ -62,7 +62,7 @@ test('Node builds the frozen fictional image without application tests and boots
     checkpoints: {},
     stage: 'localImage',
     intents: {},
-    tool: { commit: null, verified: false },
+    tool: { version: '0.0.0-SNAPSHOT' },
   };
   await writeRecord(join(directory, 'journal.json'), journal);
 

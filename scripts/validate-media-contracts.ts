@@ -9,6 +9,7 @@ import { denied, png, require } from '../preview/exercises.js';
 import { journalRecord } from '../preview/publication.js';
 import { invokedDirectly, object, PreviewError, privateDir, readRecord, run, string, writeRecord } from '../preview/state.js';
 import { Session } from '../preview/validation.js';
+import { USER_AGENT } from '../preview/version.js';
 import { credentials as credentialRecord } from '../src/contracts.js';
 
 function pdf(): Buffer {
@@ -112,7 +113,7 @@ async function interruptedPut(session: Session, path: string, body: Buffer, sent
     .filter(Boolean)
     .join('; ');
   const headers: Record<string, string | number> = {
-    'User-Agent': 'enois-preview/0.3.1',
+    'User-Agent': USER_AGENT,
     Origin: session.origin,
     'X-Client-Origin': session.origin,
     'X-CSRF-Protection': '1',

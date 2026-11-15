@@ -22,7 +22,7 @@ async function validationFixture(failure = '', raw = Buffer.from('DATA'), mime =
     checkpoints: {},
     stage: 'publicValidation',
     intents: {},
-    tool: { commit: null, verified: false },
+    tool: { version: '0.0.0-SNAPSHOT' },
     inputs: {
       format: 'enois-preview-ts-v1',
       scenario: 'fixture',
@@ -112,7 +112,7 @@ async function validationFixture(failure = '', raw = Buffer.from('DATA'), mime =
   };
 }
 
-test('independent HTTP sessions retain their own cookies and send origin and CSRF headers', async () => {
+test('independent HTTP sessions retain their own cookies and send origin, CSRF and running version User-Agent headers', async () => {
   const server = createServer(async (request, response) => {
     if (request.url === '/api/auth/login') {
       let body = '';
@@ -130,6 +130,7 @@ test('independent HTTP sessions retain their own cookies and send origin and CSR
           origin: request.headers.origin,
           clientOrigin: request.headers['x-client-origin'],
           csrf: request.headers['x-csrf-protection'],
+          userAgent: request.headers['user-agent'],
         }),
       );
     }
@@ -153,12 +154,14 @@ test('independent HTTP sessions retain their own cookies and send origin and CSR
       origin,
       clientOrigin: origin,
       csrf: '1',
+      userAgent: 'enois-preview/0.0.0-SNAPSHOT',
     });
     assert.deepEqual(readerMe, {
       cookie: '__Host-demo-scenario=fixture-abc; enois_session=reader',
       origin,
       clientOrigin: origin,
       csrf: '1',
+      userAgent: 'enois-preview/0.0.0-SNAPSHOT',
     });
   } finally {
     await new Promise<void>((resolve, reject) => server.close(error => (error ? reject(error) : resolve())));
@@ -205,7 +208,7 @@ test('runtime validation authenticates the selected identity and reports nonimag
     checkpoints: {},
     stage: 'publicValidation',
     intents: {},
-    tool: { commit: null, verified: false },
+    tool: { version: '0.0.0-SNAPSHOT' },
     inputs: {
       format: 'enois-preview-ts-v1',
       scenario: 'fixture',

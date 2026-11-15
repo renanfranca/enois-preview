@@ -9,7 +9,7 @@ import type { Journal } from '../preview/publication.js';
 import { Publisher } from '../preview/remote.js';
 import { GitHub, RemoteFailure } from '../preview/remote_http.js';
 import { collectWarnings } from '../preview/warnings.js';
-import { git, workspace } from './fixtures/workspace.js';
+import { configured, git } from './fixtures/workspace.js';
 
 function command(directory: string, args: string[], input?: string): string {
   const result = spawnSync('git', ['-C', directory, ...args], { encoding: 'utf8', ...(input === undefined ? {} : { input }) });
@@ -27,7 +27,7 @@ function journal(letter: string): Journal {
     checkpoints: {},
     intents: {},
     stage: 'frozenInputs',
-    tool: { commit: '1'.repeat(40), verified: true },
+    tool: { version: '0.0.0-SNAPSHOT' },
     inputs: {
       format: 'enois-preview-ts-v1',
       scenario: 'fixture',
@@ -90,7 +90,7 @@ function simulateGitHub(context: TestContext, bare: string): void {
 test('independent publishers serialize through an owned remote Git lease and never remove another operation', async context => {
   const root = mkdtempSync(join(tmpdir(), 'enois-remote-'));
   try {
-    const config = validateConfig({ ...workspace(root), leaseWaitSeconds: 0 });
+    const config = validateConfig({ ...configured(root), leaseWaitSeconds: 0 });
     const bare = join(root, 'remote.git');
     mkdirSync(bare);
     git(bare, 'init', '--bare', '-q');
@@ -127,7 +127,7 @@ test('independent publishers serialize through an owned remote Git lease and nev
 test('--force-lease removes a lease held by another operation, records the takeover and continues', async context => {
   const root = mkdtempSync(join(tmpdir(), 'enois-force-lease-'));
   try {
-    const config = validateConfig({ ...workspace(root), leaseWaitSeconds: 0 });
+    const config = validateConfig({ ...configured(root), leaseWaitSeconds: 0 });
     const bare = join(root, 'remote.git');
     mkdirSync(bare);
     git(bare, 'init', '--bare', '-q');
@@ -171,7 +171,7 @@ test('configuration push acknowledgement loss reuses the retained Git commit and
   const keys = ['PATH', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0', 'FIXTURE_LOST_GIT_ACK'];
   const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   try {
-    const config = validateConfig(workspace(root));
+    const config = validateConfig(configured(root));
     const bare = join(root, 'remote.git');
     mkdirSync(bare);
     git(bare, 'init', '--bare', '-q');
@@ -183,13 +183,9 @@ test('configuration push acknowledgement loss reuses the retained Git commit and
       JSON.stringify({ main: 'launcher.ts', vars: { GITHUB_REPOSITORY: 'fixture/launcher', GITHUB_OWNER: 'fixture' } }),
     );
     writeFileSync(
-      join(seed, 'tool.lock.json'),
-      JSON.stringify({ format: 'enois-preview-ts-v1', repository: 'renanfranca/enois-preview', commit: '1'.repeat(40) }),
-    );
-    writeFileSync(
       join(seed, 'package.json'),
       JSON.stringify({
-        devDependencies: { 'enois-preview': `https://codeload.github.com/renanfranca/enois-preview/tar.gz/${'1'.repeat(40)}` },
+        devDependencies: { 'enois-preview': '0.0.0-SNAPSHOT' },
       }),
     );
     git(seed, 'add', '.');
@@ -246,7 +242,7 @@ test('configuration push acknowledgement loss reuses the retained Git commit and
 test('an existing Python publication lease is refused without creating a competing remote lease', async context => {
   const root = mkdtempSync(join(tmpdir(), 'enois-old-lease-'));
   try {
-    const config = validateConfig({ ...workspace(root), leaseWaitSeconds: 0 });
+    const config = validateConfig({ ...configured(root), leaseWaitSeconds: 0 });
     const bare = join(root, 'remote.git');
     mkdirSync(bare);
     git(bare, 'init', '--bare', '-q');
@@ -283,7 +279,7 @@ test('catalog acknowledgement loss is reconciled and later publication preserves
   const keys = ['PATH', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0', 'FIXTURE_LOST_GIT_ACK'];
   const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   try {
-    const config = validateConfig(workspace(root));
+    const config = validateConfig(configured(root));
     const bare = join(root, 'remote.git');
     mkdirSync(bare);
     git(bare, 'init', '--bare', '-q');
@@ -295,13 +291,9 @@ test('catalog acknowledgement loss is reconciled and later publication preserves
       JSON.stringify({ main: 'launcher.ts', vars: { GITHUB_REPOSITORY: 'fixture/launcher', GITHUB_OWNER: 'fixture' } }),
     );
     writeFileSync(
-      join(seed, 'tool.lock.json'),
-      JSON.stringify({ format: 'enois-preview-ts-v1', repository: 'renanfranca/enois-preview', commit: '1'.repeat(40) }),
-    );
-    writeFileSync(
       join(seed, 'package.json'),
       JSON.stringify({
-        devDependencies: { 'enois-preview': `https://codeload.github.com/renanfranca/enois-preview/tar.gz/${'1'.repeat(40)}` },
+        devDependencies: { 'enois-preview': '0.0.0-SNAPSHOT' },
       }),
     );
     mkdirSync(join(seed, 'catalog'));
@@ -368,12 +360,14 @@ test('catalog acknowledgement loss is reconciled and later publication preserves
   }
 });
 
-test('registry acknowledgement loss reconciles the digest and verified image without a second push', async context => {
+/** A first registry push whose acknowledgement is lost, then the reconciling run; GHCR answers the package lookup as told. */
+async function registryAcknowledgementLoss(context: TestContext, packageExists: boolean) {
   const root = mkdtempSync(join(tmpdir(), 'enois-registry-'));
   const previousPath = process.env.PATH;
   const previousRoot = process.env.FIXTURE_PLATFORM_ROOT;
+  const lookups: string[] = [];
   try {
-    const config = validateConfig(workspace(root));
+    const config = validateConfig(configured(root));
     const record = journal('a');
     const directory = join(root, 'operation');
     mkdirSync(directory);
@@ -408,6 +402,12 @@ test('registry acknowledgement loss reconciles the digest and verified image wit
     context.mock.method(globalThis, 'fetch', async (input: string | URL | Request): Promise<Response> => {
       const url = new URL(input instanceof Request ? input.url : String(input));
       if (url.pathname === '/token') return Response.json({ token: 'fixture-only' });
+      if (url.hostname === 'api.github.com') {
+        lookups.push(url.pathname);
+        if (url.pathname === '/users/fixture') return Response.json({ type: 'User' });
+        if (url.pathname === '/users/fixture/packages/container/image' && packageExists) return Response.json({ name: 'image' });
+        return new Response(null, { status: 404 });
+      }
       const state = JSON.parse(readFileSync(join(root, 'platform.json'), 'utf8'));
       if (url.pathname.includes('/manifests/') && state.present)
         return new Response('{"schemaVersion":2}', {
@@ -417,10 +417,10 @@ test('registry acknowledgement loss reconciles the digest and verified image wit
     });
     record.checkpoints.localImage = { id: `sha256:${'c'.repeat(64)}` };
     const first = new Publisher(config, record, directory);
-
     await assert.rejects(first.registry(), /docker failed/);
 
-    await new Publisher(config, record, directory).registry();
+    const { warnings } = await collectWarnings(() => new Publisher(config, record, directory).registry());
+
     const state = JSON.parse(readFileSync(join(root, 'platform.json'), 'utf8'));
     assert.equal(state.pushes, 1);
     assert.equal(
@@ -428,6 +428,7 @@ test('registry acknowledgement loss reconciles the digest and verified image wit
       'ghcr.io/fixture/image@sha256:bafebd36189ad3688b7b3915ea55d461e0bfcfbdde11e54b0a123999fb6be50f',
     );
     assert.equal((record.checkpoints.registry as { evidence: { seedMediaVerified: boolean } }).evidence.seedMediaVerified, true);
+    return { warnings, lookups };
   } finally {
     if (previousPath === undefined) delete process.env.PATH;
     else process.env.PATH = previousPath;
@@ -435,6 +436,25 @@ test('registry acknowledgement loss reconciles the digest and verified image wit
     else process.env.FIXTURE_PLATFORM_ROOT = previousRoot;
     rmSync(root, { recursive: true, force: true });
   }
+}
+
+test('registry acknowledgement loss reconciles the digest and verified image without a second push, and a package created by this operation asks for Codespaces access once', async context => {
+  const { warnings, lookups } = await registryAcknowledgementLoss(context, false);
+
+  assert.deepEqual(warnings, [
+    {
+      code: 'registry-codespaces-access',
+      message:
+        'GHCR package ghcr.io/fixture/image was created by this publication. Codespaces of fixture/launcher cannot pull it until you open https://github.com/users/fixture/packages/container/image/settings, choose Manage Codespaces access and add the repository fixture/launcher.',
+    },
+  ]);
+  assert.ok(lookups.includes('/users/fixture/packages/container/image'), lookups.join());
+});
+
+test('a publication that pushes to an existing GHCR package emits no Codespaces access warning', async context => {
+  const { warnings } = await registryAcknowledgementLoss(context, true);
+
+  assert.deepEqual(warnings, []);
 });
 
 test('deployment acknowledgement loss reconciles the current catalog and retains the newest fractional timestamp', async context => {
@@ -442,7 +462,7 @@ test('deployment acknowledgement loss reconciles the current catalog and retains
   const keys = ['PATH', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0', 'FIXTURE_LOST_GIT_ACK'];
   const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   try {
-    const config = validateConfig(workspace(root));
+    const config = validateConfig(configured(root));
     const bare = join(root, 'remote.git');
     mkdirSync(bare);
     git(bare, 'init', '--bare', '-q');
@@ -454,13 +474,9 @@ test('deployment acknowledgement loss reconciles the current catalog and retains
       JSON.stringify({ main: 'launcher.ts', vars: { GITHUB_REPOSITORY: 'fixture/launcher', GITHUB_OWNER: 'fixture' } }),
     );
     writeFileSync(
-      join(seed, 'tool.lock.json'),
-      JSON.stringify({ format: 'enois-preview-ts-v1', repository: 'renanfranca/enois-preview', commit: '1'.repeat(40) }),
-    );
-    writeFileSync(
       join(seed, 'package.json'),
       JSON.stringify({
-        devDependencies: { 'enois-preview': `https://codeload.github.com/renanfranca/enois-preview/tar.gz/${'1'.repeat(40)}` },
+        devDependencies: { 'enois-preview': '0.0.0-SNAPSHOT' },
       }),
     );
     mkdirSync(join(seed, 'catalog'));
@@ -537,7 +553,7 @@ test('an unresolved registry push refuses a competing artifact before any Docker
   const beforePath = process.env.PATH;
   const beforeRoot = process.env.FIXTURE_PLATFORM_ROOT;
   try {
-    const config = validateConfig(workspace(root));
+    const config = validateConfig(configured(root));
     const record = journal('a');
     const directory = join(root, 'operation');
     mkdirSync(directory);

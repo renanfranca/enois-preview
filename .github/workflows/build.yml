@@ -64,6 +64,7 @@ jobs:
           curl -fsSLo "$jar" "https://repo1.maven.org/maven2/com/h2database/h2/${H2_VERSION}/h2-${H2_VERSION}.jar"
           echo "$H2_SHA256  $jar" | sha256sum -c -
           echo "ENOIS_H2_JAR=$jar" >> "$GITHUB_ENV"
+      - run: npx --no-install playwright install --with-deps chromium
       - run: npm test
       - run: npm run test:release
       - run: npm run test:workflows

@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { REPOSITORY } from '../../scripts/release-policy.js';
 
 const REQUIRED = [
   'package.json',
@@ -57,12 +58,18 @@ test('the npm tarball installs globally, runs --version and --help, and contains
     symlinkSync(process.execPath, join(bin, 'node'));
     const env = { ...process.env, PATH: `${join(prefix, 'bin')}:${bin}` };
     const installed = join(prefix, 'lib/node_modules/enois-preview');
+    const manifest = JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')) as { version: string; repository?: unknown };
 
     const version = spawnSync('enois-preview', ['--version'], { encoding: 'utf8', env });
     const help = spawnSync('enois-preview', ['--help'], { encoding: 'utf8', env });
 
     assert.equal(version.status, 0, version.stderr);
-    assert.equal(version.stdout, `${JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')).version}\n`);
+    assert.equal(version.stdout, `${manifest.version}\n`);
+    assert.deepEqual(
+      manifest.repository,
+      { type: 'git', url: `git+https://github.com/${REPOSITORY}.git` },
+      'package.json repository must match the release repository, or npm provenance rejects the publication',
+    );
     assert.equal(help.status, 0, help.stderr);
     assert.match(help.stdout, /setup/);
     assert.match(help.stdout, /publish SCENARIO/);

@@ -1,6 +1,10 @@
 {
   "name": "enois-preview",
   "version": "0.0.0-SNAPSHOT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/renanfranca/enois-preview.git"
+  },
   "license": "GPL-3.0-only",
   "type": "module",
   "exports": {

@@ -152,3 +152,33 @@ test('the semantic-release configuration follows the same version table and forc
 
   assert.equal(await released(['docs: guide', 'chore: tidy'], true), 'patch');
 });
+
+test('the release configuration renders notes and names the GitHub release with the bare version', async () => {
+  const configuration = join(ROOT, 'release.config.cjs');
+  const require = createRequire(configuration);
+  delete require.cache[configuration];
+  const plugins = (require(configuration) as { plugins: unknown[] }).plugins;
+  const options = (name: string) =>
+    (plugins.find(plugin => Array.isArray(plugin) && plugin[0] === name) as [string, Record<string, unknown>] | undefined)?.[1] ?? {};
+  const { generateNotes } = (await import(require.resolve('@semantic-release/release-notes-generator'))) as {
+    generateNotes: (options: object, context: object) => Promise<string>;
+  };
+  const githubRequire = createRequire(require.resolve('@semantic-release/github'));
+  const { template } = (await import(githubRequire.resolve('lodash-es'))) as { template: (source: string) => (data: object) => string };
+  const nextRelease = { version: '1.2.3', gitTag: 'v1.2.3', name: 'v1.2.3' };
+
+  const notes = await generateNotes(options('@semantic-release/release-notes-generator'), {
+    cwd: ROOT,
+    options: { repositoryUrl: 'https://github.com/renanfranca/enois-preview.git' },
+    lastRelease: { gitTag: 'v1.2.2', version: '1.2.2' },
+    nextRelease,
+    commits: [{ hash: 'c'.repeat(40), message: 'fix: keep the release title bare' }],
+    logger: { log: () => undefined, error: () => undefined },
+  });
+  const releaseNameTemplate = options('@semantic-release/github').releaseNameTemplate;
+
+  assert.match(notes, /keep the release title bare/);
+  assert.match(notes, /1\.2\.3/);
+  assert.equal(typeof releaseNameTemplate, 'string', 'the github plugin declares releaseNameTemplate');
+  assert.equal(template(releaseNameTemplate as string)({ nextRelease }), '1.2.3');
+});

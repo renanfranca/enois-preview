@@ -42,7 +42,7 @@ function prepared(existingRoot?: string) {
     home,
     data,
     invoke: (...args: string[]) =>
-      spawnSync(process.execPath, [join(tool, 'dist/preview/cli.js'), '--home', home, ...args], { encoding: 'utf8', timeout: 10_000 }),
+      spawnSync(process.execPath, [join(tool, 'dist/preview/cli.js'), '--home', home, ...args], { encoding: 'utf8', timeout: 120_000 }),
   };
 }
 

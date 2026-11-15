@@ -44,7 +44,7 @@ GitHub Container Registry, where GitHub stores Docker images. The tool pushes to
 
 ### Launcher
 
-The operator's **private** GitHub repository. It holds the Worker (`launcher.ts` and `wrangler.jsonc`), the catalog of publications, each publication's Codespace configuration in `.devcontainer/<slug>/` (the **devcontainer**, a GitHub file that tells the Codespace which image to use and how to boot) and `tool.lock.json`, which pins the public tool commit. The paths are in [Where files live](#where-files-live).
+The operator's **private** GitHub repository. It holds the Worker (`launcher.ts` and `wrangler.jsonc`), the catalog of publications, each publication's Codespace configuration in `.devcontainer/<slug>/` (the **devcontainer**, a GitHub file that tells the Codespace which image to use and how to boot) and `package.json`, whose `enois-preview` dependency pins the tool version the Worker uses. `enois-preview setup` creates the launcher. The paths are in [Where files live](#where-files-live).
 
 **Why it matters to you:** `publish` commits and pushes to this repository for you. Do not edit the catalog by hand to complete a publication; use `resume`.
 
@@ -78,13 +78,13 @@ A lock that prevents two operations from touching the same thing at once. Local 
 
 **Why it matters to you:** if a lease is held, another operation may still be alive. Wait, or use `resume` after its owner finishes. When you know the other operation is dead, `publish --force-lease` or `resume --force-lease` deletes its remote lease, records the takeover in `journal.intents.remoteLease.forced` and reports the `lease-forced` warning. Without the flag, the tool waits and refuses as before.
 
-### Tool commit and `install.json`
+### Tool version and `toolVersion`
 
-`install.json` lives inside an installation and records its public commit and the hashes of the source and `dist`. Before `publish` and `resume`, the tool recomputes those hashes. When they match, the journal and the result record that commit as `toolCommit` with `toolVerified: true`. Otherwise, such as in a development checkout or an installation changed by `npm run`, the tool still runs: it records the checkout's Git `HEAD` (or `null`), sets `toolVerified: false` and reports the `unverified-tool` warning.
+The tool reads its own version from its `package.json`: the version published on npm, or `0.0.0-SNAPSHOT` in a development checkout. `enois-preview --version` prints it. `publish` and `resume` record it as `toolVersion` in the journal and the result, and the User-Agent of HTTP sessions is `enois-preview/<version>`.
 
-The configuration no longer has a `toolCommit` field. A 0.3.x configuration that still carries it, or `service` or `installation`, loads normally; those fields are ignored and preserved, with one `ignored-config-fields` warning.
+A journal without `toolVersion` (from a revision created by 0.4.0 or earlier) is not resumed: `resume` stops and asks for a new `publish`.
 
-**Why it matters to you:** if the launcher's `tool.lock.json` or its `enois-preview` dependency pins another commit, publication continues with the `launcher-pin` warning naming both commits. The launcher is never repinned automatically; repin it yourself when you want the Worker to use this version.
+**Why it matters to you:** when the launcher's `enois-preview` dependency pins another version, `publish` (or `resume`) repins that dependency and the lockfile in one commit made by the tool, inside the lease and before deployment. A version that is not on npm, such as a development checkout's, stops the operation before any launcher write.
 
 ### Warning
 
@@ -100,11 +100,11 @@ You point enois-preview at commits of the three Énóis applications and at a co
 
 Code always comes from the **current commits** of the three applications, exported with `git archive`. Data comes from the scenario's **last capture** and stays frozen until you ask for `--refresh-data`.
 
-| You want to | Command | Captures data? |
-| --- | --- | --- |
-| Show new code with the same data | `enois-preview publish <scenario>` | No |
-| Show new data or media | `enois-preview publish <scenario> --refresh-data` | Yes |
-| Finish a failed publication | `enois-preview resume <full-revision>` | Never |
+| You want to                      | Command                                           | Captures data? |
+| -------------------------------- | ------------------------------------------------- | -------------- |
+| Show new code with the same data | `enois-preview publish <scenario>`                | No             |
+| Show new data or media           | `enois-preview publish <scenario> --refresh-data` | Yes            |
+| Finish a failed publication      | `enois-preview resume <full-revision>`            | Never          |
 
 Capture never stops your backend. The design system package is rebuilt from its commit for every image.
 
@@ -124,13 +124,13 @@ The trade off: to change anything, you produce a new revision and update the PR 
 
 ## Where files live
 
-| Path | What it is |
-| --- | --- |
-| `~/.local/share/enois-preview/<COMMIT>/` | Immutable tool installation, with `install.json` |
-| `~/.local/share/enois-preview/current` | Link to the installation in use |
-| `~/.config/enois-preview-ts/config.json` | Private configuration. Change the directory with `ENOIS_PREVIEW_HOME` or `--home` |
-| `<state>/scenarios/<scenario>.json` | Which data version the scenario uses |
-| `<state>/data/<id>/` | Frozen, sanitized data |
-| `<state>/operations/<revision>/` | Journal, frozen files and evidence for each revision |
-| Launcher: `catalog/scenarios.json` | Catalog of published revisions |
-| Launcher: `.devcontainer/<slug>/` | Codespace configuration for each revision |
+| Path                                             | What it is                                                                                                                     |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `$(npm root -g)/enois-preview/`                  | The tool installed from npm                                                                                                    |
+| `~/.config/enois-preview-ts/infrastructure.json` | Operator infrastructure, created by `setup`, mode `0600`, without secrets. Change the path with `ENOIS_PREVIEW_INFRASTRUCTURE` |
+| `~/.config/enois-preview-ts/config.json`         | Private workspace configuration. Change the directory with `ENOIS_PREVIEW_HOME` or `--home`                                    |
+| `<state>/scenarios/<scenario>.json`              | Which data version the scenario uses                                                                                           |
+| `<state>/data/<id>/`                             | Frozen, sanitized data                                                                                                         |
+| `<state>/operations/<revision>/`                 | Journal, frozen files and evidence for each revision                                                                           |
+| Launcher: `catalog/scenarios.json`               | Catalog of published revisions                                                                                                 |
+| Launcher: `.devcontainer/<slug>/`                | Codespace configuration for each revision                                                                                      |

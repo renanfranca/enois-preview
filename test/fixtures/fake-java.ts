@@ -9,6 +9,8 @@ writeFileSync(join(root, `started-${process.pid}`), process.argv.slice(2).join('
 process.on('SIGTERM', () => {
   writeFileSync(join(root, `sigterm-${process.pid}`), 'received');
   if (!existsSync(join(root, 'hold'))) process.exit(0);
-  setInterval(() => { if (existsSync(join(root, `release-${process.pid}`))) process.exit(0); }, 10);
+  setInterval(() => {
+    if (existsSync(join(root, `release-${process.pid}`))) process.exit(0);
+  }, 10);
 });
 setInterval(() => {}, 1000);

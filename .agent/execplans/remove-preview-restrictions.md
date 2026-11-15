@@ -7,12 +7,14 @@ Safety boundary: This task is limited to authorized, defensive maintenance of th
 A fonte normativa é `.agent/specifications/remove-preview-restrictions.md` (a "especificação"). Leia a especificação inteira antes do S1. Em caso de conflito, ela prevalece sobre este plano.
 
 **Problema.** Cada versão recente existiu só para acompanhar mudanças das aplicações do Énóis:
+
 - a 0.3.8 por causa de colunas novas;
 - a 0.3.9 por causa de um construtor do backend, de um teste do backend de 41 MiB e de testes do frontend.
 
 Mesmo assim, a #806 ainda falhou com `Detected resolved migration not applied to database: 277`, porque o perfil `demo` recusa migrações fora de ordem. O operador é dono do banco H2 local, que é descartável. A ferramenta deixa de impor política a ele.
 
 **Sucesso:**
+
 - o operador publica commits atuais das aplicações e um banco local real sem editar este repositório, sem repinar o lançador, sem parar o backend e sem responder prompts;
 - toda checagem relaxada continua visível como aviso no array `warnings` do JSON final e numa linha `warning:` no stderr;
 - só param a publicação o que impede o app de funcionar, o que impede a ferramenta de identificar a revisão e a falha de login das contas selecionadas.
@@ -97,6 +99,7 @@ Mesmo assim, a #806 ainda falhou com `Detected resolved migration not applied to
 Siga TDD comportamental: para cada critério K abaixo, primeiro o teste no ponto público (CLI, gateway HTTP, Worker, imagem), depois o código.
 
 ### S0. Baseline
+
 - **Ações:**
   - confira `git log -1` = `b41202c` na base da branch;
   - `npm ci --ignore-scripts && npm run build && npm test`;
@@ -104,6 +107,7 @@ Siga TDD comportamental: para cada critério K abaixo, primeiro o teste no ponto
 - **Aceite:** baseline registrado.
 
 ### S1. Build da imagem sem testes e sem patches de restrição (K1L, K7)
+
 - **Arquivos:**
   - `recipe/Dockerfile`: design system com build e pack, frontend com build e backend com `-DskipTests package`, como na especificação, seção 1;
   - `recipe/prepare.ts`: remova os patches listados na especificação e a cópia de `recipe/test`;
@@ -120,6 +124,7 @@ Siga TDD comportamental: para cada critério K abaixo, primeiro o teste no ponto
 - **Red esperado do K1L antes da mudança nas propriedades:** `Detected resolved migration not applied to database`. Grave em `red-k1l.log`.
 
 ### S2. Avisos (infraestrutura)
+
 - **O que muda:**
   - um coletor de avisos `{code, message}` por operação;
   - o campo `warnings` (sempre presente) no JSON final de `publish`, `resume`, `setup` e `source-digest`;
@@ -128,6 +133,7 @@ Siga TDD comportamental: para cada critério K abaixo, primeiro o teste no ponto
 - **Teste:** em `test/cli-journey.test.ts`, um comando sem nada a avisar devolve `warnings: []`.
 
 ### S3. Upload: um limite em todas as camadas, sem total compartilhado (K5L)
+
 - **Confirmação primeiro:** confira o teto da Cloudflare (Risks).
 - **Arquivos:**
   - `src/upload-transport.ts` e `runtime/upload-transport.ts`: o limite confirmado;
@@ -138,11 +144,13 @@ Siga TDD comportamental: para cada critério K abaixo, primeiro o teste no ponto
   - `npm run test:worker-upload`: um upload de 50 MB pelo Worker nativo, pelo gateway e pelo armazenamento Java.
 
 ### S4. Gateway sem bloqueio de rotas do app (K6)
+
 - **Arquivo:** `runtime/gateway.ts`. Remova `demoBlocked`. Mantenha a recusa de caminho com `;` e a reserva de `/__demo/`.
 - **Teste:** numa suíte existente do gateway, como os casos do gateway de produção em `test/upload-transport.test.ts`, um `GET /api/support/x` chega ao backend falso, que responde com o próprio status. `/__demo/qualquer` continua 403.
 - **Fluxos:** `test:flows` continua passando; o `signupBlocked` agora vem do backend.
 
 ### S5. Captura sem orquestração e contas relaxadas (K2, K3, K8)
+
 - **Arquivos:**
   - `preview/capture.ts` e `preview/config.ts`: sem `service`, `expectedIdentity`, `restoration.json` e `fuser`;
   - avisos para arquivo em uso, `rede.lock.db` presente e arquivo que mudou durante a cópia;
@@ -158,6 +166,7 @@ Siga TDD comportamental: para cada critério K abaixo, primeiro o teste no ponto
 - **Capture:** `npm run test:capture` passa depois de adaptar `scripts/validate-capture.ts` e remover `scripts/validate-capture-recovery.ts`.
 
 ### S6. Identidade, lançador, lease e setup (K4, K9)
+
 - **Arquivos:**
   - `preview/publication.ts`: `toolCommit` fora da config obrigatória e de `Inputs` (identidade). O journal e o resultado registram o commit da ferramenta em execução, ou `null`;
   - um checkout de desenvolvimento publica com aviso;
@@ -172,6 +181,7 @@ Siga TDD comportamental: para cada critério K abaixo, primeiro o teste no ponto
 - **Testes:** `test/publication-journey.test.ts`, `test/cli-journey.test.ts` e `test/remote-publication.test.ts`.
 
 ### S7. Validação com gate mínimo (K6V)
+
 - **Arquivos:**
   - `preview/validation.ts`: os gates são readiness `UP`, a identidade da revisão (`/__demo/runtime` e `/__demo/revision`) e o login de cada conta, com `/api/me`;
   - viram aviso, mas continuam rodando e indo para o registro: hash, bytes e MIME de mídia; decodificação no Chromium, pulada com aviso se faltar Chromium; permissões; cookies; leituras externas;
@@ -182,6 +192,7 @@ Siga TDD comportamental: para cada critério K abaixo, primeiro o teste no ponto
   - `test/scenario-journey.test.ts:79`: a máquina com 4 CPUs registra.
 
 ### S8. Exemplo, contratos de mídia, versão e documentação
+
 - **Testes de integração:**
   - `test/integration/example.test.ts`: tire `canonicalDataSha256` e mantenha as contagens;
   - `scripts/validate-media-contracts.ts` e `test/integration/media-contracts.test.ts`: tire as recusas estritas (`declaredAndActualSizeMismatchRejected400`, `typeMismatchRejected400`, `demoMediaCapRejected400`) e o teto de 20 MiB + 1. Mantenha os formatos aceitos e a recusa de travessia de caminho, que é do backend e do gateway;
@@ -199,23 +210,27 @@ Siga TDD comportamental: para cada critério K abaixo, primeiro o teste no ponto
 - **Teste de distribuição:** confira se `release/public-files.json` lista algum arquivo removido e ajuste a lista. Esse arquivo é usado pelo teste de distribuição.
 
 ### S9. Validação final
+
 - Detalhada em Validation.
 - Antes dela, atualize Progress até o S9. A partir daí, este arquivo congela, e o relatório vai para `$EV/release-0.4.0/executor-report.md`.
 
 ## Critérios de aceitação
 
 Fontes:
+
 - **[S]** a especificação, nas seções citadas;
 - **[F]** a falha real da #806 descrita no Purpose;
 - **[B]** `application-qa.properties`, `application-hml.properties` e `application-prd.properties` do backend em `a3a6da97`, que têm `spring.flyway.out-of-order=true` e `spring.flyway.validate-on-migrate=false`.
 
 Para cada K, o executor confere **separadamente**:
+
 1. se a expectativa está correta frente às fontes;
 2. se a verificação a demonstra.
 
 Registre comando, resultado observado e artefato em `executor-report.md`. Uma suíte verde sozinha não fecha nenhum K. Lacuna fica escrita como lacuna.
 
 **K1L. Migração fora de ordem sobe** [S §1, F, B]
+
 - **Contexto:** imagem do exemplo cuja fonte do backend tem uma migração com versão abaixo da última aplicada no banco congelado.
 - **Ação:** `npm run test:image`.
 - **Esperado:** readiness `UP` e a tabela da migração sintética presente.
@@ -223,12 +238,14 @@ Registre comando, resultado observado e artefato em `executor-report.md`. Uma su
 - **K1 público (#806 `validated`):** fica com o operador (Rollout).
 
 **K2. Coluna de credencial avisa** [S §2, cenário 2]
+
 - **Contexto:** banco de teste com `EXAMPLE_TOKEN` numa tabela que não é esvaziada.
 - **Ação:** captura pelo CLI.
 - **Esperado:** dado promovido e `warnings` com `TABLE.EXAMPLE_TOKEN`.
 - **Discriminação:** na base `b41202c`, o mesmo caso falha com `Unrecognized authentication or integration column` (`test/capture-journey.test.ts:121`).
 
 **K3. Captura com o backend rodando** [S §2, cenário 3]
+
 - **Contexto:** config sem `service`, com um processo segurando o arquivo H2 aberto.
 - **Esperado:**
   - o processo continua vivo e não recebeu sinal;
@@ -237,11 +254,13 @@ Registre comando, resultado observado e artefato em `executor-report.md`. Uma su
 - **Discriminação:** o processo continua vivo, então uma implementação que ainda chamasse `stop` seria detectada.
 
 **K4. Config 0.3.9 carrega** [S §3, cenário 4]
+
 - **Contexto:** config com `service`, `toolCommit` e `installation`.
 - **Esperado:** o `publish` roda sem `setup` e emite um único aviso listando os três campos.
 - **Discriminação:** na base, o `publish` exige o registro `installation` válido.
 
 **K5L. Upload de 50 MB** [S §5, cenário 5]
+
 - **Testes:**
   - `test:worker-upload`, pelo Worker nativo, o gateway e o armazenamento Java;
   - `test:media`, pela imagem local.
@@ -250,33 +269,39 @@ Registre comando, resultado observado e artefato em `executor-report.md`. Uma su
 - **K5 público:** fica com o operador.
 
 **K6. Rota antes bloqueada chega ao backend** [S §5, cenário 6]
+
 - **Contexto:** gateway real com um backend falso.
 - **Esperado:** `GET /api/support/x` recebe a resposta do backend, e `/__demo/x` recebe 403.
 - **Discriminação:** na base, o gateway responde 403 com `Operação desabilitada na demonstração.` e não chama o backend. O teste conta as chamadas recebidas pelo backend falso.
 
 **K6V. Gate mínimo da validação** [S §4]
+
 - **Esperado:**
   - permissão diferente, cookie ausente e mídia divergente produzem avisos e o sucesso;
   - readiness diferente de `UP`, revisão errada e login falho continuam falhando.
 - **Discriminação:** os dois lados são testados no mesmo arquivo.
 
 **K7. Nenhum teste das aplicações roda no build** [S §1, cenário 7]
+
 - **Esperado:** o `build.log` do `test:image` não tem `Tests run:`, `vitest` nem `test:dist`.
 - **Verificação extra:** com um teste do backend que sempre falha, acrescentado só no workspace de teste, a imagem ainda monta.
 - **Discriminação:** na base, a suíte do backend roda e derruba o build.
 
 **K8. Seleção sem terminal** [S §2, cenário 8]
+
 - **Ação:** `publish SCENARIO --accounts A,B` com stdin que não é TTY.
 - **Esperado:** as contas A e B com logins gerados e distintos.
 - **Discriminação:** na base, esse caso falha com a mensagem de terminal interativo.
 
 **K9. `--force-lease`** [S §3, cenário 9]
+
 - **Contexto:** lease de outra operação.
 - **Esperado:**
   - com a flag, o lease é removido, o journal e `warnings` registram a tomada, e a publicação segue;
   - sem a flag, o comportamento atual fica igual: espera e recusa (`test/remote-publication.test.ts:51` continua passando).
 
 **K10. Nada regride no que foi mantido** [S, "Unchanged behavior"]
+
 - `npm test` passa.
 - Ficam verdes os casos mantidos de lease de processo, integridade de insumos congelados, reconciliação de ack remoto e cancelamento por sinal.
 - Os testes removidos estão listados e classificados em `removed-tests.md`.
@@ -295,6 +320,7 @@ Registre comando, resultado observado e artefato em `executor-report.md`. Uma su
 - [ ] S9 validação final: este arquivo congelou aqui, antes da validação. O resultado de cada comando, a comparação de contagens e cada K estão em `$EV/release-0.4.0/executor-report.md` e `$EV/release-0.4.0/final/validation.json`.
 
 Desvios registrados no fim do S8:
+
 - **TDD:** em S2, S3, S4 e no K9 do S6, o código de produção foi escrito antes de observar o red do teste novo; o teste do K9 passou na primeira execução. A discriminação desses K é provada rodando os testes novos contra a base `b41202c` num clone local, com o resultado em `executor-report.md`.
 - **`test:capacity` removido:** `test/integration/capacity.test.ts`, `scripts/validate-capacity.ts` e o script do `package.json` saíram, porque só provavam o limite compartilhado de 256 MiB, que a especificação remove. A entrada histórica `docs/validation/typescript-0.2.0/public-capacity.json` fica intocada.
 - **Documentação além da lista:** `docs/diagnostics/README.md` e `docs/diagnostics/installation.{en,pt-BR}.md` também mandavam preservar `restoration.json`, preencher `toolCommit` e fazer a confirmação inicial; foram corrigidos.
@@ -305,6 +331,7 @@ Desvios registrados no fim do S8:
 Rode sobre o tree exato que será commitado, já com este plano congelado. Use `ENOIS_PREVIEW_EVIDENCE=$EV/release-0.4.0/final` e `ENOIS_PREVIEW_EXAMPLE_WORKSPACE` apontando para o workspace preparado pelo passo 7.
 
 Todos devem sair com 0, nesta ordem:
+
 1. `npm ci --ignore-scripts`
 2. `npm run build`
 3. `npm run typecheck`
@@ -325,6 +352,7 @@ Grave `$EV/release-0.4.0/final/validation.json` com o tree antes e depois (iguai
 Uma tentativa que falhar vai para `final-attempt<N>/` e não conta como aprovação. Se a causa estiver fora deste plano, pare e reporte.
 
 **Paradas:**
+
 - um red esperado (`red-k1l.log`) não aparece, ou aparece com outra mensagem;
 - qualquer validação falha;
 - o tree muda entre a validação e o commit;
@@ -333,6 +361,7 @@ Uma tentativa que falhar vai para `final-attempt<N>/` e não conta como aprovaç
 ## Rollout and recovery
 
 Isto **não** é trabalho do executor. São os passos do operador depois do merge, nesta ordem:
+
 1. tag `v0.4.0` e release, com um changelog curto;
 2. instalação pelo `install.sh` da tag;
 3. **repin único** do lançador para a 0.4.0. Sem ele, o Worker continua com o limite de 20 MiB e a recusa de CPU;

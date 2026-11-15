@@ -13,12 +13,14 @@ StrictMediaSanitizer.java:[17,37] constructor MediaMetadataSanitizer in class co
 ```
 
 O usuário decidiu:
+
 - suportar **só o `qa` atual** do backend, sem compatibilidade com backends anteriores ao `1a3f9964`;
 - lançar a correção como **0.3.9**, que já tem no `main` o instalador de um comando;
 - atualizar o lançador privado para a 0.3.9;
 - refazer a publicação da #806.
 
 **Sucesso:**
+
 - A imagem compila e valida a partir do exemplo fictício com os pins no `qa` público atual. O `StrictMediaSanitizerTests` roda dentro do build e passa.
 - O comportamento estrito de mídia da demo continua: upload com tipo diferente do conteúdo, corpo malformado ou PDF corrompido é recusado com `MEDIA_SANITIZATION_FAILED`; áudio e imagem válidos continuam decodificáveis e sem o marcador de metadado.
 - `v0.3.9` foi marcada, a release foi publicada e lida de volta sem vazamentos, e a instalação real veio pelo `install.sh` da própria tag.
@@ -54,6 +56,7 @@ O usuário decidiu:
 - **Modelo do ciclo:** `.agent/execplans/release-0-3-8-sanitizer-columns.md` (S5, S6 e S10), para comandos de merge, tag, release e leitura de volta.
 
 **Autorização:**
+
 - **Concedida:**
   - commit (`lc`), push (`lp`) e PR;
   - merge pelo `luna` só por fast-forward, com fallback por git ff;
@@ -84,6 +87,7 @@ O usuário decidiu:
   - ele não tem o teto de 20 MiB.
 
   Remover a classe tiraria essas recusas do preview público. A alternativa descartada foi justamente apagar o arquivo e usar só o backend.
+
 - **Adaptar ao construtor novo, sem compatibilidade com o antigo.** O construtor passa a ser `StrictMediaSanitizer(MediaFfmpegRunner ffmpeg, MediaTemporaryFiles temporaryFiles)`, que chama `super(ffmpeg, temporaryFiles)`. O Spring injeta os dois beans. O restante da classe não muda.
   - Alternativas descartadas:
     - reflexão para aceitar os dois construtores, que acoplaria ainda mais a receita a detalhes internos;
@@ -113,6 +117,7 @@ O usuário decidiu:
 ## Milestones
 
 ### S0. Branch e baseline
+
 - Use o skill `create-git-branch` na pasta principal, a partir da `main` (`d2c2bbb`). Este plano vai junto.
 - Confira `main` = `origin/main`, e as tags da seção Context sem mudança.
 - Grave em `$EV/release-0.3.9/baseline.json`:
@@ -123,17 +128,20 @@ O usuário decidiu:
   - a ausência da ref de lease no lançador.
 
 ### S1. Exemplo no `qa` e red
+
 1. Troque os três pins de `example/sources.json` pelos heads do S0.
 2. `npm run build`, depois `ENOIS_PREVIEW_EVIDENCE=$EV/release-0.3.9/example npm run test:example`. Se só `observed` ou `canonicalDataSha256` divergirem, atualize as asserções com o valor observado e registre o antes, o depois e a causa. Qualquer outra falha é parada: registre e reporte.
 3. Red: `ENOIS_PREVIEW_EXAMPLE_WORKSPACE=$EV/release-0.3.9/example/example-01 npm run test:image`. O esperado é falhar no build do backend com a mensagem do construtor citada em Purpose. Grave as linhas do erro em `red.log`. Se falhar por outro motivo antes desse (frontend, design system, `prepare.ts`), registre. Corrija primeiro só o que for âncora textual (veja Risks) e repita até ver o red do construtor.
 
 ### S2. Green
+
 - `recipe/StrictMediaSanitizer.java`: troque o construtor sem argumentos por `public StrictMediaSanitizer(MediaFfmpegRunner ffmpeg, MediaTemporaryFiles temporaryFiles) { super(ffmpeg, temporaryFiles); javax.imageio.ImageIO.setUseCache(false); }`. Não mude `sanitize`, `signature`, `temporary`, `streamTypes`, `execute` nem `invalid`.
 - `recipe/test/StrictMediaSanitizerTests.java`: construa o sanitizador com `new StrictMediaSanitizer(new MediaFfmpegRunner("ffmpeg", 2), <MediaTemporaryFiles com a pasta temporária do sistema>)`, no padrão do `MediaMetadataSanitizerTests` do backend. Não mude nenhuma asserção.
 - Rode o `test:image` do S1 de novo. Ele deve passar. Grave `green-image.log` e o `local-build-proof.json`.
 - `ENOIS_PREVIEW_EXAMPLE_WORKSPACE=… npm run test:media`: os contratos de upload passam pela imagem nova. Grave `green-media.log`.
 
 ### S3. Documentação e versão
+
 - `package.json` e as duas ocorrências da raiz em `package-lock.json`: `0.3.9`.
 - `CHANGELOG.md` e `docs/en/CHANGELOG.md`:
   - troque "(não publicada)"/"(unreleased)" pela data da entrega;
@@ -144,16 +152,20 @@ O usuário decidiu:
 - `docs/validation/media-sanitizer-qa-0.3.9/local.json`, no modelo de `docs/validation/sanitizer-columns-0.3.8/local.json`, com as contagens observadas no S4. Inclua essa entrada em `release/public-files.json`. O plano em `.agent/` não entra.
 
 ### S4. Validação final
+
 Detalhada em Validation. Antes dela, atualize o `Progress` até o S4 e marque o S5 como "em andamento". A partir daí, este arquivo fica congelado.
 
 ### S5. Commit, PR, merge e tag
+
 Siga o S5 da 0.3.8 com `v0.3.9`:
+
 1. `lc`, depois `lp`.
 2. PR e merge só por fast-forward pelo `luna`, com o pedido entre aspas.
 3. Confira `main` = `origin/main` = SHA validado (SHA9), PR `MERGED` e `git status` limpo.
 4. `git tag -a v0.3.9 -m "0.3.9" <SHA9>` e `git push origin v0.3.9`. Confira que as tags anteriores não mudaram.
 
 ### S6. Instalação e lançador
+
 1. Instale pelo caminho público, com a CLI atual sem `install`:
 
    ```sh
@@ -166,10 +178,13 @@ Siga o S5 da 0.3.8 com `v0.3.9`:
    - o comando global aponta para `<SHA9>/dist/preview/cli.js`;
    - `install.json` tem `commit` = SHA9;
    - as instalações `d2c2bbb` e `e733eb4` continuam intactas.
+
 2. No checkout do lançador: `git pull --ff-only`, pin SHA9 em `tool.lock.json` e na dependência `enois-preview` do `package.json`, `npm install --package-lock-only --ignore-scripts`, `npm ci --ignore-scripts && npm run build && npm test && npm run check`, depois `lc` e `lp`. O diff deve tocar só `tool.lock.json`, `package.json` e `package-lock.json`.
 
 ### S7. Release
+
 `gh release create v0.3.9 --title 0.3.9`, com notas PT/EN:
+
 - o instalador de um comando;
 - a receita no `qa` atual e a quebra com backends anteriores ao `1a3f9964`;
 - os pins novos do exemplo.
@@ -177,6 +192,7 @@ Siga o S5 da 0.3.8 com `v0.3.9`:
 Siga o S10 da 0.3.8 para o pacote de evidências revisadas mais o `.sha256`, sem logs brutos e com marcadores no lugar dos caminhos. Baixe de volta, rode `sha256sum -c` e `cmp`, e procure `/home/`, tokens e emails (`release-readback.json`).
 
 ### S8. Publicação da #806
+
 1. Confira de novo que a ref `enois-preview-publication-lease` não existe no lançador.
 2. Na config da #806, troque só o `toolCommit` para SHA9 e confira com um diff contra uma cópia anterior.
 3. `ENOIS_PREVIEW_HOME=~/projects/enois/.local/issue806/.preview/installation enois-preview setup --config ~/projects/enois/.local/issue806/.preview/config.json`. Se ele pedir a confirmação interativa, pare e peça ao dono.
@@ -184,6 +200,7 @@ Siga o S10 da 0.3.8 para o pacote de evidências revisadas mais o `.sha256`, sem
 5. Faça o M7 do `EXECPLAN-publish-preview-806.md` privado: conferência do link a 390 px com evidências e `.preview/PR-como-verificar.md`, sem postar.
 
 ### S9. Limpeza e registros
+
 - Remova a branch local e a remota depois de confirmar que ela é ancestral da `main` (`cleanup.json`).
 - Se o publish avançou o origin do lançador, faça ff do checkout local.
 - Atualize o Progress do `EXECPLAN-publish-preview-806.md` privado com M6 e M7.
@@ -196,6 +213,7 @@ Siga o S10 da 0.3.8 para o pacote de evidências revisadas mais o `.sha256`, sem
 ## Critérios de aceitação
 
 As fontes são:
+
 - **[R]** `recipe/StrictMediaSanitizer.java`, `recipe/test/StrictMediaSanitizerTests.java`, `recipe/prepare.ts` e `recipe/Dockerfile` na `d2c2bbb`;
 - **[B]** `MediaMetadataSanitizer.java`, `MediaFfmpegRunner.java` e `MediaTemporaryFiles.java` do `enois-backend` em `a3a6da97`, e o commit `1a3f9964`;
 - **[F]** o `build.log` da operação `3dec7303…` da #806;
@@ -204,6 +222,7 @@ As fontes são:
 Antes da entrega, confira de novo cada expectativa contra essas fontes, **separado** de conferir se a prova a demonstra. Registre comando, resultado observado e artefato. Uma suíte verde sozinha não fecha nenhum K. Uma lacuna fica escrita como lacuna.
 
 **K1. A imagem compila com o backend `qa`** [R, B, F]
+
 - **Contexto:** workspace do exemplo preparado com os pins do `qa` do S0.
 - **Ação:** `npm run test:image`.
 - **Resultado esperado:**
@@ -213,6 +232,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - **Discriminação:** na `d2c2bbb`, a mesma ação falha com `constructor MediaMetadataSanitizer … cannot be applied to given types` (S1). Uma correção que apagasse o `StrictMediaSanitizer` também compilaria, mas falharia no K2.
 
 **K2. A fronteira estrita de mídia continua** [R]
+
 - **Contexto:** imagem do K1.
 - **Ação:** `StrictMediaSanitizerTests` dentro do build, mais `npm run test:media`.
 - **Resultado esperado:**
@@ -223,6 +243,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - **Discriminação:** o `MediaMetadataSanitizer` do backend, sozinho, devolveria os bytes originais para tipos sem limpeza definida e não confere a assinatura. As recusas acima só passam com a subclasse ativa no perfil `demo`. Registre no relatório que a prova é o teste dentro do build e o `test:media`.
 
 **K3. O comportamento restante não regride** [R]
+
 - `npm test`: 123 testes, 0 fail e 0 skip. Se a contagem for outra, explique antes de seguir.
 - `npm run test:install`: 8.
 - `npm run test:consumer`, com a mesma contagem do `npm test`, lida do `test.log` dele.
@@ -230,6 +251,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - `npm run check`.
 
 **K4. Entrega** [U]
+
 - `main` = `origin/main` = `v0.3.9^{commit}` = SHA9; tags anteriores sem mudança; PR `MERGED`.
 - A release `0.3.9` foi lida de volta sem vazamentos.
 - `current` → SHA9 pela instalação via `install.sh`.
@@ -237,6 +259,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 - A branch foi removida.
 
 **K5. A #806 publicada mostra a correção** [U]
+
 - **Contexto:** config da #806 com `toolCommit` = SHA9, e os mesmos commits e dados da tentativa anterior.
 - **Ação:** `publish issue-806-precos-longos`, depois o roteiro de conferência do handoff a 390 × 844.
 - **Resultado esperado:**
@@ -261,6 +284,7 @@ Antes da entrega, confira de novo cada expectativa contra essas fontes, **separa
 Rode sobre o tree exato que será commitado, já com este plano congelado. Mova qualquer tentativa que falhar para `final-attempt<N>/`, sem contá-la como aprovação.
 
 Com `ENOIS_PREVIEW_EVIDENCE=$EV/release-0.3.9/final` e `ENOIS_PREVIEW_EXAMPLE_WORKSPACE` apontando para o workspace do exemplo preparado no S1, rode, nesta ordem, os comandos abaixo. Todos devem sair com 0:
+
 1. `npm ci --ignore-scripts`
 2. `npm run build`
 3. `npm run typecheck`
@@ -276,6 +300,7 @@ Com `ENOIS_PREVIEW_EVIDENCE=$EV/release-0.3.9/final` e `ENOIS_PREVIEW_EXAMPLE_WO
 Grave `$EV/release-0.3.9/final/validation.json` com o tree antes e depois (iguais) e as contagens observadas comparadas com o `local.json`.
 
 **Paradas:**
+
 - o red do S1 não aparece, ou aparece com outra mensagem;
 - qualquer validação falha;
 - o tree muda entre a validação e o commit;

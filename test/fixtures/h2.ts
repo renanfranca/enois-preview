@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import './operator.js';
 
 export function command(...args: string[]): string {
   const result = spawnSync(args[0]!, args.slice(1), { encoding: 'utf8' });
@@ -13,7 +14,9 @@ export function fixture(additionalSql = '') {
   const root = mkdtempSync(join(tmpdir(), 'enois-capture-'));
   const h2Jar = process.env.ENOIS_H2_JAR ?? join(homedir(), '.m2/repository/com/h2database/h2/2.5.252/h2-2.5.252.jar');
   const sql = join(root, 'init.sql');
-  writeFileSync(sql, `CREATE TABLE USERS(ID VARCHAR PRIMARY KEY, NAME VARCHAR, EMAIL VARCHAR UNIQUE, IS_ADMIN BOOLEAN, TOTP_ENABLED_AT TIMESTAMP);
+  writeFileSync(
+    sql,
+    `CREATE TABLE USERS(ID VARCHAR PRIMARY KEY, NAME VARCHAR, EMAIL VARCHAR UNIQUE, IS_ADMIN BOOLEAN, TOTP_ENABLED_AT TIMESTAMP);
 CREATE TABLE USER_CREDENTIALS(USER_ID VARCHAR PRIMARY KEY, EMAIL VARCHAR UNIQUE, PASSWORD_HASH VARCHAR, PASSWORD_USABLE BOOLEAN, RESET_NEEDED BOOLEAN);
 CREATE TABLE AUTH_SESSIONS(ID VARCHAR, REFRESH_TOKEN VARCHAR);
 CREATE TABLE LINKEDIN_CONNECTIONS(USER_ID VARCHAR, ACCESS_TOKEN_ENC VARCHAR);
@@ -25,18 +28,31 @@ INSERT INTO USER_CREDENTIALS VALUES('author','original@example.invalid','origina
 INSERT INTO AUTH_SESSIONS VALUES('original-session','refresh-marker');
 INSERT INTO LINKEDIN_CONNECTIONS VALUES('author','integration-marker');
 INSERT INTO POSTS VALUES('post','author','fictional preserved content');
-${additionalSql}`);
+${additionalSql}`,
+  );
   command('java', '-cp', h2Jar, 'org.h2.tools.RunScript', '-url', `jdbc:h2:file:${root}/live;MODE=MySQL`, '-user', 'sa', '-script', sql);
-  const media = join(root, 'media'); mkdirSync(media); writeFileSync(join(media, 'image.bin'), 'fictional');
-  const config = { format: 'enois-preview-ts-v1', state: join(root, 'private'), database: join(root, 'live.mv.db'), h2Jar,
-    accounts: [{ id: 'author', email: 'author@enois.invalid', label: 'Author' }, { id: 'reader', email: 'reader@enois.invalid', label: 'Reader' }],
-    media: [{ root: media, url: '/fixture/' }] };
+  const media = join(root, 'media');
+  mkdirSync(media);
+  writeFileSync(join(media, 'image.bin'), 'fictional');
+  const config = {
+    format: 'enois-preview-ts-v1',
+    state: join(root, 'private'),
+    database: join(root, 'live.mv.db'),
+    h2Jar,
+    accounts: [
+      { id: 'author', email: 'author@enois.invalid', label: 'Author' },
+      { id: 'reader', email: 'reader@enois.invalid', label: 'Reader' },
+    ],
+    media: [{ root: media, url: '/fixture/' }],
+  };
   return { root, config, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 /** A PATH directory whose `fuser` pauses while writing its PID to `barrier`: capture always consults fuser before copying. */
 export function pausingFuser(root: string, barrier: string): NodeJS.ProcessEnv {
-  const bin = join(root, 'pause-bin'); mkdirSync(bin, { recursive: true });
-  const executable = resolve('dist/test/fixtures/infrastructure.js'); chmodSync(executable, 0o755);
+  const bin = join(root, 'pause-bin');
+  mkdirSync(bin, { recursive: true });
+  const executable = resolve('dist/test/fixtures/infrastructure.js');
+  chmodSync(executable, 0o755);
   if (!existsSync(join(bin, 'fuser'))) symlinkSync(executable, join(bin, 'fuser'));
   return { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, FIXTURE_FUSER_BARRIER: barrier };
 }

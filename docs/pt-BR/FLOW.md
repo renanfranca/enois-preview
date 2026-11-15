@@ -56,10 +56,10 @@ sequenceDiagram
   participant W as Worker
 
   Op->>CLI: enois-preview publish cenario
-  CLI->>CLI: lê config.json
+  CLI->>CLI: lê infrastructure.json e config.json
   CLI->>CLI: trava publication.lock
   CLI->>Apps: lê os commits e avisa sobre mudanças não comitadas
-  CLI->>CLI: registra o commit da ferramenta pelo install.json ou pelo Git
+  CLI->>CLI: registra a versão da ferramenta (toolVersion)
   opt primeira vez ou refresh-data
     CLI->>Apps: copia H2 e mídias sem mexer no backend
     CLI->>CLI: sanitiza e guarda em data/id
@@ -82,25 +82,27 @@ sequenceDiagram
   end
 ```
 
-1. **Configuração:** o CLI lê `config.json` da sua instalação privada. Sem o `setup`, ele para aqui. Campos que não são mais usados, como `service`, `toolCommit` ou `installation`, geram o aviso `ignored-config-fields`.
+1. **Configuração:** o CLI lê a infraestrutura de `infrastructure.json` e o workspace de `config.json`. Sem o `infrastructure.json`, ele para com `Infrastructure missing. Run enois-preview setup first.`; sem o `config.json`, pede o `setup --config`. Campos do workspace que o contrato não define, inclusive os de infraestrutura, geram o aviso `ignored-config-fields`.
 2. **Trava local:** `publication.lock` impede dois `publish` ou `resume` ao mesmo tempo no mesmo `state`.
 3. **Fontes:** o CLI lê o `HEAD` comitado de cada aplicação. Mudanças staged, unstaged ou arquivos não rastreados geram o aviso `source-dirty` e ficam de fora.
-4. **Commit da ferramenta:** o CLI recalcula os hashes da instalação e registra o commit dela com `toolVerified: true`. Um checkout de desenvolvimento ou uma instalação alterada registra o `HEAD` do Git (ou `null`) com o aviso `unverified-tool`.
+4. **Versão da ferramenta:** o CLI registra a versão em execução como `toolVersion`.
 5. **Captura:** só na primeira publicação do cenário, com `--refresh-data`, ou quando `--accounts` escolhe contas diferentes das dos dados congelados. O CLI copia o H2 e as mídias sem parar, iniciar nem esperar o backend; arquivo em uso ou alterado durante a cópia gera aviso. Se nenhuma conta estiver configurada, o `--accounts` escolhe, ou o CLI pergunta no terminal.
 6. **Exportação:** cada aplicação é exportada do commit atual com `git archive`, fora dos seus checkouts.
 7. **Congelamento:** o CLI calcula a revisão e, se ela ainda não existe, copia dados, fontes, receita, runtime, Worker e `dist` para `operations/<revisao>/frozen` e cria o journal.
-8. **As oito etapas do publicador** (`Publisher` em `preview/remote.ts`), nesta ordem:
-   1. `buildAndValidate`: constrói a imagem localmente, sem rodar os testes das aplicações, e valida o boot num contêiner local.
-   2. `acquireRemoteLease`: cria a ref `refs/heads/enois-preview-publication-lease` no lançador. Se outra operação a tem, espera até `leaseWaitSeconds`; com `--force-lease`, apaga a ref, registra a tomada e mostra `lease-forced`.
-   3. `registry`: envia a imagem ao GHCR com a tag `preview-<revisao>` e passa a usá-la pelo digest.
-   4. `configuration`: faz push de `.devcontainer/<slug>/` e da proveniência no lançador.
-   5. `catalog`: faz push da nova entrada em `catalog/scenarios.json`.
-   6. `deploy`: no checkout do lançador, roda `npm ci --ignore-scripts`, `npm run build` e `wrangler deploy`. Um lançador fixado em outro commit da ferramenta gera o aviso `launcher-pin` e não é refixado.
-   7. `validatePublic`: abre o link público. Prontidão, identidade da revisão e login de cada conta selecionada são portões; mídias, decodificação, permissões e cookies viram avisos.
-   8. `releaseRemoteLease`: apaga a ref de lease.
+8. **As etapas do publicador** (`Publisher` em `preview/remote.ts`), nesta ordem:
+   1. `checkLauncher`: antes de qualquer escrita, confere o formato do lançador e, quando ele depende de outra versão do `enois-preview`, que a versão em execução existe no npm. Um lançador em outro formato ou uma versão não publicada param aqui, sem tocar no lançador.
+   2. `buildAndValidate`: constrói a imagem localmente, sem rodar os testes das aplicações, e valida o boot num contêiner local.
+   3. `acquireRemoteLease`: cria a ref `refs/heads/enois-preview-publication-lease` no lançador. Se outra operação a tem, espera até `leaseWaitSeconds`; com `--force-lease`, apaga a ref, registra a tomada e mostra `lease-forced`.
+   4. `pinLauncher`: quando a dependência `enois-preview` do lançador fixa outra versão, refixa a dependência e o lockfile num commit da ferramenta, registrado no journal como `launcherPin`, para o `resume` não duplicá-lo.
+   5. `registry`: envia a imagem ao GHCR com a tag `preview-<revisao>` e passa a usá-la pelo digest. Quando esse envio cria o pacote, mostra o aviso `registry-codespaces-access`.
+   6. `configuration`: faz push de `.devcontainer/<slug>/` e da proveniência no lançador.
+   7. `catalog`: faz push da nova entrada em `catalog/scenarios.json`.
+   8. `deploy`: no checkout do lançador, roda `npm ci --ignore-scripts` e `wrangler deploy`. O lançador usa o pacote npm publicado e não compila a ferramenta.
+   9. `validatePublic`: abre o link público. Prontidão, identidade da revisão e login de cada conta selecionada são portões; mídias, decodificação, permissões e cookies viram avisos.
+   10. `releaseRemoteLease`: apaga a ref de lease.
 9. **Resultado:** em caso de sucesso, o CLI imprime um JSON com `status: "validated"`, a `url` e `warnings`. Em caso de falha, grava `failure.json`, informa a etapa, a revisão completa e o comando `enois-preview resume <revisao>`.
 
-O `resume` faz os passos 1, 2 e 4 e pula as fontes, a captura, a exportação e o congelamento (passos 3, 5, 6 e 7): lê o journal da revisão, confere os arquivos congelados e continua as oito etapas a partir do que já foi registrado. Ele nunca recaptura dados.
+O `resume` faz os passos 1, 2 e 4 e pula as fontes, a captura, a exportação e o congelamento (passos 3, 5, 6 e 7): lê o journal da revisão, confere os arquivos congelados e continua as etapas a partir do que já foi registrado. Ele nunca recaptura dados.
 
 ## O que acontece quando alguém abre o link
 

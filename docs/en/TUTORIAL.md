@@ -6,72 +6,51 @@ This tutorial takes you from installation to the first published link, using the
 
 ## Before you start
 
-- Have the [README requirements](README.md#requirements) and your private infrastructure ready: a private [launcher](CONCEPTS.md#launcher) with `wrangler.jsonc`, Worker and catalog, and a private [GHCR](CONCEPTS.md#ghcr) package. If anything is missing, follow [installation diagnostics](../diagnostics/installation.en.md) first.
-- Have the full public commit pinned in your launcher's `tool.lock.json` at hand. Below it appears as `<PINNED_PUBLIC_COMMIT>`.
+- Have the [README requirements](README.md#requirements): Node 24.x, Git, Java 25 and Javac, Docker, `flock` and the GitHub CLI, plus a GitHub account and a Cloudflare account. `setup` creates your private infrastructure ([launcher](CONCEPTS.md#launcher), Worker and secrets); the [GHCR](CONCEPTS.md#ghcr) package is created by the first `publish`.
 
 Attention:
+
 - Use only your local terminal. Do not run commands inside a [Codespace](CONCEPTS.md#worker-durable-object-and-codespace) to complete a revision's boot.
 - Never put tokens in arguments, chats or versioned files.
 - Do not change billing plans.
 
 ## Step by step
 
-1. Authenticate with GitHub:
-
-   ```sh
-   gh auth login
-   ```
-
-2. Authenticate Docker to GHCR through your credential mechanism, for example typing the token on standard input:
-
-   ```sh
-   docker login ghcr.io --username YOUR_OWNER --password-stdin
-   ```
-
-3. Select Node 24.x (`>=24 <25`):
+1. Select Node 24.x (`>=24 <25`) and install the tool:
 
    ```sh
    nvm install 24
+   npm install -g enois-preview
+   enois-preview --version
    ```
 
-4. Install the tool at the pinned commit:
+2. Run the guided setup:
 
    ```sh
-   COMMIT=<PINNED_PUBLIC_COMMIT>
-   curl -fsSL "https://raw.githubusercontent.com/renanfranca/enois-preview/$COMMIT/install.sh" | bash -s -- "$COMMIT"
+   enois-preview setup
    ```
 
-   That commit's `install.sh` prepares the installer in a temporary directory and removes it at the end. The installer creates `~/.local/share/enois-preview/<PINNED_PUBLIC_COMMIT>`, points `~/.local/share/enois-preview/current` at it, links the `enois-preview` command and installs the Chromium used by public validation. The final JSON carries `linked: true` and `browser: true`. See [tool commit and `install.json`](CONCEPTS.md#tool-commit-and-installjson).
+   It first checks the GitHub CLI, Docker (GHCR) and `wrangler` logins and offers each fix, with confirmation. Then it prints the plan, one line per resource with `exists`, `create` or `update`, and asks one confirmation. Along the way it prints the URL and permissions of the Worker token: create the token and paste it into the hidden prompt (step by step in [installation diagnostics](../diagnostics/installation.en.md#create-the-worker-token-manual)). The final JSON carries `status: "configured"`, the resources in `created` and `warnings`, including `free-plan`: keep the free plans with spending blocked.
 
-   Attention: never run `npm run` or edit files inside the installation. `publish` would then report the `unverified-tool` warning.
+   Attention: do not use another operator's infrastructure. Running setup again changes nothing that already exists.
 
-5. Authenticate with Cloudflare using the installation's `wrangler`:
+3. Prepare the fictional workspace at a path that does not exist yet:
 
    ```sh
-   (cd ~/.local/share/enois-preview/current && npx --no-install wrangler login)
+   node "$(npm root -g)/enois-preview/dist/example/prepare.js" ~/new-workspace
    ```
 
-6. Prepare the fictional workspace at a path that does not exist yet:
+   Preparation fetches the pinned public sources, builds the backend and applies its migrations to a new H2 before inserting fictional data only.
+
+4. Store the workspace configuration:
 
    ```sh
-   node ~/.local/share/enois-preview/current/dist/example/prepare.js /absolute/new-workspace
+   enois-preview setup --config ~/new-workspace/.preview/config.json
    ```
 
-   Preparation fetches the pinned public sources, builds the backend and applies its migrations to a new H2 before inserting fictional rows only.
+   The infrastructure is ready, so the plan shows only the local files. The workspace configuration is stored in `~/.config/enois-preview-ts/config.json`, next to `infrastructure.json`. Set `ENOIS_PREVIEW_HOME` to keep another independent workspace.
 
-7. Edit the private file `/absolute/new-workspace/.preview/config.json`. Replace `repository`, `branch`, `registry`, `origin` and `cloudflareAccountId` with your existing infrastructure.
-
-   Attention: do not use another operator's infrastructure.
-
-8. Run setup:
-
-   ```sh
-   enois-preview setup --config /absolute/new-workspace/.preview/config.json
-   ```
-
-   Setup verifies access and stores the configuration in `~/.config/enois-preview-ts`, with no prompt. Its JSON ends with `warnings`, including `free-plan`: keep Free plans with spending blocked for the configured accounts. Set `ENOIS_PREVIEW_HOME` for a separate installation.
-
-9. Publish:
+5. Publish:
 
    ```sh
    enois-preview publish my-scenario
@@ -79,9 +58,11 @@ Attention:
 
    The first publication performs the [capture](CONCEPTS.md#frozen-data-and-capture). The example already selects Lia (`example_lia`) and Rui (`example_rui`) with their original permissions. The command succeeds only after the public link reports readiness, the expected revision and a login for every selected account. Image contents, media and decoding are still checked and reported as `warnings`. What happens at each stage is in [Flow](FLOW.md#what-happens-during-publish).
 
-10. Open the `url` from the final JSON in a browser, test the pull request (PR)'s specific behavior and paste the link into the PR. Passwords appear on the environment's entry page, never in the CLI report.
+   The first `publish` creates the GHCR package and shows the `registry-codespaces-access` warning with the package settings URL. There, under **Manage Codespaces access**, add the launcher repository. If public validation fails because the Codespace could not pull the image, make that change and run `enois-preview resume <full-revision>`.
 
-    Attention: accounts are shared. Use independent sessions for author and reader. A completed build or push alone never establishes public acceptance; only the final JSON with `status: "validated"` does.
+6. Open the `url` from the final JSON in a browser, test the pull request (PR)'s specific behavior and paste the link into the PR. Passwords appear on the environment's entry page, never in the CLI report.
+
+   Attention: accounts are shared. Use independent sessions for author and reader. A completed build or push alone never establishes public acceptance; only the final JSON with `status: "validated"` does.
 
 ## What the example contains
 
@@ -94,22 +75,15 @@ Preparation creates isolated copies of the three public applications at the comm
 
 ## After the first publication
 
-| Situation | Recipe |
-| --- | --- |
-| New code, same data | [Publish again with new code only](RECIPES.md#3-publish-again-with-new-code-only) |
-| New data or media | [Publish with new data](RECIPES.md#4-publish-with-new-data) |
-| `publish` failed | [Resume a failed publication](RECIPES.md#5-resume-a-failed-publication) |
-| You interrupted the command | [Ctrl+C, SIGTERM or a killed process](RECIPES.md#6-ctrlc-sigterm-or-a-killed-process) |
-| Your own data | [Use my own data](RECIPES.md#8-use-my-own-data) |
+| Situation                         | Recipe                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| New code, same data               | [Publish again with new code only](RECIPES.md#3-publish-again-with-new-code-only)                 |
+| New data or media                 | [Publish with new data](RECIPES.md#4-publish-with-new-data)                                       |
+| `publish` failed                  | [Resume a failed publication](RECIPES.md#5-resume-a-failed-publication)                           |
+| You interrupted the command       | [Ctrl+C, SIGTERM or a killed process](RECIPES.md#6-ctrlc-sigterm-or-a-killed-process)             |
+| Your own data                     | [Use my own data](RECIPES.md#8-use-my-own-data)                                                   |
 | Limits for whoever opens the link | [Show in the PR that the problem is fixed](RECIPES.md#9-show-in-the-pr-that-the-problem-is-fixed) |
 
-## Python era launcher
+## Launcher from an earlier version
 
-Before using a launcher from the Python version:
-
-1. Preserve its catalog in Git history.
-2. Prepare an empty `{ "format": "enois-preview-ts-v1", "scenarios": {} }` catalog, a `tool.lock.json` with the same format, and `launcher.ts`.
-3. Pin the public dependency to the immutable TypeScript release SHA.
-4. After `npm ci --ignore-scripts`, run the launcher's `npm run build`. It explicitly compiles `node_modules/enois-preview` and checks `launcher.ts`.
-
-Attention: do not reuse earlier journals or recipes. An earlier configuration loads, and its unused fields are ignored with a warning. The full procedure is in [installation diagnostics](../diagnostics/installation.en.md).
+A Python era or 0.4.0 launcher (with `tool.lock.json` and a `codeload` dependency) is not migrated: `setup` stops and asks for a new `--launcher`. Keep the old launcher; its links keep working while it and the old Worker exist. Do not reuse journals or recipes from the earlier version.

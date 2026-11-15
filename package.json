@@ -1,69 +1,85 @@
 {
   "name": "enois-preview",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "test": "npm run build && node --test dist/test/*.test.js",
-    "dev": "npm run build && wrangler dev",
-    "check": "npm run build && wrangler deploy --dry-run",
-    "deploy": "npm run build && node dist/scripts/check-release.js && wrangler deploy",
-    "example:prepare": "npm run build && node dist/example/prepare.js",
-    "build": "rm -rf dist && tsc -p tsconfig.json && tsc -p tsconfig.cloudflare.json && node dist/scripts/build-assets.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.cloudflare.json",
-    "test:example": "npm run build && node --test dist/test/integration/example.test.js",
-    "test:image": "npm run build && node --test dist/test/integration/image.test.js",
-    "test:capture": "npm run build && node --test dist/test/integration/capture.test.js",
-    "test:install": "npm run build && node --test dist/test/integration/install-tool.test.js",
-    "test:memory": "npm run build && node --test dist/test/integration/gateway-memory.test.js",
-    "test:startup": "npm run build && node --test dist/test/integration/startup.test.js",
-    "test:flows": "npm run build && node --test dist/test/integration/application-flows.test.js",
-    "test:media": "npm run build && node --test dist/test/integration/media-contracts.test.js",
-    "test:layers": "npm run build && node --test dist/test/integration/image-security.test.js",
-    "test:consumer": "npm run build && node --test dist/test/integration/consumer-build.test.js",
-    "test:worker-upload": "npm run build && node --test dist/test/integration/worker-upload.test.js"
+  "version": "0.0.0-SNAPSHOT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/renanfranca/enois-preview.git"
   },
-  "devDependencies": {
-    "@types/node": "24.19.2",
-    "esbuild": "0.28.2",
-    "miniflare": "5.20261023.3-beta",
-    "playwright": "1.64.1",
-    "typescript": "5.9.3",
-    "wrangler": "4.156.0"
-  },
-  "bin": {
-    "enois-preview": "dist/preview/cli.js"
-  },
-  "engines": {
-    "node": ">=24 <25"
-  },
-  "version": "0.4.0",
   "license": "GPL-3.0-only",
+  "type": "module",
   "exports": {
     "./cli": "./dist/preview/cli.js",
     "./worker": "./dist/src/worker.js"
   },
-  "dependencies": {
-    "tar": "7.5.22",
-    "tough-cookie": "6.0.2"
+  "bin": {
+    "enois-preview": "dist/preview/cli.js"
   },
   "files": [
     "dist",
-    "preview",
-    "shared",
-    "src",
-    "runtime",
+    "!dist/test",
     "recipe",
+    "runtime",
+    "src",
+    "shared",
     "example",
-    "scripts",
-    "test",
-    "docs",
-    "release",
-    "tsconfig.json",
-    "tsconfig.cloudflare.json",
-    "wrangler.jsonc",
-    "catalog/scenarios.json",
-    "TUTORIAL.md",
-    "VALIDATION.md",
-    ".nvmrc"
-  ]
+    "docs/pt-BR",
+    "docs/en",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json && tsc -p tsconfig.cloudflare.json && node dist/scripts/build-assets.js",
+    "check": "npm run build && wrangler deploy --dry-run",
+    "deploy": "npm run build && node dist/scripts/check-release.js && wrangler deploy",
+    "dev": "npm run build && wrangler dev",
+    "example:prepare": "npm run build && node dist/example/prepare.js",
+    "prepack": "npm run build",
+    "prepare": "husky",
+    "prettier:check": "prettier --check .",
+    "prettier:format": "prettier --write .",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "test:capture": "npm run build && node --test dist/test/integration/capture.test.js",
+    "test:consumer": "npm run build && node --test dist/test/integration/consumer-build.test.js",
+    "test:example": "npm run build && node --test dist/test/integration/example.test.js",
+    "test:flows": "npm run build && node --test dist/test/integration/application-flows.test.js",
+    "test:image": "npm run build && node --test dist/test/integration/image.test.js",
+    "test:layers": "npm run build && node --test dist/test/integration/image-security.test.js",
+    "test:media": "npm run build && node --test dist/test/integration/media-contracts.test.js",
+    "test:memory": "npm run build && node --test dist/test/integration/gateway-memory.test.js",
+    "test:package": "npm run build && node --test dist/test/package/package.test.js",
+    "test:release": "npm run build && node --test dist/test/release/*.test.js",
+    "test:startup": "npm run build && node --test dist/test/integration/startup.test.js",
+    "test:worker-upload": "npm run build && node --test dist/test/integration/worker-upload.test.js",
+    "test:workflows": "npm run build && node --test dist/test/workflows/*.test.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.cloudflare.json"
+  },
+  "dependencies": {
+    "playwright": "1.64.1",
+    "tar": "7.5.22",
+    "tough-cookie": "6.0.2",
+    "wrangler": "4.156.0"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4",
+    "@prettier/plugin-xml": "3.4.2",
+    "@semantic-release/exec": "7.1.0",
+    "@types/node": "24.19.2",
+    "conventional-changelog-conventionalcommits": "10.4.1",
+    "esbuild": "0.28.2",
+    "husky": "9.1.7",
+    "lint-staged": "17.6.0",
+    "miniflare": "5.20261023.3-beta",
+    "prettier": "3.9.10",
+    "prettier-plugin-gherkin": "4.0.0",
+    "prettier-plugin-java": "2.11.0",
+    "prettier-plugin-organize-imports": "4.3.0",
+    "prettier-plugin-packagejson": "3.0.2",
+    "semantic-release": "25.0.9",
+    "typescript": "5.9.3",
+    "yaml": "2.9.1"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
 }

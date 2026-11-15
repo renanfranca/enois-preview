@@ -29,4 +29,4 @@ Este guia descreve como um assistente deve ajudar o operador; ele não garante c
 
 ## Cadeia de ferramentas
 
-A cadeia própria é TypeScript: use Node 24.x (`>=24 <25`) e compile com `npm run build` após `npm ci --ignore-scripts`. Publicação e retomada registram se rodam de uma instalação verificada criada por `install-tool`; qualquer outra ferramenta roda com o aviso `unverified-tool` (veja [commit da ferramenta e `install.json`](CONCEPTS.md#commit-da-ferramenta-e-installjson)). O lançador privado também compila a dependência explicitamente e usa `launcher.ts`.
+A cadeia própria é TypeScript: use Node 24.x (`>=24 <25`) e compile com `npm run build` após `npm ci --ignore-scripts`. O operador instala a ferramenta com `npm install -g enois-preview` e cria a infraestrutura com `enois-preview setup`. Publicação e retomada registram a versão em execução como `toolVersion` (veja [versão da ferramenta e `toolVersion`](CONCEPTS.md#versão-da-ferramenta-e-toolversion)). O lançador privado depende do pacote npm publicado, usa `launcher.ts` e não compila a ferramenta.

@@ -73,6 +73,7 @@ Edições, com o mesmo conteúdo nos dois idiomas:
    - o porquê: `.invalid` é reservado (RFC 2606 e RFC 6761) e nunca resolve, então nenhum email enviado pela demo chega a uma pessoa e o login exibido no link público não expõe o email verdadeiro de ninguém.
 
    O item existente sobre `accounts` vazio passa a dizer também que, nesse caso, a ferramenta gera os logins `account1@enois.invalid`, `account2@enois.invalid` e assim por diante.
+
 2. Mesma receita, bloco "Se der errado" / "If it goes wrong": acrescentar a mensagem `Accounts require stable id, label and disposable @enois.invalid email.`, com a ação "troque o email da conta para `<algo>@enois.invalid`".
 3. `docs/pt-BR/CONCEPTS.md` e `docs/en/CONCEPTS.md`, entrada "Dados congelados e captura" / "Frozen data and capture", parágrafo da linha 65: depois de "só as contas selecionadas continuam com login" / "only the selected accounts keep a login", uma frase curta dizendo que esses logins usam emails inventados em `@enois.invalid`, com link para a receita 8 (`RECIPES.md#8-usar-meus-próprios-dados` em PT; confira o slug real do título em EN antes de linkar).
 
@@ -101,14 +102,14 @@ Validação: os comandos 5 e 6 de `Validation` com exit 0, mais a leitura das jo
 
 Para cada critério, o executor deve: (1) reconferir a expectativa contra a fonte citada; (2) rodar a verificação planejada; (3) registrar em `Progress` o comando, o resultado observado e onde está a evidência. Uma suíte verde sozinha não prova os critérios. Lacunas e critérios não verificados ficam registrados antes da entrega; nenhum deles pode ser dado como cumprido.
 
-| ID | Expectativa | Fonte | Verificação planejada | Evidência esperada |
-| --- | --- | --- | --- | --- |
-| A1 | Config com `author@example.com` é recusada com a mensagem exata | `shared/accounts.ts:7` | Teste de M1 | Asserção de `PreviewError` e mensagem; `node --test` exit 0 |
-| A2 | `author@enois.invalid` é aceito (controle) | `shared/accounts.ts:7` | Teste de M1, mais a prova de discriminação | O teste falha com o controle trocado e passa com ele restaurado |
-| A3 | O limite do teste de cancelamento é 15000 ms e o SIGKILL continua | Decisão 2 | Comandos de M2 | Um `timeout:15000` na linha 83; nenhum `timeout:2000` |
-| A4 | A suíte inteira passa: 118 testes, 0 fail, 0 skip | `package.json` `test` | Comando 3 | Linha de resumo do `node --test` |
-| A5 | A receita 8 PT e EN tem os cinco pontos de M3.1, a mensagem de M3.2, e cada afirmação bate com o código | Seção "Context and limits" | Ler os dois arquivos e comparar com `shared/accounts.ts:7`, `recipe/SeedTool.java:107-121` e `preview/cli.ts:22` | Lista dos pontos com as linhas de PT e EN |
-| A6 | CONCEPTS tem uma frase com link que resolve; nenhum outro guia repete a regra | Decisão 3 | Comandos 5 e 6; `grep -rn "enois.invalid" docs README.md TUTORIAL.md` | Exit 0; o grep só acha RECIPES (receita 8) e a frase do CONCEPTS |
+| ID  | Expectativa                                                                                             | Fonte                      | Verificação planejada                                                                                            | Evidência esperada                                               |
+| --- | ------------------------------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| A1  | Config com `author@example.com` é recusada com a mensagem exata                                         | `shared/accounts.ts:7`     | Teste de M1                                                                                                      | Asserção de `PreviewError` e mensagem; `node --test` exit 0      |
+| A2  | `author@enois.invalid` é aceito (controle)                                                              | `shared/accounts.ts:7`     | Teste de M1, mais a prova de discriminação                                                                       | O teste falha com o controle trocado e passa com ele restaurado  |
+| A3  | O limite do teste de cancelamento é 15000 ms e o SIGKILL continua                                       | Decisão 2                  | Comandos de M2                                                                                                   | Um `timeout:15000` na linha 83; nenhum `timeout:2000`            |
+| A4  | A suíte inteira passa: 118 testes, 0 fail, 0 skip                                                       | `package.json` `test`      | Comando 3                                                                                                        | Linha de resumo do `node --test`                                 |
+| A5  | A receita 8 PT e EN tem os cinco pontos de M3.1, a mensagem de M3.2, e cada afirmação bate com o código | Seção "Context and limits" | Ler os dois arquivos e comparar com `shared/accounts.ts:7`, `recipe/SeedTool.java:107-121` e `preview/cli.ts:22` | Lista dos pontos com as linhas de PT e EN                        |
+| A6  | CONCEPTS tem uma frase com link que resolve; nenhum outro guia repete a regra                           | Decisão 3                  | Comandos 5 e 6; `grep -rn "enois.invalid" docs README.md TUTORIAL.md`                                            | Exit 0; o grep só acha RECIPES (receita 8) e a frase do CONCEPTS |
 
 Jornadas para ler depois de M3:
 

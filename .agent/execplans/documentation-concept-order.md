@@ -14,6 +14,7 @@ A documentação para quem opera foi reorganizada no commit `fc06986` (plano `.a
 Esta passada segue a skill `restructure-documentation` (`~/.claude/skills/restructure-documentation/SKILL.md` e `references/documentation-roles.md`). Ela é limitada a três frentes: ordem dos conceitos, um dono por assunto e paridade pt-BR/en. **Não é outra reescrita.**
 
 **Sucesso (observável):**
+
 - Em cada documento de `README.md`, `docs/en/README.md`, `docs/{pt-BR,en}/{CONCEPTS,FLOW,RECIPES,TUTORIAL,LLM}.md`, a primeira menção a PR é "pull request (PR)", seguida da explicação "o pedido de revisão de código no GitHub" (en: "a code review request on GitHub") pelo menos no README e no CONCEPTS.
 - A primeira menção ao Énóis no README (pt e en) e no CONCEPTS traz a definição decidida pelo usuário (texto exato em `Decisions`). Nos outros guias, a primeira menção linka para a entrada do glossário.
 - Em `CONCEPTS.md` (pt e en), cada termo do glossário aparece pela primeira vez, inclusive no plural, na flexão e no texto de link, no próprio título `###` da sua definição ou depois dele.
@@ -59,18 +60,18 @@ Safety boundary: This task is limited to authorized, defensive maintenance of th
 
 Termos que esta passada ordena. Os que estão marcados como **novo** ganham entrada no glossário de CONCEPTS. Cada entrada nova segue o formato das existentes: definição, depois **Por que importa para você** (en: **Why it matters to you**).
 
-| Termo (pt / en) | Fonte da definição | Situação |
-|---|---|---|
-| Énóis | site enois.ia.br (acima) e `example/sources.json` | **novo**, junto com "As três aplicações" |
-| PR / pull request | conceito do GitHub: pedido de revisão de código | **novo** |
-| Operador e visitante | README atual ("quem abre o PR (o operador)"), `src/worker.ts` | **novo** |
-| CLI | `package.json` `bin.enois-preview` → `dist/preview/cli.js` | **novo** |
-| Codespace, Worker, Durable Object | entrada atual "Worker, Durable Object e Codespace"; `src/scenario.ts`, `src/worker.ts` | já existe; mover para o início do glossário |
-| GHCR | `preview/remote.ts` (etapa `registry`), `config.registry` em `preview/config.ts` | **novo** |
-| H2 | `config.database` e `config.h2Jar` em `preview/config.ts`; `preview/capture.ts` | **novo**, ou incorporado a "Dados congelados e captura" com o título intacto |
-| Sanitizar | `recipe/SeedTool.java` (`sanitize`), `preview/capture.ts` | incorporar a "Dados congelados e captura" |
-| devcontainer | `preview/remote.ts` (etapa `configuration`) | incorporar a "Lançador" |
-| Lançador, Cenário, Revisão, Journal, Lease, `restoration.json`, `toolCommit` e `install.json` | entradas atuais | já existem |
+| Termo (pt / en)                                                                               | Fonte da definição                                                                     | Situação                                                                     |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Énóis                                                                                         | site enois.ia.br (acima) e `example/sources.json`                                      | **novo**, junto com "As três aplicações"                                     |
+| PR / pull request                                                                             | conceito do GitHub: pedido de revisão de código                                        | **novo**                                                                     |
+| Operador e visitante                                                                          | README atual ("quem abre o PR (o operador)"), `src/worker.ts`                          | **novo**                                                                     |
+| CLI                                                                                           | `package.json` `bin.enois-preview` → `dist/preview/cli.js`                             | **novo**                                                                     |
+| Codespace, Worker, Durable Object                                                             | entrada atual "Worker, Durable Object e Codespace"; `src/scenario.ts`, `src/worker.ts` | já existe; mover para o início do glossário                                  |
+| GHCR                                                                                          | `preview/remote.ts` (etapa `registry`), `config.registry` em `preview/config.ts`       | **novo**                                                                     |
+| H2                                                                                            | `config.database` e `config.h2Jar` em `preview/config.ts`; `preview/capture.ts`        | **novo**, ou incorporado a "Dados congelados e captura" com o título intacto |
+| Sanitizar                                                                                     | `recipe/SeedTool.java` (`sanitize`), `preview/capture.ts`                              | incorporar a "Dados congelados e captura"                                    |
+| devcontainer                                                                                  | `preview/remote.ts` (etapa `configuration`)                                            | incorporar a "Lançador"                                                      |
+| Lançador, Cenário, Revisão, Journal, Lease, `restoration.json`, `toolCommit` e `install.json` | entradas atuais                                                                        | já existem                                                                   |
 
 ## Decisions
 
@@ -80,15 +81,14 @@ Termos que esta passada ordena. Os que estão marcados como **novo** ganham entr
 - **PR por extenso na primeira menção de cada documento, não só no README.** Razão: quem chega por um link de receita nunca leu o README.
 - **Dono de cada assunto** (critérios de `references/documentation-roles.md`: autoridade, adequação ao público, completude, estabilidade):
 
-  | Assunto | Dono | O que fica nos outros lugares |
-  |---|---|---|
-  | Diagrama "Onde roda o quê" e as 6 explicações | `FLOW.md#onde-roda-o-quê` (en `FLOW.md#where-things-run`) | README: a seção `## Onde roda o quê` (en `## Where things run`) mantém o título e a âncora, **sem o bloco Mermaid**. Ela fica com 3 a 5 frases em texto comum (sua máquina → GitHub e Cloudflare → Codespace → visitante) e termina numa linha própria, em negrito: "**[Veja o diagrama e o que cada parte faz em Fluxo](docs/pt-BR/FLOW.md#onde-roda-o-quê)**" (en: "**[See the diagram and what each part does in Flow](FLOW.md#where-things-run)**"). |
-  | Limites do visitante (contas compartilhadas, 20/256 MiB, semente, boot, 10 min, polling, disponibilidade das plataformas) | `RECIPES.md` receita 9 | README "Limites e custos": uma frase e um link. Mova antes para a receita 9 qualquer fato do README que ela ainda não tenha (por exemplo, "Disponibilidade e franquias das plataformas limitam essa proteção"). |
-  | Código vs dados (quando há captura) | `CONCEPTS.md#código-vs-dados` | README: uma frase e um link. |
-  | Custos, planos gratuitos, termos do Codespaces, licença | README | sem mudança |
-  | Resumo de uma frase | README (introdução) | CONCEPTS: a seção "Em uma frase" vai para **depois** do glossário, com o mesmo título. Ela passa a usar só termos já definidos. |
-  | Comandos de desenvolvimento (`npm run typecheck`, `npm test`…) | README, em seção própria "Desenvolver a ferramenta" (en "Developing the tool") antes de "Licença" | sai de "Requisitos", que fica só com o que o operador precisa |
-
+  | Assunto                                                                                                                   | Dono                                                                                              | O que fica nos outros lugares                                                                                                                                                                                                                                                                                                                                                                                                                            |
+  | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Diagrama "Onde roda o quê" e as 6 explicações                                                                             | `FLOW.md#onde-roda-o-quê` (en `FLOW.md#where-things-run`)                                         | README: a seção `## Onde roda o quê` (en `## Where things run`) mantém o título e a âncora, **sem o bloco Mermaid**. Ela fica com 3 a 5 frases em texto comum (sua máquina → GitHub e Cloudflare → Codespace → visitante) e termina numa linha própria, em negrito: "**[Veja o diagrama e o que cada parte faz em Fluxo](docs/pt-BR/FLOW.md#onde-roda-o-quê)**" (en: "**[See the diagram and what each part does in Flow](FLOW.md#where-things-run)**"). |
+  | Limites do visitante (contas compartilhadas, 20/256 MiB, semente, boot, 10 min, polling, disponibilidade das plataformas) | `RECIPES.md` receita 9                                                                            | README "Limites e custos": uma frase e um link. Mova antes para a receita 9 qualquer fato do README que ela ainda não tenha (por exemplo, "Disponibilidade e franquias das plataformas limitam essa proteção").                                                                                                                                                                                                                                          |
+  | Código vs dados (quando há captura)                                                                                       | `CONCEPTS.md#código-vs-dados`                                                                     | README: uma frase e um link.                                                                                                                                                                                                                                                                                                                                                                                                                             |
+  | Custos, planos gratuitos, termos do Codespaces, licença                                                                   | README                                                                                            | sem mudança                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+  | Resumo de uma frase                                                                                                       | README (introdução)                                                                               | CONCEPTS: a seção "Em uma frase" vai para **depois** do glossário, com o mesmo título. Ela passa a usar só termos já definidos.                                                                                                                                                                                                                                                                                                                          |
+  | Comandos de desenvolvimento (`npm run typecheck`, `npm test`…)                                                            | README, em seção própria "Desenvolver a ferramenta" (en "Developing the tool") antes de "Licença" | sai de "Requisitos", que fica só com o que o operador precisa                                                                                                                                                                                                                                                                                                                                                                                            |
   - **O diagrama sai do README nesta passada** (decidido pelo usuário em 11 de novembro de 2026, para avaliar o resultado):
     - O FLOW é o dono, porque tem o diagrama e as 6 explicações.
     - Alternativas consideradas:
@@ -97,6 +97,7 @@ Termos que esta passada ordena. Os que estão marcados como **novo** ganham entr
     - Consequência: o caminho até o FLOW precisa ser óbvio. Há três pontos de entrada no README: a linha em negrito na seção "Onde roda o quê", os links diretos na introdução (M2) e o mapa da documentação.
     - Recuperação: se o usuário quiser o diagrama de volta depois de ver o resultado, copie o primeiro bloco Mermaid do FLOW para a seção, com um comentário de cópia, e acrescente a checagem byte a byte.
   - **Links diretos para seções em vez de "Fluxo" genérico.** A frase da introdução do README ("O passo a passo de cada lado está em [Fluxo]…") passa a linkar `FLOW.md#o-que-acontece-no-publish` e `FLOW.md#o-que-acontece-quando-alguém-abre-o-link`. Em en: `#what-happens-during-publish` e `#what-happens-when-someone-opens-the-link`.
+
 - **Paridade:** cada mudança em pt-BR é espelhada em en no mesmo marco, com os mesmos títulos traduzidos e a mesma contagem de seções.
 
 ## Milestones
@@ -260,6 +261,7 @@ Rode na raiz do repositório. Os resultados esperados vêm entre parênteses.
 12. **Privacidade** (sem saída): `grep -rnE "/home/|@[a-z0-9.-]+\.(com|br)" README.md CHANGELOG.md docs/pt-BR docs/en`
 
 **Obrigações do executor antes de entregar:**
+
 - Confira cada explicação curta contra a fonte em `Definitions`, separadamente de conferir se os comandos passam.
 - Registre em `Progress` a evidência de cada critério (comando, resultado observado e arquivo ou linha) e as três jornadas do M4.
 - Registre qualquer lacuna como lacuna, por exemplo a renderização Mermaid, que só é conferida no PR. Não declare cumprido um critério com lacuna aberta.
